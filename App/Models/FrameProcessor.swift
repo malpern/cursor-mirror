@@ -53,29 +53,50 @@ class BasicFrameProcessor: NSObject, FrameProcessor, ObservableObject {
     /// Any error that occurred during processing
     @Published var error: Error?
     
+    /// Processing queue for handling frames off the main thread
+    private let processingQueue = DispatchQueue(label: "com.cursor-window.frame-processing", qos: .userInteractive)
+    
+    /// Throttling mechanism to limit UI updates
+    private var lastProcessTime = Date()
+    private let minimumProcessInterval: TimeInterval = 1.0 / 60.0 // Cap at 60fps for UI updates
+    
     /// Process a captured frame
     /// - Parameter sampleBuffer: The sample buffer containing the frame
     func processFrame(_ sampleBuffer: CMSampleBuffer) {
-        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-            handleError(CaptureError.frameProcessingFailed(NSError(domain: "com.cursor-window", code: 1001, userInfo: [NSLocalizedDescriptionKey: "Failed to get image buffer from sample buffer"])))
-            return
+        // Check if we should process this frame based on our throttling interval
+        let now = Date()
+        if now.timeIntervalSince(lastProcessTime) < minimumProcessInterval {
+            return // Skip this frame to maintain UI responsiveness
         }
         
-        // Create a CIImage from the CVPixelBuffer
-        let ciImage = CIImage(cvPixelBuffer: imageBuffer)
+        // Update last process time
+        lastProcessTime = now
         
-        // Create a CGImage from the CIImage
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
-            handleError(CaptureError.frameProcessingFailed(NSError(domain: "com.cursor-window", code: 1002, userInfo: [NSLocalizedDescriptionKey: "Failed to create CGImage from CIImage"])))
-            return
-        }
-        
-        let image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
-        
-        DispatchQueue.main.async {
-            self.latestImage = image
-            self.error = nil
+        // Process frame on background queue
+        processingQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                self.handleError(CaptureError.frameProcessingFailed(NSError(domain: "com.cursor-window", code: 1001, userInfo: [NSLocalizedDescriptionKey: "Failed to get image buffer from sample buffer"])))
+                return
+            }
+            
+            // Create a CIImage from the CVPixelBuffer
+            let ciImage = CIImage(cvPixelBuffer: imageBuffer)
+            
+            // Create a CGImage from the CIImage
+            let context = CIContext()
+            guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+                self.handleError(CaptureError.frameProcessingFailed(NSError(domain: "com.cursor-window", code: 1002, userInfo: [NSLocalizedDescriptionKey: "Failed to create CGImage from CIImage"])))
+                return
+            }
+            
+            let image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+            
+            DispatchQueue.main.async {
+                self.latestImage = image
+                self.error = nil
+            }
         }
     }
     
@@ -115,6 +136,9 @@ class FrameCaptureManager: NSObject, ObservableObject {
     /// The capture stream
     private var captureStream: SCStream?
     
+    /// The current filter update task
+    private var currentFilterUpdateTask: Task<Void, Error>?
+    
     /// Initializes a new frame capture manager
     /// - Parameters:
     ///   - contentFilter: The content filter to use for capture
@@ -133,7 +157,8 @@ class FrameCaptureManager: NSObject, ObservableObject {
         
         // Check screen recording permission
         do {
-            let content = try await SCShareableContent.current
+            // Just check if we can access SCShareableContent.current to verify permission
+            _ = try await SCShareableContent.current
             // If we get here, permission is granted
             // Continue with capture setup
         } catch {
@@ -203,14 +228,24 @@ class FrameCaptureManager: NSObject, ObservableObject {
     /// - Returns: A Task that completes when the filter update is done
     @discardableResult
     func updateContentFilter(_ filter: SCContentFilter) -> Task<Void, Error> {
+        // Cancel any ongoing filter update
+        currentFilterUpdateTask?.cancel()
+        
         self.contentFilter = filter
         
         // If we're capturing, restart with the new filter
         if isCapturing {
             stopCapture()
-            return Task {
+            
+            let task = Task {
                 do {
+                    // Check if the task was cancelled before starting capture
+                    try Task.checkCancellation()
+                    
                     try await startCapture()
+                } catch is CancellationError {
+                    // If cancelled, just return without error
+                    return
                 } catch {
                     DispatchQueue.main.async {
                         self.error = error
@@ -218,8 +253,15 @@ class FrameCaptureManager: NSObject, ObservableObject {
                     throw error
                 }
             }
+            
+            // Store the current task
+            currentFilterUpdateTask = task
+            return task
         } else {
-            return Task { }
+            // Create and return an empty task with the correct error type
+            let task = Task<Void, Error> { }
+            currentFilterUpdateTask = task
+            return task
         }
     }
     
@@ -234,6 +276,12 @@ class FrameCaptureManager: NSObject, ObservableObject {
         DispatchQueue.main.async {
             self.error = nil
         }
+    }
+    
+    deinit {
+        // Cancel any ongoing tasks when this object is deallocated
+        currentFilterUpdateTask?.cancel()
+        stopCapture()
     }
 }
 

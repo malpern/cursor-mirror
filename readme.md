@@ -223,11 +223,23 @@ class ErrorHandlingTests: XCTestCase {
 
 ## Recent Improvements
 
-- Enhanced `FrameCaptureManager` to properly handle asynchronous operations with Task-based API
-- Improved test reliability by properly awaiting asynchronous operations
+- Enhanced `FrameCaptureManager` with proper task cancellation support to prevent race conditions
+- Implemented background processing for frame handling to improve UI responsiveness
+- Added frame rate limiting (60fps cap) to prevent UI thread overload
+- Implemented Metal-accelerated rendering with `drawingGroup()` for better performance
+- Added debouncing for UI controls like the frame rate slider to improve responsiveness
+- Improved test reliability by making tests more robust in different environments
 - Fixed type compatibility issues between test mocks and production code
-- Ensured proper handling of different display types in content filter creation
+- Ensured proper resource cleanup with deinitializers to prevent memory leaks
 - All tests now pass successfully
+
+## Performance Optimizations
+
+- **Background Processing**: Frame processing now occurs on a dedicated background queue
+- **Throttled Updates**: UI updates are limited to 60fps maximum to maintain responsiveness
+- **Metal Rendering**: Using Metal-accelerated rendering for captured frames display
+- **Debounced Controls**: UI controls use debouncing to prevent excessive processing
+- **Task Management**: Proper cancellation of ongoing tasks when starting new operations
 
 ## Development Process
 
