@@ -66,8 +66,8 @@ class CaptureRegion: ObservableObject {
             return nil
         }
         
-        // Create a region-based filter
-        // Note: Some versions of ScreenCaptureKit don't support includingRegions
+        // For now, we'll just create a display filter
+        // In the future, we can implement region-based filtering when available
         return SCContentFilter(display: display, excludingWindows: [])
     }
 } 

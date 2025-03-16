@@ -67,12 +67,12 @@ flowchart LR
 - [x] 2.3.4. Add region update handling
 - [x] 2.3.5. Test region bounds validation
 
-#### 2.4 Frame Capture Pipeline (📅 Planned)
-- [ ] 2.4.1. Create FrameProcessor protocol
-- [ ] 2.4.2. Implement basic frame capture
-- [ ] 2.4.3. Write tests for frame capture
-- [ ] 2.4.4. Add frame rate control
-- [ ] 2.4.5. Test frame delivery performance
+#### 2.4 Frame Capture Pipeline (✅ Complete)
+- [x] 2.4.1. Create FrameProcessor protocol
+- [x] 2.4.2. Implement basic frame capture
+- [x] 2.4.3. Write tests for frame capture
+- [x] 2.4.4. Add frame rate control
+- [x] 2.4.5. Test frame delivery performance
 
 #### 2.5 Integration (📅 Planned)
 - [ ] 2.5.1. Connect capture manager to viewport
@@ -195,12 +195,15 @@ class CaptureRegionTests: XCTestCase {
 }
 ```
 
-#### Frame Tests (📅 Planned)
+#### Frame Tests (✅ Complete)
 ```swift
 class FrameCaptureTests: XCTestCase {
-    func testFrameCapture()
-    func testFrameRate()
-    func testFrameFormat()
+    func testInitialState()
+    func testFrameRateChange()
+    func testStartCapture()
+    func testStopCapture()
+    func testUpdateContentFilter()
+    func testSetFrameProcessor()
 }
 ```
 

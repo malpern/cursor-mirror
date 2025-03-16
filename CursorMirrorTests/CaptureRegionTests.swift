@@ -52,7 +52,7 @@ final class CaptureRegionTests: XCTestCase {
     
     func testRegionInScreenCoordinates() {
         // Create a mock display with a non-zero origin
-        let mockDisplay = MockDisplay(
+        let mockDisplay = TestMockDisplay(
             width: 1000,
             height: 800,
             frame: CGRect(x: 100, y: 200, width: 1000, height: 800)
@@ -75,7 +75,7 @@ final class CaptureRegionTests: XCTestCase {
     
     func testCreateFilter() {
         // Create a mock display
-        let mockDisplay = MockDisplay(
+        let mockDisplay = TestMockDisplay(
             width: 1000,
             height: 800,
             frame: CGRect(x: 0, y: 0, width: 1000, height: 800)
@@ -97,7 +97,7 @@ final class CaptureRegionTests: XCTestCase {
 }
 
 // Mock SCDisplay for testing
-class MockDisplay: SCDisplay {
+class TestMockDisplay: SCDisplay {
     let mockWidth: Int
     let mockHeight: Int
     let mockFrame: CGRect
