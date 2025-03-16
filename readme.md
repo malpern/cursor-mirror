@@ -78,7 +78,10 @@ flowchart LR
 - [x] 2.5.1. Connect capture manager to viewport
 - [x] 2.5.2. Implement capture preview
 - [x] 2.5.3. Write integration tests
-- [ ] 2.5.4. Add error handling
+- [x] 2.5.4. Add error handling
+  - [x] Custom `CaptureError` enum with user-friendly descriptions
+  - [x] Improved permission handling using `SCShareableContent.current`
+  - [x] Proper error propagation through the capture pipeline
 - [ ] 2.5.5. Test end-to-end capture flow
 
 ### 3. Video Encoding (📅 Planned)
@@ -204,6 +207,15 @@ class FrameCaptureTests: XCTestCase {
     func testStopCapture()
     func testUpdateContentFilter()
     func testSetFrameProcessor()
+}
+```
+
+#### Error Handling Tests (✅ Implemented)
+```swift
+class ErrorHandlingTests: XCTestCase {
+    func testCaptureErrorDescriptions()
+    func testFrameProcessorErrorHandling()
+    func testFrameCaptureManagerErrorHandling()
 }
 ```
 
