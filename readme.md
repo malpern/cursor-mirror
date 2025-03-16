@@ -276,6 +276,53 @@ class VideoFileWriterTests: XCTestCase {
 - Created a user interface for controlling video encoding settings
 - Added comprehensive test suite for video encoding components
 
+## Code Stabilization
+
+The following steps are required to fully stabilize the codebase:
+
+### 1. View Integration (🚧 In Progress)
+- [ ] 1.1. Fix `MainView` import issues
+  - [x] Created temporary placeholder `MainView` in `CursorWindowApp.swift`
+  - [ ] Properly import the actual `MainView` from `App/Views/MainView.swift`
+  - [ ] Resolve circular dependencies between view files
+- [ ] 1.2. Ensure proper module structure
+  - [ ] Review and fix project organization to ensure proper imports
+  - [ ] Consolidate duplicate code and remove redundancies
+  - [ ] Ensure consistent naming conventions across the codebase
+- [ ] 1.3. Implement proper view navigation
+  - [ ] Fix tab switching between Preview and Encoding modes
+  - [ ] Ensure proper state management between views
+
+### 2. Component Integration
+- [ ] 2.1. Connect `MainView` with required components
+  - [ ] Properly initialize `BasicFrameProcessor`
+  - [ ] Connect `H264VideoEncoder` to the frame processing pipeline
+  - [ ] Integrate `FrameCaptureManager` with the UI
+- [ ] 2.2. Ensure proper error handling in the UI
+  - [ ] Display meaningful error messages to users
+  - [ ] Implement graceful fallbacks for component failures
+  - [ ] Add logging for debugging purposes
+
+### 3. Testing & Validation
+- [ ] 3.1. Create UI tests for the integrated components
+  - [ ] Test tab switching behavior
+  - [ ] Validate encoding controls functionality
+  - [ ] Verify preview rendering
+- [ ] 3.2. Perform end-to-end testing
+  - [ ] Test the complete capture-to-encoding pipeline
+  - [ ] Verify file output functionality
+  - [ ] Measure performance metrics
+
+### 4. Documentation
+- [ ] 4.1. Update code documentation
+  - [ ] Add comprehensive comments to complex components
+  - [ ] Document the component interaction flow
+  - [ ] Create architecture diagrams for the view hierarchy
+- [ ] 4.2. Update user documentation
+  - [ ] Create usage guides for the encoding features
+  - [ ] Document known limitations and workarounds
+  - [ ] Provide troubleshooting steps for common issues
+
 ## Performance Optimizations
 
 - **Background Processing**: Frame processing now occurs on a dedicated background queue

@@ -2,15 +2,6 @@ import SwiftUI
 import ScreenCaptureKit
 import AVFoundation
 
-// Import our models
-@_exported import struct cursor_window.CapturePreview
-@_exported import class cursor_window.BasicFrameProcessor
-@_exported import class cursor_window.EncodingFrameProcessor
-@_exported import class cursor_window.H264VideoEncoder
-@_exported import class cursor_window.FrameCaptureManager
-@_exported import struct cursor_window.EncodingControlView
-@_exported import protocol cursor_window.FrameProcessor
-
 struct MainView: View {
     // We'll initialize these in onAppear to avoid import issues
     @State private var frameProcessor: EncodingFrameProcessor?

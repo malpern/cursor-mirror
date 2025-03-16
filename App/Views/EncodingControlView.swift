@@ -247,134 +247,92 @@ struct EncodingControlView: View {
                 height: dimensions.height,
                 frameRate: frameRate
             )
-            
             isEncoding = true
             encodingStartTime = Date()
-            
         } catch {
-            frameProcessor.handleError(error)
+            print("Failed to start encoding: \(error)")
         }
     }
     
     private func stopEncoding() {
-        frameProcessor.stopEncoding()
-        isEncoding = false
+        do {
+            try frameProcessor.stopEncoding()
+            isEncoding = false
+        } catch {
+            print("Failed to stop encoding: \(error)")
+        }
     }
     
     private func startRecording() {
-        do {
-            // Create a temporary file for the encoded video
-            let tempDir = FileManager.default.temporaryDirectory
-            let tempFile = tempDir.appendingPathComponent("temp_encoded_video_\(UUID().uuidString).mp4")
-            recordingURL = tempFile
-            
-            let dimensions = resolution.dimensions
-            try frameProcessor.startRecording(
-                to: tempFile,
-                width: dimensions.width,
-                height: dimensions.height,
-                frameRate: frameRate
-            )
-            
-            isRecording = true
-            encodingStartTime = Date()
-            
-        } catch {
-            frameProcessor.handleError(error)
+        showSavePanel = true
+        
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [UTType.mpeg4Movie]
+        savePanel.canCreateDirectories = true
+        savePanel.isExtensionHidden = false
+        savePanel.title = "Save Video As"
+        savePanel.message = "Choose a location to save the encoded video"
+        savePanel.nameFieldLabel = "File name:"
+        
+        if savePanel.runModal() == .OK, let url = savePanel.url {
+            do {
+                let dimensions = resolution.dimensions
+                try frameProcessor.startRecording(
+                    toFile: url,
+                    width: dimensions.width,
+                    height: dimensions.height,
+                    frameRate: frameRate
+                )
+                isRecording = true
+                encodingStartTime = Date()
+                recordingURL = url
+            } catch {
+                print("Failed to start recording: \(error)")
+            }
         }
     }
     
     private func stopRecording() async {
         do {
-            if let finalURL = try await frameProcessor.stopRecording() {
-                // Show save panel
-                showSavePanel = true
-                
-                // Use the system save panel
-                let savePanel = NSSavePanel()
-                savePanel.allowedContentTypes = [.mpeg4Movie]
-                savePanel.canCreateDirectories = true
-                savePanel.isExtensionHidden = false
-                savePanel.title = "Save Recorded Video"
-                savePanel.message = "Choose a location to save your recorded video"
-                savePanel.nameFieldLabel = "File name:"
-                savePanel.nameFieldStringValue = "recorded_video.mp4"
-                
-                let response = await savePanel.beginSheetModal(for: NSApp.keyWindow!)
-                
-                if response == .OK, let url = savePanel.url {
-                    // Copy the temporary file to the selected location
-                    try FileManager.default.copyItem(at: finalURL, to: url)
-                    
-                    // Delete the temporary file
-                    try? FileManager.default.removeItem(at: finalURL)
-                    
-                    // Update the saved URL
-                    savedVideoURL = url
-                    showingSavedAlert = true
-                }
+            try await frameProcessor.stopRecording()
+            isRecording = false
+            if let url = recordingURL {
+                savedVideoURL = url
+                showingSavedAlert = true
             }
         } catch {
-            frameProcessor.handleError(error)
+            print("Failed to stop recording: \(error)")
         }
-        
-        isRecording = false
     }
     
     private func resetStats() {
         encodedFrameCount = 0
         encodedDataSize = 0
         encodingStartTime = nil
-        frameProcessor.error = nil
-        savedVideoURL = nil
     }
     
-    private func formattedDuration(since startTime: Date) -> String {
-        let duration = Int(-startTime.timeIntervalSinceNow)
-        let hours = duration / 3600
-        let minutes = (duration % 3600) / 60
-        let seconds = duration % 60
-        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    private func formattedDuration(since date: Date) -> String {
+        let interval = Date().timeIntervalSince(date)
+        let minutes = Int(interval) / 60
+        let seconds = Int(interval) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
     }
     
-    private func formattedDataSize(_ size: Int64) -> String {
+    private func formattedDataSize(_ bytes: Int64) -> String {
         let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.allowedUnits = [.useKB, .useMB]
         formatter.countStyle = .file
-        return formatter.string(fromByteCount: size)
+        return formatter.string(fromByteCount: bytes)
     }
 }
 
-// Document type for file exporter
-struct EncodedVideoDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.mpeg4Movie] }
-    
-    var url: URL?
-    
-    init(url: URL?) {
-        self.url = url
-    }
-    
-    init(configuration: ReadConfiguration) throws {
-        url = nil
-    }
-    
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        guard let url = url, let data = try? Data(contentsOf: url) else {
-            throw CocoaError(.fileReadUnknown)
-        }
-        return FileWrapper(regularFileWithContents: data)
-    }
-}
-
+// Preview provider
 struct EncodingControlView_Previews: PreviewProvider {
     static var previews: some View {
-        EncodingControlView(
-            frameProcessor: EncodingFrameProcessor(
-                encoder: H264VideoEncoder(),
-                frameRate: 30
-            )
-        )
-        .frame(width: 500, height: 600)
+        // Create a mock frame processor for preview
+        let mockProcessor = EncodingFrameProcessor(encoder: H264VideoEncoder())
+        return EncodingControlView(frameProcessor: mockProcessor)
+            .frame(width: 600, height: 700)
+            .padding()
     }
 } 
