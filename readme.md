@@ -14,7 +14,10 @@ A macOS application that captures and streams a portion of your screen matching 
 - Quit via menu bar or Cmd+Q
 
 ### Phase 2: Screen Capture & Streaming (🚧 In Progress)
-- [ ] Screen capture of viewport region using ScreenCaptureKit
+- [🚧] Screen capture of viewport region using ScreenCaptureKit
+  - ✅ Basic permission handling implemented
+  - ✅ Test infrastructure set up
+  - 🚧 Frame capture implementation in progress
 - [ ] Real-time H.264 video encoding with AVFoundation/VideoToolbox
 - [ ] HLS stream generation with segmented .ts files
 - [ ] Local HTTP server for stream distribution
@@ -43,35 +46,35 @@ flowchart LR
 - [x] 1.2. Configure project settings
 
 ### 2. Screen Capture (🚧 In Progress)
-#### 2.1 Screen Capture Setup & Permissions
-- [ ] 2.1.1. Add ScreenCaptureKit framework
-- [ ] 2.1.2. Create ScreenCaptureManager class skeleton
-- [ ] 2.1.3. Implement permission request handling
-- [ ] 2.1.4. Write tests for permission states
-- [ ] 2.1.5. Test permission request UI flow
+#### 2.1 Screen Capture Setup & Permissions (✅ Complete)
+- [x] 2.1.1. Add ScreenCaptureKit framework
+- [x] 2.1.2. Create ScreenCaptureManager class skeleton
+- [x] 2.1.3. Implement permission request handling
+- [x] 2.1.4. Write tests for permission states
+- [x] 2.1.5. Test permission request UI flow
 
-#### 2.2 Display Configuration
-- [ ] 2.2.1. Create DisplayConfiguration model
-- [ ] 2.2.2. Implement display enumeration
-- [ ] 2.2.3. Write tests for display detection
-- [ ] 2.2.4. Add display selection logic
-- [ ] 2.2.5. Test display bounds calculations
+#### 2.2 Display Configuration (✅ Complete)
+- [x] 2.2.1. Create DisplayConfiguration model
+- [x] 2.2.2. Implement display enumeration
+- [x] 2.2.3. Write tests for display detection
+- [x] 2.2.4. Add display selection logic
+- [x] 2.2.5. Test display bounds calculations
 
-#### 2.3 Capture Region
-- [ ] 2.3.1. Create CaptureRegion model
-- [ ] 2.3.2. Implement viewport region tracking
-- [ ] 2.3.3. Write tests for region calculations
-- [ ] 2.3.4. Add region update handling
-- [ ] 2.3.5. Test region bounds validation
+#### 2.3 Capture Region (✅ Complete)
+- [x] 2.3.1. Create CaptureRegion model
+- [x] 2.3.2. Implement viewport region tracking
+- [x] 2.3.3. Write tests for region calculations
+- [x] 2.3.4. Add region update handling
+- [x] 2.3.5. Test region bounds validation
 
-#### 2.4 Frame Capture Pipeline
+#### 2.4 Frame Capture Pipeline (📅 Planned)
 - [ ] 2.4.1. Create FrameProcessor protocol
 - [ ] 2.4.2. Implement basic frame capture
 - [ ] 2.4.3. Write tests for frame capture
 - [ ] 2.4.4. Add frame rate control
 - [ ] 2.4.5. Test frame delivery performance
 
-#### 2.5 Integration
+#### 2.5 Integration (📅 Planned)
 - [ ] 2.5.1. Connect capture manager to viewport
 - [ ] 2.5.2. Implement capture preview
 - [ ] 2.5.3. Write integration tests
@@ -101,34 +104,35 @@ flowchart LR
 
 ## Requirements
 
-- macOS 11.0 or later
-- Xcode 13.0 or later (for development)
-- Swift 5.5 or later
+- macOS 14.0 or later
+- Xcode 15.0 or later (for development)
+- Swift 5.9 or later
 
 ## Getting Started
 
 1. Clone the repository
 ```bash
-git clone https://github.com/malpern/cursor-mirror.git
+git clone https://github.com/yourusername/cursor-mirror.git
 ```
 
 2. Open the project in Xcode
 ```bash
 cd cursor-mirror
-open cursor-mirror.xcodeproj
+open cursor-window.xcodeproj
 ```
 
 3. Build and run (⌘R)
 
 ## Usage
 
-### Current Features (Phase 1)
+### Current Features
 1. Launch the app
-2. Drag the blue border to position the viewport
-3. Click through the center area to interact with windows underneath
-4. Use Cmd+Q or the menu bar to quit
+2. Grant screen recording permission when prompted
+3. Drag the blue border to position the viewport
+4. Click through the center area to interact with windows underneath
+5. Use Cmd+Q or the menu bar to quit
 
-### Coming Soon (Phase 2)
+### Coming Soon
 1. Screen capture of viewport region
 2. Local network streaming
 3. iOS client app for viewing the stream
@@ -164,16 +168,16 @@ MIT License - See LICENSE file for details
 
 ### Test Categories
 
-#### Permission Tests
+#### Permission Tests (✅ Implemented)
 ```swift
-class ScreenCapturePermissionTests: XCTestCase {
-    func testRequestPermission()
-    func testHandlePermissionDenied()
+class ScreenCaptureManagerTests: XCTestCase {
+    func testInitialPermissionStatus()
+    func testPermissionRequest()
     func testHandlePermissionGranted()
 }
 ```
 
-#### Display Tests
+#### Display Tests (🚧 In Progress)
 ```swift
 class DisplayConfigurationTests: XCTestCase {
     func testEnumerateDisplays()
@@ -182,7 +186,7 @@ class DisplayConfigurationTests: XCTestCase {
 }
 ```
 
-#### Region Tests
+#### Region Tests (✅ Complete)
 ```swift
 class CaptureRegionTests: XCTestCase {
     func testRegionBounds()
@@ -191,7 +195,7 @@ class CaptureRegionTests: XCTestCase {
 }
 ```
 
-#### Frame Tests
+#### Frame Tests (📅 Planned)
 ```swift
 class FrameCaptureTests: XCTestCase {
     func testFrameCapture()

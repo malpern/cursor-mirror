@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import ScreenCaptureKit
 
 struct ViewportSize {
     static let width: CGFloat = 393
@@ -10,6 +11,7 @@ struct ViewportSize {
 
 struct DraggableViewport: View {
     @StateObject var viewportState = ViewportState()
+    @EnvironmentObject var screenCaptureManager: ScreenCaptureManager
     
     // Constants for the glow effect
     private let glowOpacity: Double = 0.8
@@ -19,6 +21,19 @@ struct DraggableViewport: View {
     
     var body: some View {
         ZStack {
+            // Permission request overlay if needed
+            if !screenCaptureManager.isScreenCapturePermissionGranted {
+                Button("Request Screen Capture Permission") {
+                    Task {
+                        await screenCaptureManager.requestPermission()
+                    }
+                }
+                .padding()
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+            
             // Invisible hit testing area that extends inside and outside
             RoundedRectangle(cornerRadius: ViewportSize.cornerRadius)
                 .fill(Color.clear)
@@ -107,54 +122,61 @@ final class ViewportState: ObservableObject {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow?
+    @MainActor private var screenCaptureManager: ScreenCaptureManager?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
         
-        // Create and configure window
-        if let screen = NSScreen.main {
-            // Create window that covers the entire screen
-            let window = NSWindow(
-                contentRect: screen.visibleFrame,
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
+        Task { @MainActor in
+            // Initialize the screen capture manager on the main actor
+            screenCaptureManager = ScreenCaptureManager()
             
-            // Make window transparent and borderless
-            window.backgroundColor = NSColor.clear
-            window.isOpaque = false
-            window.hasShadow = false
-            
-            // Set window level and behavior for proper app switching
-            window.level = NSWindow.Level.floating
-            
-            // Make window visible in all spaces and allow proper app switching
-            window.collectionBehavior = [
-                NSWindow.CollectionBehavior.canJoinAllSpaces,
-                NSWindow.CollectionBehavior.fullScreenAuxiliary,
-                NSWindow.CollectionBehavior.participatesInCycle
-            ]
-            
-            // Create the SwiftUI view
-            let contentView = DraggableViewport()
-                .background(Color.clear)
-            
-            // Create the NSHostingView with click-through background
-            let hostingView = NSHostingView(rootView: contentView)
-            hostingView.frame = screen.visibleFrame
-            
-            // Enable mouse moved events for better interaction
-            window.acceptsMouseMovedEvents = true
-            
-            // Set the content view
-            window.contentView = hostingView
-            
-            // Store window reference
-            self.window = window
-            
-            // Show the window
-            window.makeKeyAndOrderFront(self)
+            // Create and configure window
+            if let screen = NSScreen.main {
+                // Create window that covers the entire screen
+                let window = NSWindow(
+                    contentRect: screen.visibleFrame,
+                    styleMask: [.borderless],
+                    backing: .buffered,
+                    defer: false
+                )
+                
+                // Make window transparent and borderless
+                window.backgroundColor = NSColor.clear
+                window.isOpaque = false
+                window.hasShadow = false
+                
+                // Set window level and behavior for proper app switching
+                window.level = NSWindow.Level.floating
+                
+                // Make window visible in all spaces and allow proper app switching
+                window.collectionBehavior = [
+                    NSWindow.CollectionBehavior.canJoinAllSpaces,
+                    NSWindow.CollectionBehavior.fullScreenAuxiliary,
+                    NSWindow.CollectionBehavior.participatesInCycle
+                ]
+                
+                // Create the SwiftUI view
+                let contentView = DraggableViewport()
+                    .background(Color.clear)
+                    .environmentObject(screenCaptureManager!)
+                
+                // Create the NSHostingView with click-through background
+                let hostingView = NSHostingView(rootView: contentView)
+                hostingView.frame = screen.visibleFrame
+                
+                // Enable mouse moved events for better interaction
+                window.acceptsMouseMovedEvents = true
+                
+                // Set the content view
+                window.contentView = hostingView
+                
+                // Store window reference
+                self.window = window
+                
+                // Show the window
+                window.makeKeyAndOrderFront(self)
+            }
         }
     }
     
@@ -177,10 +199,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-struct CursorMirrorApp: App {
+struct CursorWindowApp: App {
+    @MainActor @State private var screenCaptureManager: ScreenCaptureManager?
+    
     var body: some Scene {
         WindowGroup {
-            Color.clear
+            if let manager = screenCaptureManager {
+                DraggableViewport()
+                    .environmentObject(manager)
+            } else {
+                Color.clear
+                    .task {
+                        // Initialize screen capture manager
+                        screenCaptureManager = ScreenCaptureManager()
+                    }
+            }
         }
     }
+}
+
+struct ContentView: View {
+    var body: some View {
+        Text("Hello, World!")
+    }
 } 
+
