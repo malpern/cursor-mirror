@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:cursor-window}",
+            "name": "Debug CursorWindow",
+            "program": "${workspaceFolder:cursor-window}/.build/debug/CursorWindow",
+            "preLaunchTask": "swift: Build Debug CursorWindow"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:cursor-window}",
+            "name": "Release CursorWindow",
+            "program": "${workspaceFolder:cursor-window}/.build/release/CursorWindow",
+            "preLaunchTask": "swift: Build Release CursorWindow"
+        }
+    ]
+}
