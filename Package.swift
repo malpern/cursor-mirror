@@ -27,7 +27,10 @@ let package = Package(
             name: "CursorWindow",
             dependencies: ["CursorWindowCore"]),
         .testTarget(
+            name: "CursorWindowCoreTests",
+            dependencies: ["CursorWindowCore"]),
+        .testTarget(
             name: "CursorWindowTests",
-            dependencies: ["CursorWindowCore"])
+            dependencies: ["CursorWindow", "CursorWindowCore"])
     ]
 )
