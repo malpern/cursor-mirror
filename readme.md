@@ -251,6 +251,20 @@ class VideoFileWriterTests: XCTestCase {
     func testCancelWriting()
 }
 
+### UI Tests (✅ Complete)
+- [x] DraggableViewport UI Tests
+  - Initial state verification
+  - Dragging behavior
+  - Screen boundary constraints
+  - Keyboard shortcuts
+  - Menu bar interactions
+- [x] MainView UI Tests
+  - Tab view functionality
+  - Encoding controls
+  - Settings adjustments
+  - Permission handling
+  - Preview controls
+
 ## Development Roadmap
 
 ### 1. Project Setup (✅ Complete)
