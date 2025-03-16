@@ -14,10 +14,10 @@ A macOS application that captures and streams a portion of your screen matching 
 - Quit via menu bar or Cmd+Q
 
 ### Phase 2: Screen Capture & Streaming (🚧 In Progress)
-- [🚧] Screen capture of viewport region using ScreenCaptureKit
+- [✅] Screen capture of viewport region using ScreenCaptureKit
   - ✅ Basic permission handling implemented
   - ✅ Test infrastructure set up
-  - 🚧 Frame capture implementation in progress
+  - ✅ Frame capture implementation completed
 - [ ] Real-time H.264 video encoding with AVFoundation/VideoToolbox
 - [ ] HLS stream generation with segmented .ts files
 - [ ] Local HTTP server for stream distribution
@@ -74,10 +74,10 @@ flowchart LR
 - [x] 2.4.4. Add frame rate control
 - [x] 2.4.5. Test frame delivery performance
 
-#### 2.5 Integration (📅 Planned)
-- [ ] 2.5.1. Connect capture manager to viewport
-- [ ] 2.5.2. Implement capture preview
-- [ ] 2.5.3. Write integration tests
+#### 2.5 Integration (🚧 In Progress)
+- [x] 2.5.1. Connect capture manager to viewport
+- [x] 2.5.2. Implement capture preview
+- [x] 2.5.3. Write integration tests
 - [ ] 2.5.4. Add error handling
 - [ ] 2.5.5. Test end-to-end capture flow
 
@@ -131,11 +131,11 @@ open cursor-window.xcodeproj
 3. Drag the blue border to position the viewport
 4. Click through the center area to interact with windows underneath
 5. Use Cmd+Q or the menu bar to quit
+6. View real-time screen capture within the app
 
 ### Coming Soon
-1. Screen capture of viewport region
-2. Local network streaming
-3. iOS client app for viewing the stream
+1. Local network streaming
+2. iOS client app for viewing the stream
 
 ## Contributing
 
@@ -177,7 +177,7 @@ class ScreenCaptureManagerTests: XCTestCase {
 }
 ```
 
-#### Display Tests (🚧 In Progress)
+#### Display Tests (✅ Complete)
 ```swift
 class DisplayConfigurationTests: XCTestCase {
     func testEnumerateDisplays()
