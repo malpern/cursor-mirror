@@ -1,58 +1,116 @@
-# Draggable Viewport iOS App
+# Cursor Mirror
 
-This SwiftUI project implements a draggable blue viewport with fixed dimensions (393 x 852 points) that can be moved around the screen. The viewport currently displays placeholder content, but is designed to be easily updated to integrate streaming content in the future.
+A macOS application that captures and streams a portion of your screen matching the iPhone 15 Pro dimensions. Perfect for screen recordings, presentations, or development workflows where you need to mirror content to iOS devices.
 
-## Features
+## Project Status
 
-- Fixed-size viewport (393 x 852 points, matching iPhone 15 Pro dimensions)
-- Smooth drag functionality to reposition the viewport
-- Bounds checking to keep the viewport on-screen
-- Reset button to return the viewport to center position
-- Position coordinates display for debugging purposes
+### Phase 1: Viewport UI (✅ Completed)
+- Draggable viewport with iPhone 15 Pro dimensions (393x852 pixels)
+- Blue border with glow effect for visibility
+- Large hit area for easy dragging (60px inside and outside)
+- Stays on top but allows interaction with windows underneath
+- Works across all spaces and full-screen apps
+- Proper app switching support (Cmd+Tab)
+- Quit via menu bar or Cmd+Q
 
-## Project Structure
+### Phase 2: Screen Capture & Streaming (🚧 In Progress)
+- [ ] Screen capture of viewport region using ScreenCaptureKit
+- [ ] Real-time H.264 video encoding with AVFoundation/VideoToolbox
+- [ ] HLS stream generation with segmented .ts files
+- [ ] Local HTTP server for stream distribution
+- [ ] iOS client app for stream playback
 
-- `DraggableViewportApp.swift`: The main app entry point
-- `ContentView.swift`: The main view that hosts the draggable viewport
-- `DraggableViewport.swift`: The implementation of the draggable viewport component
+## Architecture
 
-## How to Use
-
-1. Clone or download the project
-2. Open the project in Xcode
-3. Build and run the app on an iOS simulator or device
-4. Drag the blue viewport around to reposition it
-5. Use the "Reset Position" button to return to the center
-
-## Integrating Streaming Content
-
-To replace the placeholder with actual streaming content:
-
-1. Open `DraggableViewport.swift`
-2. Find the overlay section with the "Stream goes here" text
-3. Replace this placeholder with your streaming view component
-4. Make sure your streaming content respects the viewport dimensions
-
-Example:
-
-```swift
-.overlay(
-    // Replace this with your streaming content
-    YourStreamingView()
-        .frame(width: viewportWidth, height: viewportHeight)
-        .clipped()
-)
+```mermaid
+flowchart LR
+    A[Screen Capture (ScreenCaptureKit)]
+    B[Video Encoder (AVFoundation/VideoToolbox)]
+    C[HLS Segmentation (AVAssetWriter)]
+    D[HTTP Server (Vapor/Custom)]
+    E[iOS Client (AVPlayer)]
+    
+    A --> B
+    B --> C
+    C --> D
+    D --> E
 ```
+
+## Development Roadmap
+
+### 1. Project Setup (✅ Complete)
+- [x] 1.1. Create macOS Xcode project
+- [x] 1.2. Configure project settings
+
+### 2. Screen Capture (🚧 In Progress)
+- [ ] 2.1. Integrate ScreenCaptureKit
+- [ ] 2.2. Implement screen source selection
+- [ ] 2.3. Configure viewport region capture
+- [ ] 2.4. Test capture functionality
+
+### 3. Video Encoding (📅 Planned)
+- [ ] 3.1. Setup AVFoundation/VideoToolbox pipeline
+- [ ] 3.2. Implement H.264 encoding
+- [ ] 3.3. Test encoding performance
+
+### 4. HLS Implementation (📅 Planned)
+- [ ] 4.1. Implement video segmentation
+- [ ] 4.2. Generate M3U8 playlists
+- [ ] 4.3. Test segment generation
+
+### 5. HTTP Server (📅 Planned)
+- [ ] 5.1. Setup lightweight HTTP server
+- [ ] 5.2. Configure static file serving
+- [ ] 5.3. Test network accessibility
+
+### 6. Integration & Testing (📅 Planned)
+- [ ] 6.1. End-to-end testing
+- [ ] 6.2. Performance optimization
+- [ ] 6.3. Error handling
+- [ ] 6.4. iOS client testing
 
 ## Requirements
 
-- iOS 15.0+
-- Xcode 13.0+
-- Swift 5.5+
+- macOS 11.0 or later
+- Xcode 13.0 or later (for development)
+- Swift 5.5 or later
 
-## Future Improvements
+## Getting Started
 
-- Add zoom functionality
-- Implement smooth animations during viewport transitions
-- Add rotation gesture support
-- Enhance with picture-in-picture capabilities
+1. Clone the repository
+```bash
+git clone https://github.com/malpern/cursor-mirror.git
+```
+
+2. Open the project in Xcode
+```bash
+cd cursor-mirror
+open cursor-mirror.xcodeproj
+```
+
+3. Build and run (⌘R)
+
+## Usage
+
+### Current Features (Phase 1)
+1. Launch the app
+2. Drag the blue border to position the viewport
+3. Click through the center area to interact with windows underneath
+4. Use Cmd+Q or the menu bar to quit
+
+### Coming Soon (Phase 2)
+1. Screen capture of viewport region
+2. Local network streaming
+3. iOS client app for viewing the stream
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+MIT License - See LICENSE file for details
