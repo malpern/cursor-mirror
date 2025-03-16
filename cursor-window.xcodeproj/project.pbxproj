@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8626E7782D8746D40014A5DC /* DisplayConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8626E76F2D8746D40014A5DC /* DisplayConfiguration.swift */; };
+		8626E7792D8746D40014A5DC /* ScreenCaptureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8626E7762D8746D40014A5DC /* ScreenCaptureManager.swift */; };
+		8626E77A2D8746D40014A5DC /* CursorWindowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8626E7742D8746D40014A5DC /* CursorWindowApp.swift */; };
+		8626E77B2D8746D40014A5DC /* CaptureRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8626E76E2D8746D40014A5DC /* CaptureRegion.swift */; };
+		8626E77C2D8746D40014A5DC /* CapturePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8626E7722D8746D40014A5DC /* CapturePreview.swift */; };
+		8626E77D2D8746D40014A5DC /* FrameProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8626E7702D8746D40014A5DC /* FrameProcessor.swift */; };
+		8626E77E2D8746D40014A5DC /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8626E7752D8746D40014A5DC /* main.swift */; };
 		86FD683D2D8704F400E14F5D /* ScreenCaptureKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86FD683C2D8704F400E14F5D /* ScreenCaptureKit.framework */; };
 		86FD68432D87097300E14F5D /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86FD68422D87097300E14F5D /* XCTest.framework */; };
 /* End PBXBuildFile section */
@@ -34,6 +41,13 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		8626E76E2D8746D40014A5DC /* CaptureRegion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureRegion.swift; sourceTree = "<group>"; };
+		8626E76F2D8746D40014A5DC /* DisplayConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayConfiguration.swift; sourceTree = "<group>"; };
+		8626E7702D8746D40014A5DC /* FrameProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameProcessor.swift; sourceTree = "<group>"; };
+		8626E7722D8746D40014A5DC /* CapturePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePreview.swift; sourceTree = "<group>"; };
+		8626E7742D8746D40014A5DC /* CursorWindowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorWindowApp.swift; sourceTree = "<group>"; };
+		8626E7752D8746D40014A5DC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		8626E7762D8746D40014A5DC /* ScreenCaptureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureManager.swift; sourceTree = "<group>"; };
 		86BBB90F2D868049007A1C74 /* cursor-window.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "cursor-window.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		86FD68322D87034200E14F5D /* CursorMirrorTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CursorMirrorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		86FD683C2D8704F400E14F5D /* ScreenCaptureKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ScreenCaptureKit.framework; path = System/Library/Frameworks/ScreenCaptureKit.framework; sourceTree = SDKROOT; };
@@ -42,11 +56,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		86BBB9112D868049007A1C74 /* cursor-window */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "cursor-window";
-			sourceTree = "<group>";
-		};
 		86FD68332D87034200E14F5D /* CursorMirrorTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = CursorMirrorTests;
@@ -81,10 +90,40 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		8626E7712D8746D40014A5DC /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				8626E76E2D8746D40014A5DC /* CaptureRegion.swift */,
+				8626E76F2D8746D40014A5DC /* DisplayConfiguration.swift */,
+				8626E7702D8746D40014A5DC /* FrameProcessor.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		8626E7732D8746D40014A5DC /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				8626E7722D8746D40014A5DC /* CapturePreview.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		8626E7772D8746D40014A5DC /* App */ = {
+			isa = PBXGroup;
+			children = (
+				8626E7712D8746D40014A5DC /* Models */,
+				8626E7732D8746D40014A5DC /* Views */,
+				8626E7742D8746D40014A5DC /* CursorWindowApp.swift */,
+				8626E7752D8746D40014A5DC /* main.swift */,
+				8626E7762D8746D40014A5DC /* ScreenCaptureManager.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
 		86BBB9062D868049007A1C74 = {
 			isa = PBXGroup;
 			children = (
-				86BBB9112D868049007A1C74 /* cursor-window */,
+				8626E7772D8746D40014A5DC /* App */,
 				86FD68332D87034200E14F5D /* CursorMirrorTests */,
 				86FD683B2D8704F400E14F5D /* Frameworks */,
 				86BBB9102D868049007A1C74 /* Products */,
@@ -124,9 +163,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				86BBB9112D868049007A1C74 /* cursor-window */,
 			);
 			name = "cursor-window";
 			packageProductDependencies = (
@@ -242,6 +278,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8626E7782D8746D40014A5DC /* DisplayConfiguration.swift in Sources */,
+				8626E7792D8746D40014A5DC /* ScreenCaptureManager.swift in Sources */,
+				8626E77A2D8746D40014A5DC /* CursorWindowApp.swift in Sources */,
+				8626E77B2D8746D40014A5DC /* CaptureRegion.swift in Sources */,
+				8626E77C2D8746D40014A5DC /* CapturePreview.swift in Sources */,
+				8626E77D2D8746D40014A5DC /* FrameProcessor.swift in Sources */,
+				8626E77E2D8746D40014A5DC /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
