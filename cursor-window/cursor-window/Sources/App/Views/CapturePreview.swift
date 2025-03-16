@@ -1,6 +1,5 @@
 import SwiftUI
 import ScreenCaptureKit
-import cursor_window
 
 /// A view that displays captured frames
 struct CapturePreview: View {
