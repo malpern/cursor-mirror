@@ -28,96 +28,34 @@ A macOS application that captures and streams a portion of your screen matching 
 - [ ] Local HTTP server for stream distribution
 - [ ] iOS client app for stream playback
 
-## Architecture
+## Recent Improvements
 
-```mermaid
-flowchart LR
-    A[Screen Capture (ScreenCaptureKit)]
-    B[Video Encoder (AVFoundation/VideoToolbox)]
-    C[HLS Segmentation (AVAssetWriter)]
-    D[HTTP Server (Vapor/Custom)]
-    E[iOS Client (AVPlayer)]
-    
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-```
+### Code Stabilization (✅ Complete)
+- [x] Reorganized project into proper Swift package structure
+  - Core functionality in `CursorWindowCore` module
+  - App-specific code in `CursorWindow` module
+- [x] Improved concurrency handling
+  - Added proper actor isolation for frame processing
+  - Implemented thread-safe screen capture management
+  - Fixed Swift 6 concurrency warnings
+- [x] Enhanced permission handling
+  - Streamlined screen capture permission flow
+  - Added proper error handling and user feedback
+- [x] Refactored view models
+  - Proper dependency injection using environment
+  - Clear separation of concerns
+  - Thread-safe state management
+- [x] Fixed all build issues and warnings
+  - Resolved circular dependencies
+  - Proper module imports
+  - Clean build with no warnings
 
-## Development Roadmap
-
-### 1. Project Setup (✅ Complete)
-- [x] 1.1. Create macOS Xcode project
-- [x] 1.2. Configure project settings
-
-### 2. Screen Capture (✅ Complete)
-#### 2.1 Screen Capture Setup & Permissions (✅ Complete)
-- [x] 2.1.1. Add ScreenCaptureKit framework
-- [x] 2.1.2. Create ScreenCaptureManager class skeleton
-- [x] 2.1.3. Implement permission request handling
-- [x] 2.1.4. Write tests for permission states
-- [x] 2.1.5. Test permission request UI flow
-
-#### 2.2 Display Configuration (✅ Complete)
-- [x] 2.2.1. Create DisplayConfiguration model
-- [x] 2.2.2. Implement display enumeration
-- [x] 2.2.3. Write tests for display detection
-- [x] 2.2.4. Add display selection logic
-- [x] 2.2.5. Test display bounds calculations
-
-#### 2.3 Capture Region (✅ Complete)
-- [x] 2.3.1. Create CaptureRegion model
-- [x] 2.3.2. Implement viewport region tracking
-- [x] 2.3.3. Write tests for region calculations
-- [x] 2.3.4. Add region update handling
-- [x] 2.3.5. Test region bounds validation
-
-#### 2.4 Frame Capture Pipeline (✅ Complete)
-- [x] 2.4.1. Create FrameProcessor protocol
-- [x] 2.4.2. Implement basic frame capture
-- [x] 2.4.3. Write tests for frame capture
-- [x] 2.4.4. Add frame rate control
-- [x] 2.4.5. Test frame delivery performance
-
-#### 2.5 Integration (✅ Complete)
-- [x] 2.5.1. Connect capture manager to viewport
-- [x] 2.5.2. Implement capture preview
-- [x] 2.5.3. Write integration tests
-- [x] 2.5.4. Add error handling
-  - [x] Custom `CaptureError` enum with user-friendly descriptions
-  - [x] Improved permission handling using `SCShareableContent.current`
-  - [x] Proper error propagation through the capture pipeline
-- [x] 2.5.5. Test end-to-end capture flow
-
-### 3. Video Encoding (✅ Complete)
-- [x] 3.1. Setup AVFoundation/VideoToolbox pipeline
-  - [x] Create `VideoEncoder` protocol and H.264 implementation
-  - [x] Implement pixel format conversion
-  - [x] Add configuration options for bitrate and profile
-- [x] 3.2. Implement H.264 encoding
-  - [x] Create `EncodingFrameProcessor` to handle frame encoding
-  - [x] Implement video file writing with `VideoFileWriter`
-  - [x] Add UI controls for encoding settings
-- [x] 3.3. Test encoding performance
-  - [x] Unit tests for encoder components
-  - [x] Integration tests for the encoding pipeline
-  - [x] Performance testing with various frame rates
-
-### 4. HLS Implementation (📅 Planned)
-- [ ] 4.1. Implement video segmentation
-- [ ] 4.2. Generate M3U8 playlists
-- [ ] 4.3. Test segment generation
-
-### 5. HTTP Server (📅 Planned)
-- [ ] 5.1. Setup lightweight HTTP server
-- [ ] 5.2. Configure static file serving
-- [ ] 5.3. Test network accessibility
-
-### 6. Integration & Testing (📅 Planned)
-- [ ] 6.1. End-to-end testing
-- [ ] 6.2. Performance optimization
-- [ ] 6.3. Error handling
-- [ ] 6.4. iOS client testing
+### Architecture Updates
+- Implemented actor-based frame processing for thread safety
+- Added proper protocol conformance with `@preconcurrency` support
+- Enhanced view model isolation with `nonisolated` properties
+- Improved state management in the main app
+- Added proper error handling throughout the capture pipeline
 
 ## Requirements
 
@@ -135,22 +73,37 @@ git clone https://github.com/yourusername/cursor-mirror.git
 2. Open the project in Xcode
 ```bash
 cd cursor-mirror
-open cursor-window.xcodeproj
+open Package.swift
 ```
 
 3. Build and run (⌘R)
 
+## Project Structure
+
+```
+Sources/
+├── CursorWindowCore/           # Core functionality module
+│   ├── SharedTypes.swift       # Shared protocols and types
+│   ├── ScreenCaptureManager.swift
+│   ├── BasicFrameProcessor.swift
+│   └── H264VideoEncoder.swift
+└── CursorWindow/              # Main app module
+    ├── CursorWindowApp.swift
+    ├── AppDelegate.swift
+    └── Views/
+        ├── MainView.swift
+        └── DraggableViewport.swift
+```
+
 ## Usage
 
-### Current Features
 1. Launch the app
 2. Grant screen recording permission when prompted
-3. Drag the blue border to position the viewport
-4. Click through the center area to interact with windows underneath
-5. Use Cmd+Q or the menu bar to quit
-6. View real-time screen capture within the app
+3. Use the draggable viewport to select the area you want to capture
+4. Switch between Preview and Encoding tabs to control capture settings
+5. Start/stop recording or streaming as needed
 
-### Coming Soon
+## Coming Soon
 1. Local network streaming
 2. iOS client app for viewing the stream
 
@@ -260,82 +213,80 @@ class VideoFileWriterTests: XCTestCase {
     func testCancelWriting()
 }
 
-## Recent Improvements
+## Development Roadmap
 
-- Fixed build issues by removing non-existent module imports
-- Implemented temporary placeholder for video encoding view
-- Removed unnecessary initialization code that was causing circular dependencies
-- Successfully built the project with a stable codebase
-- Enhanced `FrameCaptureManager` with proper task cancellation support to prevent race conditions
-- Implemented background processing for frame handling to improve UI responsiveness
-- Added frame rate limiting (60fps cap) to prevent UI thread overload
-- Implemented Metal-accelerated rendering with `drawingGroup()` for better performance
-- Added debouncing for UI controls like the frame rate slider to improve responsiveness
-- Improved test reliability by making tests more robust in different environments
-- Fixed type compatibility issues between test mocks and production code
-- Ensured proper resource cleanup with deinitializers to prevent memory leaks
-- All tests now pass successfully
-- Added H.264 video encoding with AVFoundation/VideoToolbox
-- Implemented video file saving functionality
-- Created a user interface for controlling video encoding settings
-- Added comprehensive test suite for video encoding components
+### 1. Project Setup (✅ Complete)
+- [x] 1.1. Create macOS Xcode project
+- [x] 1.2. Configure project settings
 
-## Code Stabilization
+### 2. Screen Capture (✅ Complete)
+#### 2.1 Screen Capture Setup & Permissions (✅ Complete)
+- [x] 2.1.1. Add ScreenCaptureKit framework
+- [x] 2.1.2. Create ScreenCaptureManager class skeleton
+- [x] 2.1.3. Implement permission request handling
+- [x] 2.1.4. Write tests for permission states
+- [x] 2.1.5. Test permission request UI flow
 
-The following steps are required to fully stabilize the codebase:
+#### 2.2 Display Configuration (✅ Complete)
+- [x] 2.2.1. Create DisplayConfiguration model
+- [x] 2.2.2. Implement display enumeration
+- [x] 2.2.3. Write tests for display detection
+- [x] 2.2.4. Add display selection logic
+- [x] 2.2.5. Test display bounds calculations
 
-### 1. View Integration (🚧 In Progress)
-- [ ] 1.1. Fix `MainView` import issues
-  - [x] Created temporary placeholder `MainView` in `CursorWindowApp.swift`
-  - [x] Fixed build issues by removing non-existent module imports
-  - [x] Implemented temporary placeholder for video encoding view
-  - [ ] Properly import the actual `MainView` from `App/Views/MainView.swift`
-  - [ ] Resolve circular dependencies between view files
-- [ ] 1.2. Ensure proper module structure
-  - [x] Fixed project organization to ensure proper imports
-  - [ ] Consolidate duplicate code and remove redundancies
-  - [ ] Ensure consistent naming conventions across the codebase
-- [ ] 1.3. Implement proper view navigation
-  - [ ] Fix tab switching between Preview and Encoding modes
-  - [ ] Ensure proper state management between views
+#### 2.3 Capture Region (✅ Complete)
+- [x] 2.3.1. Create CaptureRegion model
+- [x] 2.3.2. Implement viewport region tracking
+- [x] 2.3.3. Write tests for region calculations
+- [x] 2.3.4. Add region update handling
+- [x] 2.3.5. Test region bounds validation
 
-### 2. Component Integration
-- [ ] 2.1. Connect `MainView` with required components
-  - [ ] Properly initialize `BasicFrameProcessor`
-  - [ ] Connect `H264VideoEncoder` to the frame processing pipeline
-  - [ ] Integrate `FrameCaptureManager` with the UI
-- [ ] 2.2. Ensure proper error handling in the UI
-  - [ ] Display meaningful error messages to users
-  - [ ] Implement graceful fallbacks for component failures
-  - [ ] Add logging for debugging purposes
+#### 2.4 Frame Capture Pipeline (✅ Complete)
+- [x] 2.4.1. Create FrameProcessor protocol
+- [x] 2.4.2. Implement basic frame capture
+- [x] 2.4.3. Write tests for frame capture
+- [x] 2.4.4. Add frame rate control
+- [x] 2.4.5. Test frame delivery performance
 
-### 3. Testing & Validation
-- [ ] 3.1. Create UI tests for the integrated components
-  - [ ] Test tab switching behavior
-  - [ ] Validate encoding controls functionality
-  - [ ] Verify preview rendering
-- [ ] 3.2. Perform end-to-end testing
-  - [ ] Test the complete capture-to-encoding pipeline
-  - [ ] Verify file output functionality
-  - [ ] Measure performance metrics
+#### 2.5 Integration (✅ Complete)
+- [x] 2.5.1. Connect capture manager to viewport
+- [x] 2.5.2. Implement capture preview
+- [x] 2.5.3. Write integration tests
+- [x] 2.5.4. Add error handling
+  - [x] Custom `CaptureError` enum with user-friendly descriptions
+  - [x] Improved permission handling using `SCShareableContent.current`
+  - [x] Proper error propagation through the capture pipeline
+- [x] 2.5.5. Test end-to-end capture flow
 
-### 4. Documentation
-- [ ] 4.1. Update code documentation
-  - [ ] Add comprehensive comments to complex components
-  - [ ] Document the component interaction flow
-  - [ ] Create architecture diagrams for the view hierarchy
-- [ ] 4.2. Update user documentation
-  - [ ] Create usage guides for the encoding features
-  - [ ] Document known limitations and workarounds
-  - [ ] Provide troubleshooting steps for common issues
+### 3. Video Encoding (✅ Complete)
+- [x] 3.1. Setup AVFoundation/VideoToolbox pipeline
+  - [x] Create `VideoEncoder` protocol and H.264 implementation
+  - [x] Implement pixel format conversion
+  - [x] Add configuration options for bitrate and profile
+- [x] 3.2. Implement H.264 encoding
+  - [x] Create `EncodingFrameProcessor` to handle frame encoding
+  - [x] Implement video file writing with `VideoFileWriter`
+  - [x] Add UI controls for encoding settings
+- [x] 3.3. Test encoding performance
+  - [x] Unit tests for encoder components
+  - [x] Integration tests for the encoding pipeline
+  - [x] Performance testing with various frame rates
 
-## Performance Optimizations
+### 4. HLS Implementation (📅 Planned)
+- [ ] 4.1. Implement video segmentation
+- [ ] 4.2. Generate M3U8 playlists
+- [ ] 4.3. Test segment generation
 
-- **Background Processing**: Frame processing now occurs on a dedicated background queue
-- **Throttled Updates**: UI updates are limited to 60fps maximum to maintain responsiveness
-- **Metal Rendering**: Using Metal-accelerated rendering for captured frames display
-- **Debounced Controls**: UI controls use debouncing to prevent excessive processing
-- **Task Management**: Proper cancellation of ongoing tasks when starting new operations
+### 5. HTTP Server (📅 Planned)
+- [ ] 5.1. Setup lightweight HTTP server
+- [ ] 5.2. Configure static file serving
+- [ ] 5.3. Test network accessibility
+
+### 6. Integration & Testing (📅 Planned)
+- [ ] 6.1. End-to-end testing
+- [ ] 6.2. Performance optimization
+- [ ] 6.3. Error handling
+- [ ] 6.4. iOS client testing
 
 ## Development Process
 
@@ -349,3 +300,11 @@ The following steps are required to fully stabilize the codebase:
    - All tests must pass
    - No memory leaks
    - Performance metrics met
+
+## Performance Optimizations
+
+- **Background Processing**: Frame processing now occurs on a dedicated background queue
+- **Throttled Updates**: UI updates are limited to 60fps maximum to maintain responsiveness
+- **Metal Rendering**: Using Metal-accelerated rendering for captured frames display
+- **Debounced Controls**: UI controls use debouncing to prevent excessive processing
+- **Task Management**: Proper cancellation of ongoing tasks when starting new operations
