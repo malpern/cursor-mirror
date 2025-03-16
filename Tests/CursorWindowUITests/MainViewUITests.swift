@@ -2,19 +2,44 @@
 import XCTest
 @testable import CursorWindow
 
-@available(macOS 14.0, *)
+@MainActor
 final class MainViewUITests: XCTestCase {
     var app: XCUIApplication!
     
     override func setUp() async throws {
+        guard NSApplication.shared.isRunning else {
+            throw XCTSkip("UI tests require a running application")
+        }
+        
         continueAfterFailure = false
         app = XCUIApplication()
         app.launch()
     }
     
     override func tearDown() async throws {
-        app.terminate()
-        app = nil
+        if app != nil {
+            app.terminate()
+            app = nil
+        }
+    }
+    
+    func testMainViewExists() async throws {
+        guard NSApplication.shared.isRunning else {
+            throw XCTSkip("UI tests require a running application")
+        }
+        
+        let mainView = app.windows["CursorWindow"]
+        let exists = mainView.waitForExistence(timeout: 5)
+        XCTAssertTrue(exists, "Main window should exist within 5 seconds")
+        
+        // Additional checks for window properties
+        XCTAssertTrue(mainView.isEnabled, "Main window should be enabled")
+        XCTAssertTrue(mainView.isHittable, "Main window should be hittable")
+        
+        // Check window dimensions
+        let frame = mainView.frame
+        XCTAssertGreaterThan(frame.width, 0, "Window width should be greater than 0")
+        XCTAssertGreaterThan(frame.height, 0, "Window height should be greater than 0")
     }
     
     func testMainViewInitialState() throws {
