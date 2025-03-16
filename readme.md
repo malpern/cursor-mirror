@@ -19,7 +19,11 @@ A macOS application that captures and streams a portion of your screen matching 
   - ✅ Test infrastructure set up
   - ✅ Frame capture implementation completed
   - ✅ Integration tests completed and passing
-- [ ] Real-time H.264 video encoding with AVFoundation/VideoToolbox
+- [✅] Real-time H.264 video encoding with AVFoundation/VideoToolbox
+  - ✅ H.264 encoder implementation
+  - ✅ Frame processing pipeline
+  - ✅ Video file writing
+  - ✅ UI for controlling encoding
 - [ ] HLS stream generation with segmented .ts files
 - [ ] Local HTTP server for stream distribution
 - [ ] iOS client app for stream playback
@@ -85,10 +89,19 @@ flowchart LR
   - [x] Proper error propagation through the capture pipeline
 - [x] 2.5.5. Test end-to-end capture flow
 
-### 3. Video Encoding (📅 Planned)
-- [ ] 3.1. Setup AVFoundation/VideoToolbox pipeline
-- [ ] 3.2. Implement H.264 encoding
-- [ ] 3.3. Test encoding performance
+### 3. Video Encoding (✅ Complete)
+- [x] 3.1. Setup AVFoundation/VideoToolbox pipeline
+  - [x] Create `VideoEncoder` protocol and H.264 implementation
+  - [x] Implement pixel format conversion
+  - [x] Add configuration options for bitrate and profile
+- [x] 3.2. Implement H.264 encoding
+  - [x] Create `EncodingFrameProcessor` to handle frame encoding
+  - [x] Implement video file writing with `VideoFileWriter`
+  - [x] Add UI controls for encoding settings
+- [x] 3.3. Test encoding performance
+  - [x] Unit tests for encoder components
+  - [x] Integration tests for the encoding pipeline
+  - [x] Performance testing with various frame rates
 
 ### 4. HLS Implementation (📅 Planned)
 - [ ] 4.1. Implement video segmentation
@@ -221,6 +234,32 @@ class ErrorHandlingTests: XCTestCase {
 }
 ```
 
+#### Encoding Tests (✅ Implemented)
+```swift
+class VideoEncoderTests: XCTestCase {
+    func testInitialState()
+    func testStartSession()
+    func testEncodeFrame()
+    func testEncodeMultipleFrames()
+    func testEndSession()
+}
+
+class EncodingFrameProcessorTests: XCTestCase {
+    func testInitialState()
+    func testStartEncoding()
+    func testProcessFrame()
+    func testStopEncoding()
+    func testHandleError()
+}
+
+class VideoFileWriterTests: XCTestCase {
+    func testCreateFile()
+    func testAppendEncodedData()
+    func testAppendMultipleFrames()
+    func testFinishWriting()
+    func testCancelWriting()
+}
+
 ## Recent Improvements
 
 - Enhanced `FrameCaptureManager` with proper task cancellation support to prevent race conditions
@@ -232,6 +271,10 @@ class ErrorHandlingTests: XCTestCase {
 - Fixed type compatibility issues between test mocks and production code
 - Ensured proper resource cleanup with deinitializers to prevent memory leaks
 - All tests now pass successfully
+- Added H.264 video encoding with AVFoundation/VideoToolbox
+- Implemented video file saving functionality
+- Created a user interface for controlling video encoding settings
+- Added comprehensive test suite for video encoding components
 
 ## Performance Optimizations
 
