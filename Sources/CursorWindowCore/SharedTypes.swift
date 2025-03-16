@@ -11,7 +11,7 @@ import AVFoundation
 @preconcurrency public protocol BasicFrameProcessorProtocol: AnyObject {
     /// Process a single frame from the screen capture stream
     /// - Parameter frame: A CMSampleBuffer containing the captured frame data
-    func processFrame(_ frame: CMSampleBuffer)
+    nonisolated func processFrame(_ frame: CMSampleBuffer)
 }
 
 /// A protocol for frame processors that handle video encoding.
@@ -20,7 +20,7 @@ import AVFoundation
 @preconcurrency public protocol EncodingFrameProcessorProtocol: AnyObject {
     /// Process and encode a single frame
     /// - Parameter frame: A CMSampleBuffer containing the captured frame data
-    func processFrame(_ frame: CMSampleBuffer)
+    nonisolated func processFrame(_ frame: CMSampleBuffer)
     
     /// Start encoding video to a specified URL
     /// - Parameters:
@@ -28,10 +28,10 @@ import AVFoundation
     ///   - width: The width of the video in pixels
     ///   - height: The height of the video in pixels
     /// - Throws: CursorWindowError if encoding initialization fails
-    func startEncoding(to url: URL, width: Int, height: Int) throws
+    nonisolated func startEncoding(to url: URL, width: Int, height: Int) throws
     
     /// Stop the current encoding session and finalize the video file
-    func stopEncoding()
+    nonisolated func stopEncoding()
 }
 
 /// A protocol for managing screen capture operations.
@@ -53,17 +53,17 @@ import AVFoundation
 /// Implementations should coordinate between the UI and capture system.
 @preconcurrency public protocol CapturePreviewViewModel {
     /// The frame processor responsible for handling preview frames
-    var frameProcessor: BasicFrameProcessorProtocol { get }
+    nonisolated var frameProcessor: BasicFrameProcessorProtocol { get }
     
     /// The capture manager responsible for screen capture operations
-    var captureManager: FrameCaptureManagerProtocol { get }
+    nonisolated var captureManager: FrameCaptureManagerProtocol { get }
 }
 
 /// A protocol for view models that manage video encoding controls.
 /// Implementations should handle encoding settings and state.
 @preconcurrency public protocol EncodingControlViewModel {
     /// The frame processor responsible for encoding frames to video
-    var frameProcessor: EncodingFrameProcessorProtocol { get }
+    nonisolated var frameProcessor: EncodingFrameProcessorProtocol { get }
 }
 
 // MARK: - Environment Keys

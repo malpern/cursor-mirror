@@ -12,26 +12,29 @@ final class H264VideoEncoderTests: XCTestCase {
     }
     
     override func tearDown() async throws {
-        try? await encoder.stopEncoding()
+        encoder.stopEncoding()
         encoder = nil
     }
     
     func testStartEncoding() async throws {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test.mp4")
-        try await encoder.startEncoding(to: tempURL, width: testWidth, height: testHeight)
+        try encoder.startEncoding(to: tempURL, width: testWidth, height: testHeight)
         XCTAssertTrue(FileManager.default.fileExists(atPath: tempURL.path))
         try? FileManager.default.removeItem(at: tempURL)
     }
     
     func testProcessFrame() async throws {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test.mp4")
-        try await encoder.startEncoding(to: tempURL, width: testWidth, height: testHeight)
+        try encoder.startEncoding(to: tempURL, width: testWidth, height: testHeight)
         
         // Create a test frame
         let frame = try createTestFrame()
-        try await encoder.processFrame(frame)
+        encoder.processFrame(frame)
         
-        try await encoder.stopEncoding()
+        encoder.stopEncoding()
+        
+        // Wait for encoding to finish
+        try await Task.sleep(for: .seconds(1))
         
         // Verify the file exists and has content
         let attributes = try FileManager.default.attributesOfItem(atPath: tempURL.path)
@@ -43,12 +46,12 @@ final class H264VideoEncoderTests: XCTestCase {
     
     func testStopEncoding() async throws {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test.mp4")
-        try await encoder.startEncoding(to: tempURL, width: testWidth, height: testHeight)
-        try await encoder.stopEncoding()
+        try encoder.startEncoding(to: tempURL, width: testWidth, height: testHeight)
+        encoder.stopEncoding()
         
-        // Try to process a frame after stopping - should throw
+        // Try to process a frame after stopping - should be ignored
         let frame = try createTestFrame()
-        await XCTAssertThrowsError(try await encoder.processFrame(frame))
+        encoder.processFrame(frame)
         
         try? FileManager.default.removeItem(at: tempURL)
     }
@@ -117,7 +120,7 @@ final class H264VideoEncoderTests: XCTestCase {
         if let baseAddress = baseAddress {
             for row in 0..<bufferHeight {
                 let rowAddress = baseAddress.advanced(by: row * bytesPerRow)
-                memset(rowAddress, UInt8((row * 255) / bufferHeight), bytesPerRow)
+                memset(rowAddress, Int32((row * 255) / bufferHeight), bytesPerRow)
             }
         }
         

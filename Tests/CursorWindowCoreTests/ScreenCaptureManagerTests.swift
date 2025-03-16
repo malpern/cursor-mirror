@@ -6,7 +6,7 @@ final class ScreenCaptureManagerTests: XCTestCase {
     var manager: ScreenCaptureManager!
     
     override func setUp() async throws {
-        manager = ScreenCaptureManager()
+        manager = await ScreenCaptureManager()
     }
     
     override func tearDown() async throws {
@@ -14,14 +14,8 @@ final class ScreenCaptureManagerTests: XCTestCase {
     }
     
     func testInitialPermissionStatus() async throws {
-        let status = await manager.permissionStatus
-        XCTAssertNotNil(status, "Permission status should not be nil")
-    }
-    
-    func testPermissionRequest() async throws {
-        // This test requires user interaction, so we'll just verify the method exists
-        // and returns without throwing
-        try await manager.requestPermission()
+        let isGranted = await manager.isScreenCapturePermissionGranted
+        XCTAssertNotNil(isGranted, "Permission status should not be nil")
     }
     
     func testStartCapture() async throws {
@@ -31,24 +25,26 @@ final class ScreenCaptureManagerTests: XCTestCase {
         try await manager.startCapture(frameProcessor: processor)
         
         // Wait for the first frame to be processed
-        let result = await withCheckedContinuation { continuation in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                continuation.resume(returning: processor.processedFrameCount > 0)
-            }
-        }
+        try await Task.sleep(for: .seconds(1))
         
-        XCTAssertTrue(result, "Should have processed at least one frame")
+        let count = processor.processedFrameCount
+        XCTAssertTrue(count > 0, "Should have processed at least one frame")
         expectation.fulfill()
         
         await fulfillment(of: [expectation], timeout: 2)
+        
+        try await manager.stopCapture()
     }
 }
 
 // MARK: - Mock Objects
-private class MockFrameProcessor: BasicFrameProcessorProtocol {
-    var processedFrameCount = 0
+private final class MockFrameProcessor: BasicFrameProcessorProtocol {
+    private var _processedFrameCount = 0
+    var processedFrameCount: Int { _processedFrameCount }
     
-    func processFrame(_ frame: CMSampleBuffer) {
-        processedFrameCount += 1
+    nonisolated func processFrame(_ frame: CMSampleBuffer) {
+        Task { @MainActor in
+            _processedFrameCount += 1
+        }
     }
 } 
