@@ -43,10 +43,40 @@ flowchart LR
 - [x] 1.2. Configure project settings
 
 ### 2. Screen Capture (🚧 In Progress)
-- [ ] 2.1. Integrate ScreenCaptureKit
-- [ ] 2.2. Implement screen source selection
-- [ ] 2.3. Configure viewport region capture
-- [ ] 2.4. Test capture functionality
+#### 2.1 Screen Capture Setup & Permissions
+- [ ] 2.1.1. Add ScreenCaptureKit framework
+- [ ] 2.1.2. Create ScreenCaptureManager class skeleton
+- [ ] 2.1.3. Implement permission request handling
+- [ ] 2.1.4. Write tests for permission states
+- [ ] 2.1.5. Test permission request UI flow
+
+#### 2.2 Display Configuration
+- [ ] 2.2.1. Create DisplayConfiguration model
+- [ ] 2.2.2. Implement display enumeration
+- [ ] 2.2.3. Write tests for display detection
+- [ ] 2.2.4. Add display selection logic
+- [ ] 2.2.5. Test display bounds calculations
+
+#### 2.3 Capture Region
+- [ ] 2.3.1. Create CaptureRegion model
+- [ ] 2.3.2. Implement viewport region tracking
+- [ ] 2.3.3. Write tests for region calculations
+- [ ] 2.3.4. Add region update handling
+- [ ] 2.3.5. Test region bounds validation
+
+#### 2.4 Frame Capture Pipeline
+- [ ] 2.4.1. Create FrameProcessor protocol
+- [ ] 2.4.2. Implement basic frame capture
+- [ ] 2.4.3. Write tests for frame capture
+- [ ] 2.4.4. Add frame rate control
+- [ ] 2.4.5. Test frame delivery performance
+
+#### 2.5 Integration
+- [ ] 2.5.1. Connect capture manager to viewport
+- [ ] 2.5.2. Implement capture preview
+- [ ] 2.5.3. Write integration tests
+- [ ] 2.5.4. Add error handling
+- [ ] 2.5.5. Test end-to-end capture flow
 
 ### 3. Video Encoding (📅 Planned)
 - [ ] 3.1. Setup AVFoundation/VideoToolbox pipeline
@@ -114,3 +144,71 @@ open cursor-mirror.xcodeproj
 ## License
 
 MIT License - See LICENSE file for details
+
+## Testing Strategy
+
+### Unit Tests
+- Test individual components in isolation
+- Mock dependencies using protocols
+- Focus on edge cases and error conditions
+
+### Integration Tests
+- Test component interactions
+- Verify proper setup and teardown
+- Ensure correct permission handling
+
+### Performance Tests
+- Measure frame capture rates
+- Monitor memory usage
+- Track CPU utilization
+
+### Test Categories
+
+#### Permission Tests
+```swift
+class ScreenCapturePermissionTests: XCTestCase {
+    func testRequestPermission()
+    func testHandlePermissionDenied()
+    func testHandlePermissionGranted()
+}
+```
+
+#### Display Tests
+```swift
+class DisplayConfigurationTests: XCTestCase {
+    func testEnumerateDisplays()
+    func testGetMainDisplay()
+    func testDisplayBounds()
+}
+```
+
+#### Region Tests
+```swift
+class CaptureRegionTests: XCTestCase {
+    func testRegionBounds()
+    func testRegionUpdate()
+    func testRegionValidation()
+}
+```
+
+#### Frame Tests
+```swift
+class FrameCaptureTests: XCTestCase {
+    func testFrameCapture()
+    func testFrameRate()
+    func testFrameFormat()
+}
+```
+
+## Development Process
+
+1. For each feature:
+   - Write failing test
+   - Implement minimal code to pass
+   - Refactor while keeping tests green
+   - Document changes
+
+2. Before merging:
+   - All tests must pass
+   - No memory leaks
+   - Performance metrics met
