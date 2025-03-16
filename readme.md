@@ -31,6 +31,30 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ## Recent Improvements
 
+### BasicFrameProcessor Enhancements (✅ Complete)
+- [x] Frame rate monitoring
+  - Added frame count tracking
+  - Implemented average processing time calculation
+  - Added real-time FPS monitoring
+  - Added dropped frame detection
+- [x] Thread-safe state management
+  - Implemented actor-based state updates
+  - Added safe statistics and configuration access
+  - Thread-safe callback handling
+- [x] Basic frame transformations
+  - Added support for CIFilters
+  - Implemented pixel buffer copying
+  - Added proper buffer locking/unlocking
+- [x] Metadata handling
+  - Added timing information extraction
+  - Added format description capture
+  - Added attachment preservation
+- [x] Comprehensive test coverage
+  - Added configuration tests
+  - Added statistics tracking tests
+  - Added dropped frame detection tests
+  - Added thread safety tests
+
 ### Code Stabilization (✅ Complete)
 - [x] Reorganized project into proper Swift package structure
   - Core functionality in `CursorWindowCore` module
