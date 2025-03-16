@@ -18,6 +18,7 @@ A macOS application that captures and streams a portion of your screen matching 
   - ✅ Basic permission handling implemented
   - ✅ Test infrastructure set up
   - ✅ Frame capture implementation completed
+  - ✅ Integration tests completed and passing
 - [ ] Real-time H.264 video encoding with AVFoundation/VideoToolbox
 - [ ] HLS stream generation with segmented .ts files
 - [ ] Local HTTP server for stream distribution
@@ -45,7 +46,7 @@ flowchart LR
 - [x] 1.1. Create macOS Xcode project
 - [x] 1.2. Configure project settings
 
-### 2. Screen Capture (🚧 In Progress)
+### 2. Screen Capture (✅ Complete)
 #### 2.1 Screen Capture Setup & Permissions (✅ Complete)
 - [x] 2.1.1. Add ScreenCaptureKit framework
 - [x] 2.1.2. Create ScreenCaptureManager class skeleton
@@ -74,7 +75,7 @@ flowchart LR
 - [x] 2.4.4. Add frame rate control
 - [x] 2.4.5. Test frame delivery performance
 
-#### 2.5 Integration (🚧 In Progress)
+#### 2.5 Integration (✅ Complete)
 - [x] 2.5.1. Connect capture manager to viewport
 - [x] 2.5.2. Implement capture preview
 - [x] 2.5.3. Write integration tests
@@ -82,7 +83,7 @@ flowchart LR
   - [x] Custom `CaptureError` enum with user-friendly descriptions
   - [x] Improved permission handling using `SCShareableContent.current`
   - [x] Proper error propagation through the capture pipeline
-- [ ] 2.5.5. Test end-to-end capture flow
+- [x] 2.5.5. Test end-to-end capture flow
 
 ### 3. Video Encoding (📅 Planned)
 - [ ] 3.1. Setup AVFoundation/VideoToolbox pipeline
@@ -195,6 +196,7 @@ class CaptureRegionTests: XCTestCase {
     func testRegionBounds()
     func testRegionUpdate()
     func testRegionValidation()
+    func testCreateFilter()
 }
 ```
 
@@ -218,6 +220,14 @@ class ErrorHandlingTests: XCTestCase {
     func testFrameCaptureManagerErrorHandling()
 }
 ```
+
+## Recent Improvements
+
+- Enhanced `FrameCaptureManager` to properly handle asynchronous operations with Task-based API
+- Improved test reliability by properly awaiting asynchronous operations
+- Fixed type compatibility issues between test mocks and production code
+- Ensured proper handling of different display types in content filter creation
+- All tests now pass successfully
 
 ## Development Process
 

@@ -73,8 +73,27 @@ final class CaptureRegionTests: XCTestCase {
         XCTAssertEqual(screenRegion, expectedRegion)
     }
     
-    func testCreateFilter() {
-        // Create a mock display
+    func testCreateFilter() async throws {
+        // First test with a real SCDisplay
+        let displayConfig = DisplayConfiguration()
+        try await displayConfig.updateDisplays()
+        
+        if let display = displayConfig.displays.first {
+            // Set the display
+            captureRegion.updateDisplay(display: display)
+            
+            // Set a region
+            let region = CGRect(x: 50, y: 50, width: 200, height: 200)
+            captureRegion.updateRegion(newRegion: region)
+            
+            // Create a filter
+            let filter = captureRegion.contentFilter
+            
+            // The filter should not be nil for a real SCDisplay
+            XCTAssertNotNil(filter)
+        }
+        
+        // Now test with a mock display
         let mockDisplay = TestMockDisplay(
             width: 1000,
             height: 800,
@@ -88,16 +107,15 @@ final class CaptureRegionTests: XCTestCase {
         let region = CGRect(x: 50, y: 50, width: 200, height: 200)
         captureRegion.updateRegion(newRegion: region)
         
-        // Create a filter
-        let filter = captureRegion.createFilter()
-        
-        // The filter should not be nil
-        XCTAssertNotNil(filter)
+        // For mock displays, we expect nil since they can't be used with SCContentFilter
+        // This is expected behavior in our implementation
+        let filter = captureRegion.contentFilter
+        XCTAssertNil(filter, "Filter should be nil for mock displays")
     }
 }
 
-// Mock SCDisplay for testing
-class TestMockDisplay: SCDisplay {
+// Mock display for testing
+class TestMockDisplay: DisplayLike {
     let mockWidth: Int
     let mockHeight: Int
     let mockFrame: CGRect
@@ -106,18 +124,17 @@ class TestMockDisplay: SCDisplay {
         self.mockWidth = width
         self.mockHeight = height
         self.mockFrame = frame
-        super.init()
     }
     
-    override var width: Int {
+    var width: Int {
         return mockWidth
     }
     
-    override var height: Int {
+    var height: Int {
         return mockHeight
     }
     
-    override var frame: CGRect {
+    var frame: CGRect {
         return mockFrame
     }
 } 

@@ -99,14 +99,15 @@ final class FrameCaptureTests: XCTestCase {
         
         let newFilter = SCContentFilter(display: display, excludingWindows: [])
         
-        // Update the filter
-        captureManager.updateContentFilter(newFilter)
+        // Update the filter and await the completion
+        try await captureManager.updateContentFilter(newFilter).value
         
-        // Wait for the update to complete
-        try await Task.sleep(for: .seconds(1))
+        // Verify the filter was updated
+        XCTAssertEqual(captureManager.contentFilter, newFilter)
         
-        // Verify capture is still active
-        XCTAssertTrue(captureManager.isCapturing)
+        // Verify capture is active again after the update
+        XCTAssertTrue(captureManager.isCapturing, "Capture should be active again after filter update")
+        XCTAssertNil(captureManager.error, "There should be no errors after filter update")
     }
     
     func testSetFrameProcessor() async throws {

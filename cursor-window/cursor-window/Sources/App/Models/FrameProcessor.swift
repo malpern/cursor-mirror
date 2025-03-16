@@ -200,21 +200,26 @@ class FrameCaptureManager: NSObject, ObservableObject {
     
     /// Update the content filter
     /// - Parameter filter: The new content filter
-    func updateContentFilter(_ filter: SCContentFilter) {
+    /// - Returns: A Task that completes when the filter update is done
+    @discardableResult
+    func updateContentFilter(_ filter: SCContentFilter) -> Task<Void, Error> {
         self.contentFilter = filter
         
         // If we're capturing, restart with the new filter
         if isCapturing {
             stopCapture()
-            Task {
+            return Task {
                 do {
                     try await startCapture()
                 } catch {
                     DispatchQueue.main.async {
                         self.error = error
                     }
+                    throw error
                 }
             }
+        } else {
+            return Task { }
         }
     }
     

@@ -2,6 +2,16 @@ import Foundation
 import SwiftUI
 import ScreenCaptureKit
 
+// Protocol for display-like objects
+protocol DisplayLike {
+    var width: Int { get }
+    var height: Int { get }
+    var frame: CGRect { get }
+}
+
+// Make SCDisplay conform to DisplayLike
+extension SCDisplay: DisplayLike {}
+
 /// Represents a region of the screen to be captured
 @MainActor
 class CaptureRegion: ObservableObject {
@@ -9,7 +19,7 @@ class CaptureRegion: ObservableObject {
     @Published var region: CGRect
     
     /// The display the region is on
-    @Published var display: SCDisplay?
+    @Published var display: DisplayLike?
     
     /// The scale factor for the display
     @Published var scaleFactor: CGFloat = 1.0
@@ -25,7 +35,7 @@ class CaptureRegion: ObservableObject {
     }
     
     /// Update the display and scale factor
-    func updateDisplay(display: SCDisplay?) {
+    func updateDisplay(display: DisplayLike?) {
         self.display = display
         // Note: SCDisplay doesn't have a scaleFactor property in all versions
         // We'll use a default value of 1.0 or get it from the display if available
@@ -61,13 +71,19 @@ class CaptureRegion: ObservableObject {
     }
     
     /// Create a filter for screen capture based on the region
-    func createFilter() -> SCContentFilter? {
+    var contentFilter: SCContentFilter? {
         guard let display = display, !region.isEmpty else {
             return nil
         }
         
         // For now, we'll just create a display filter
         // In the future, we can implement region-based filtering when available
-        return SCContentFilter(display: display, excludingWindows: [])
+        if let scDisplay = display as? SCDisplay {
+            return SCContentFilter(display: scDisplay, excludingWindows: [])
+        } else {
+            // If it's not an SCDisplay, we can't create a content filter
+            // This is handled in tests separately
+            return nil
+        }
     }
 } 
