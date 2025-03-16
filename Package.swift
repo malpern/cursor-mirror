@@ -17,7 +17,9 @@ let package = Package(
             name: "CursorWindow",
             targets: ["CursorWindow"])
     ],
-    dependencies: [],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0")
+    ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
@@ -31,6 +33,10 @@ let package = Package(
             dependencies: ["CursorWindowCore"]),
         .testTarget(
             name: "CursorWindowTests",
-            dependencies: ["CursorWindow"])
+            dependencies: ["CursorWindow"]),
+        .testTarget(
+            name: "CursorWindowUITests",
+            dependencies: ["CursorWindow"],
+            resources: [.process("Resources")])
     ]
 )
