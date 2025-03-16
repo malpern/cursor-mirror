@@ -1,5 +1,8 @@
+#if os(macOS)
 import SwiftUI
+#if canImport(ScreenCaptureKit)
 import ScreenCaptureKit
+#endif
 import AVFoundation
 import CursorWindowCore
 
@@ -77,4 +80,8 @@ struct MockEncodingControlViewModel: EncodingControlViewModel {
     MainView()
         .environment(\.capturePreviewViewModel, MockCapturePreviewViewModel())
         .environment(\.encodingControlViewModel, MockEncodingControlViewModel())
-} 
+}
+
+#else
+#error("MainView is only available on macOS 14.0 or later")
+#endif 

@@ -38,6 +38,7 @@ A macOS application that captures and streams a portion of your screen matching 
   - Added proper actor isolation for frame processing
   - Implemented thread-safe screen capture management
   - Fixed Swift 6 concurrency warnings
+  - Separated protocol conformance for better type safety
 - [x] Enhanced permission handling
   - Streamlined screen capture permission flow
   - Added proper error handling and user feedback
@@ -49,6 +50,7 @@ A macOS application that captures and streams a portion of your screen matching 
   - Resolved circular dependencies
   - Proper module imports
   - Clean build with no warnings
+  - Proper macOS 14.0 availability annotations
 
 ### Architecture Updates
 - Implemented actor-based frame processing for thread safety
@@ -56,6 +58,7 @@ A macOS application that captures and streams a portion of your screen matching 
 - Enhanced view model isolation with `nonisolated` properties
 - Improved state management in the main app
 - Added proper error handling throughout the capture pipeline
+- Separated protocol conformance from implementations for better type safety
 
 ## Requirements
 

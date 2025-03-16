@@ -17,12 +17,12 @@ let package = Package(
             name: "CursorWindow",
             targets: ["CursorWindow"])
     ],
+    dependencies: [],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "CursorWindowCore",
-            dependencies: []),
+            name: "CursorWindowCore"),
         .executableTarget(
             name: "CursorWindow",
             dependencies: ["CursorWindowCore"]),
@@ -31,6 +31,6 @@ let package = Package(
             dependencies: ["CursorWindowCore"]),
         .testTarget(
             name: "CursorWindowTests",
-            dependencies: ["CursorWindow", "CursorWindowCore"])
+            dependencies: ["CursorWindow"])
     ]
 )

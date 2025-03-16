@@ -1,6 +1,8 @@
 import XCTest
-@testable import CursorWindowCore
+#if canImport(ScreenCaptureKit)
 import ScreenCaptureKit
+#endif
+@testable import CursorWindowCore
 
 final class ScreenCaptureManagerTests: XCTestCase {
     var manager: ScreenCaptureManager!

@@ -1,24 +1,23 @@
 import Foundation
 import AVFoundation
 
-/// A basic implementation of frame processing for preview and analysis.
-/// This class provides a foundation for implementing frame processing
-/// without encoding, suitable for real-time preview and frame analysis.
-public class BasicFrameProcessor: BasicFrameProcessorProtocol {
-    /// Initialize a new basic frame processor
+#if os(macOS)
+/// A basic implementation of frame processing that can be used as a starting point
+/// for more complex frame processing operations.
+@available(macOS 14.0, *)
+public final class BasicFrameProcessor {
+    /// Initialize a new BasicFrameProcessor
     public init() {}
-    
+}
+
+@available(macOS 14.0, *)
+extension BasicFrameProcessor: BasicFrameProcessorProtocol {
     /// Process a single frame from the screen capture stream
+    /// This base implementation does nothing and should be overridden by subclasses
     /// - Parameter frame: A CMSampleBuffer containing the captured frame data
-    /// Currently, this is a placeholder implementation. Subclasses should
-    /// override this method to implement specific frame processing logic.
-    public func processFrame(_ frame: CMSampleBuffer) {
-        // Basic frame processing implementation
-        // For now, just a placeholder that does nothing
-        // Subclasses should override this method to implement:
-        // - Frame analysis
-        // - Preview generation
-        // - Image processing
-        // - Performance metrics collection
+    nonisolated public func processFrame(_ frame: CMSampleBuffer) {
+        // Base implementation does nothing
+        // Subclasses should override this to implement actual frame processing
     }
-} 
+}
+#endif 

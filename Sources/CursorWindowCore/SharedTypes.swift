@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import SwiftUI
 import ScreenCaptureKit
@@ -8,6 +9,7 @@ import AVFoundation
 /// A protocol for basic frame processing operations.
 /// Implementations should handle raw frame data without any encoding.
 /// This is typically used for preview and analysis purposes.
+@available(macOS 14.0, *)
 @preconcurrency public protocol BasicFrameProcessorProtocol: AnyObject {
     /// Process a single frame from the screen capture stream
     /// - Parameter frame: A CMSampleBuffer containing the captured frame data
@@ -17,6 +19,7 @@ import AVFoundation
 /// A protocol for frame processors that handle video encoding.
 /// Implementations should manage both frame processing and encoding operations.
 /// This is used for saving or streaming video content.
+@available(macOS 14.0, *)
 @preconcurrency public protocol EncodingFrameProcessorProtocol: AnyObject {
     /// Process and encode a single frame
     /// - Parameter frame: A CMSampleBuffer containing the captured frame data
@@ -36,6 +39,7 @@ import AVFoundation
 
 /// A protocol for managing screen capture operations.
 /// Implementations should handle capture setup, permissions, and frame delivery.
+@available(macOS 14.0, *)
 @preconcurrency public protocol FrameCaptureManagerProtocol: AnyObject {
     /// Start capturing screen content with a specified frame processor
     /// - Parameter frameProcessor: An object conforming to either BasicFrameProcessorProtocol or EncodingFrameProcessorProtocol
@@ -51,6 +55,7 @@ import AVFoundation
 
 /// A protocol for view models that manage capture preview functionality.
 /// Implementations should coordinate between the UI and capture system.
+@available(macOS 14.0, *)
 @preconcurrency public protocol CapturePreviewViewModel {
     /// The frame processor responsible for handling preview frames
     nonisolated var frameProcessor: BasicFrameProcessorProtocol { get }
@@ -61,6 +66,7 @@ import AVFoundation
 
 /// A protocol for view models that manage video encoding controls.
 /// Implementations should handle encoding settings and state.
+@available(macOS 14.0, *)
 @preconcurrency public protocol EncodingControlViewModel {
     /// The frame processor responsible for encoding frames to video
     nonisolated var frameProcessor: EncodingFrameProcessorProtocol { get }
@@ -69,27 +75,34 @@ import AVFoundation
 // MARK: - Environment Keys
 
 /// Environment key for providing the capture preview view model
+@available(macOS 14.0, *)
 private struct CapturePreviewViewModelKey: EnvironmentKey {
-    static let defaultValue: CapturePreviewViewModel? = nil
+    static let defaultValue: (any CapturePreviewViewModel)? = nil
 }
 
 /// Environment key for providing the encoding control view model
+@available(macOS 14.0, *)
 private struct EncodingControlViewModelKey: EnvironmentKey {
-    static let defaultValue: EncodingControlViewModel? = nil
+    static let defaultValue: (any EncodingControlViewModel)? = nil
 }
 
 // MARK: - Environment Values Extension
 
+@available(macOS 14.0, *)
 public extension EnvironmentValues {
     /// Access the capture preview view model from the environment
-    var capturePreviewViewModel: CapturePreviewViewModel? {
+    var capturePreviewViewModel: (any CapturePreviewViewModel)? {
         get { self[CapturePreviewViewModelKey.self] }
         set { self[CapturePreviewViewModelKey.self] = newValue }
     }
     
     /// Access the encoding control view model from the environment
-    var encodingControlViewModel: EncodingControlViewModel? {
+    var encodingControlViewModel: (any EncodingControlViewModel)? {
         get { self[EncodingControlViewModelKey.self] }
         set { self[EncodingControlViewModelKey.self] = newValue }
     }
-} 
+}
+
+#else
+#error("SharedTypes is only available on macOS 14.0 or later")
+#endif 

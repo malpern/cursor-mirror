@@ -1,6 +1,7 @@
+#if os(macOS)
 import SwiftUI
-import AppKit
 import ScreenCaptureKit
+import AppKit
 import AVFoundation
 import CursorWindowCore
 
@@ -41,4 +42,8 @@ class LiveEncodingControlViewModel: ObservableObject, EncodingControlViewModel {
         // Initialize with your actual implementation
         self.frameProcessor = H264VideoEncoder()
     }
-} 
+}
+
+#else
+#error("CursorWindowApp is only available on macOS 14.0 or later")
+#endif 

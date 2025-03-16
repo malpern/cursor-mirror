@@ -1,9 +1,12 @@
+#if os(macOS)
 import Foundation
-import ScreenCaptureKit
 import SwiftUI
+import ScreenCaptureKit
+import AVFoundation
 
 /// An actor that provides thread-safe access to frame processors.
 /// This ensures that frame processor references are managed safely across concurrent operations.
+@available(macOS 14.0, *)
 actor FrameProcessor {
     /// The current frame processor instance
     private var processor: AnyObject?
@@ -24,8 +27,9 @@ actor FrameProcessor {
 /// A class that manages screen capture operations with thread-safe frame processing.
 /// This class is designed to run on the main actor and coordinates between the UI
 /// and the capture system while ensuring thread safety through actor isolation.
+@available(macOS 14.0, *)
 @MainActor
-public class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptureManagerProtocol {
+public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptureManagerProtocol {
     /// Indicates whether screen recording permission has been granted
     @Published public var isScreenCapturePermissionGranted: Bool = false
     
@@ -105,7 +109,7 @@ public class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptureManag
 }
 
 // MARK: - SCStreamOutput Implementation
-
+@available(macOS 14.0, *)
 extension ScreenCaptureManager: SCStreamOutput {
     /// Handle incoming frames from the capture stream
     /// This method is called on the frameProcessingQueue and safely processes frames
@@ -122,4 +126,8 @@ extension ScreenCaptureManager: SCStreamOutput {
             }
         }
     }
-} 
+}
+
+#else
+#error("ScreenCaptureManager is only available on macOS 14.0 or later")
+#endif 
