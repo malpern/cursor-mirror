@@ -24,7 +24,8 @@ final class AuthenticationTests: XCTestCase {
         
         // Configure middleware and routes for testing
         await MainActor.run {
-            vaporHelper.app.middleware.use(AuthMiddleware(authManager: authManager))
+            // Use our new unified AuthMiddleware with specific methods
+            vaporHelper.app.middleware.use(AuthMiddleware(authManager: authManager, methods: [.basic, .apiKey, .token]))
             configureTestRoutes(vaporHelper.app)
         }
         
@@ -181,7 +182,10 @@ final class AuthenticationTests: XCTestCase {
     @MainActor
     private func configureTestRoutes(_ app: Application) {
         // Protected route
-        let protectedRoutes = app.routes.grouped([Middleware]()).protected(using: authManager)
+        let protectedRoutes = app.routes.grouped([Middleware]()).protected(
+            using: authManager,
+            methods: [.basic, .apiKey, .token]
+        )
         protectedRoutes.get("protected") { req -> String in
             "Protected content"
         }
