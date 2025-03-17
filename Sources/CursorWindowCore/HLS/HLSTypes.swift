@@ -54,44 +54,50 @@ public protocol HLSManagerProtocol: Actor {
     func stopStreaming() async throws
     
     /// Process encoded video data
-    func processEncodedData(_ data: Data, presentationTime: CMTime) async throws
+    func processEncodedData(_ data: Data, presentationTime: Double) async throws
     
     /// Get the current M3U8 playlist content
     func getCurrentPlaylist() async throws -> String
     
     /// Get the list of active segments
-    func getActiveSegments() async -> [HLSSegment]
+    func getActiveSegments() async throws -> [TSSegment]
     
     /// Clean up old segments that are no longer needed
     func cleanupOldSegments() async throws
     
     /// Add a variant stream
-    func addVariant(_ variant: HLSVariant) async
+    func addVariant(_ variant: HLSVariant)
     
     /// Remove a variant stream
-    func removeVariant(_ variant: HLSVariant) async
+    func removeVariant(_ variant: HLSVariant)
     
     /// Get the master playlist
-    func getMasterPlaylist() async -> String
+    func getMasterPlaylist() throws -> String
     
     /// Get the event playlist
-    func getEventPlaylist() async -> String
+    func getEventPlaylist() async throws -> String
     
     /// Get the VOD playlist
-    func getVODPlaylist() async -> String
+    func getVODPlaylist() async throws -> String
 }
 
 /// Protocol for writing HLS segments
 @available(macOS 14.0, *)
-public protocol HLSSegmentWriter: Actor {
+public protocol TSSegmentWriterProtocol: Actor {
     /// Start a new segment
-    func startNewSegment(startTime: CMTime) async throws -> HLSSegment
+    func startNewSegment() async throws
     
     /// Write encoded video data to the current segment
-    func writeEncodedData(_ data: Data) async throws
+    func writeEncodedData(_ data: Data, presentationTime: Double) async throws
     
-    /// Finish the current segment
-    func finishCurrentSegment() async throws -> HLSSegment
+    /// Get the current segment
+    func getCurrentSegment() async throws -> TSSegment?
+    
+    /// Get all segments
+    func getSegments() async throws -> [TSSegment]
+    
+    /// Remove a segment
+    func removeSegment(_ segment: TSSegment) async throws
     
     /// Clean up resources
     func cleanup() async throws
@@ -99,18 +105,18 @@ public protocol HLSSegmentWriter: Actor {
 
 /// Protocol for generating M3U8 playlists
 @available(macOS 14.0, *)
-public protocol PlaylistGenerator {
+public protocol PlaylistGeneratorProtocol {
     /// Generate a master playlist containing all variants
-    func generateMasterPlaylist(variants: [HLSVariant]) -> String
+    func generateMasterPlaylist(variants: [HLSVariant], baseURL: String?) throws -> String
     
     /// Generate a media playlist for a specific variant
-    func generateMediaPlaylist(segments: [HLSSegment], configuration: HLSConfiguration) -> String
+    func generateMediaPlaylist(segments: [TSSegment], targetDuration: Int, baseURL: String?) throws -> String
     
     /// Generate an event playlist that retains old segments
-    func generateEventPlaylist(segments: [HLSSegment], configuration: HLSConfiguration) -> String
+    func generateEventPlaylist(segments: [TSSegment], targetDuration: Int, baseURL: String?) throws -> String
     
     /// Generate a VOD playlist with an end marker
-    func generateVODPlaylist(segments: [HLSSegment], configuration: HLSConfiguration) -> String
+    func generateVODPlaylist(segments: [TSSegment], targetDuration: Int, baseURL: String?) throws -> String
 }
 
 /// Represents an HLS stream variant (quality level)
@@ -144,9 +150,25 @@ public struct HLSVariant: Equatable {
     }
 }
 
+/// Represents a transport stream segment
+@available(macOS 14.0, *)
+public struct TSSegment: Equatable {
+    public let id: String
+    public let path: String
+    public let duration: Double
+    public let startTime: Double
+    
+    public init(id: String, path: String, duration: Double, startTime: Double) {
+        self.id = id
+        self.path = path
+        self.duration = duration
+        self.startTime = startTime
+    }
+}
+
 /// Errors that can occur during HLS streaming
 @available(macOS 14.0, *)
-public enum HLSError: LocalizedError, Equatable {
+public enum HLSError: Error, Equatable {
     /// Failed to create or write to a segment file
     case segmentWriteError(Error)
     /// Failed to create or access the segment directory
@@ -191,21 +213,23 @@ public enum HLSError: LocalizedError, Equatable {
     
     public static func == (lhs: HLSError, rhs: HLSError) -> Bool {
         switch (lhs, rhs) {
-        case (.noActiveSegment, .noActiveSegment):
-            return true
-        case (.invalidConfiguration, .invalidConfiguration):
-            return true
-        case (.streamingNotStarted, .streamingNotStarted):
+        case (.noActiveSegment, .noActiveSegment),
+             (.invalidConfiguration, .invalidConfiguration),
+             (.streamingNotStarted, .streamingNotStarted),
+             (.segmentDurationTooShort, .segmentDurationTooShort),
+             (.invalidSegmentDirectory, .invalidSegmentDirectory):
             return true
         case (.segmentWriteError(let lhsError), .segmentWriteError(let rhsError)):
             return lhsError.localizedDescription == rhsError.localizedDescription
-        case (.directoryError(let lhsMessage), .directoryError(let rhsMessage)):
-            return lhsMessage == rhsMessage
-        case (.playlistGenerationError(let lhsMessage), .playlistGenerationError(let rhsMessage)):
+        case (.directoryError(let lhsMessage), .directoryError(let rhsMessage)),
+             (.playlistGenerationError(let lhsMessage), .playlistGenerationError(let rhsMessage)),
+             (.fileOperationFailed(let lhsMessage), .fileOperationFailed(let rhsMessage)):
             return lhsMessage == rhsMessage
         default:
             return false
         }
     }
 }
+#else
+#error("HLSTypes is only available on macOS 14.0 or later")
 #endif 

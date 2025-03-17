@@ -14,8 +14,10 @@ A macOS application for capturing and streaming screen content with HLS (HTTP Li
   - Configurable frame rate and bitrate
   - Memory-safe frame management
 - HLS streaming implementation
-  - MPEG-TS segment generation
-  - M3U8 playlist management
+  - MPEG-TS segment generation with proper timing
+  - M3U8 playlist management (Master, Media, Event, VOD)
+  - Efficient segment rotation and cleanup
+  - Variant stream support
   - Async/await support for thread safety
 
 🚧 **In Progress**
@@ -50,6 +52,9 @@ Sources/
 ├── CursorWindow/         # Main application code
 └── CursorWindowCore/     # Core functionality
     ├── HLS/             # HLS streaming implementation
+    │   ├── HLSManager   # Stream management and segment control
+    │   ├── TSSegmentWriter  # MPEG-TS segment handling
+    │   └── PlaylistGenerator # M3U8 playlist generation
     ├── Capture/         # Screen capture components
     └── Encoding/        # Video encoding components
 ```
@@ -58,11 +63,21 @@ Sources/
 
 ### Testing
 - Comprehensive test suite for all components
+  - HLS streaming and segment management
+  - Playlist generation and validation
+  - Frame processing and encoding
 - UI tests for viewport and controls
 - Performance tests for frame processing
 - Run tests: `swift test`
 
 Note: UI tests require a GUI environment and will be skipped when running headless.
+
+### HLS Features
+- Configurable segment duration and playlist length
+- Automatic segment rotation and cleanup
+- Support for multiple variant streams
+- Event and VOD playlist generation
+- Base URL configuration for flexible deployment
 
 ### Performance Features
 - Background frame processing
@@ -70,6 +85,7 @@ Note: UI tests require a GUI environment and will be skipped when running headle
 - Metal-accelerated rendering
 - Debounced controls
 - Proper task cancellation
+- Efficient segment management
 
 ## Contributing
 

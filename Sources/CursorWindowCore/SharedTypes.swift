@@ -103,6 +103,21 @@ public extension EnvironmentValues {
     }
 }
 
+@available(macOS 14.0, *)
+public enum CaptureError: Error {
+    // ... existing code ...
+}
+
+@available(macOS 14.0, *)
+public protocol FrameProcessor: Actor {
+    // ... existing code ...
+}
+
+@available(macOS 14.0, *)
+public protocol VideoEncoder: Actor {
+    // ... existing code ...
+}
+
 #else
 #error("SharedTypes is only available on macOS 14.0 or later")
 #endif 

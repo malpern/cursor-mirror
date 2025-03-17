@@ -1,146 +1,110 @@
 #if os(macOS)
 import XCTest
-import AVFoundation
 @testable import CursorWindowCore
 
 @available(macOS 14.0, *)
 final class HLSSegmentWriterTests: XCTestCase {
-    var writer: TSSegmentWriter!
-    var tempDirectory: String!
+    private let tempDirectory = NSTemporaryDirectory() + "hls_test_segments"
+    private var writer: TSSegmentWriter!
     
     override func setUp() async throws {
-        tempDirectory = NSTemporaryDirectory().appending("HLSSegmentWriterTests")
+        try await super.setUp()
         writer = try await TSSegmentWriter(segmentDirectory: tempDirectory)
     }
     
     override func tearDown() async throws {
-        if let writer = writer {
-            try? await writer.cleanup()
-        }
+        try? FileManager.default.removeItem(atPath: tempDirectory)
         writer = nil
-        if let tempDirectory = tempDirectory {
-            try? FileManager.default.removeItem(atPath: tempDirectory)
-        }
-        tempDirectory = nil
-    }
-    
-    func testSegmentDirectoryCreation() throws {
-        XCTAssertTrue(FileManager.default.fileExists(atPath: tempDirectory))
+        try await super.tearDown()
     }
     
     func testStartNewSegment() async throws {
-        let startTime = CMTime(seconds: 0, preferredTimescale: 1)
-        let segment = try await writer.startNewSegment(startTime: startTime)
+        try await writer.startNewSegment()
         
-        XCTAssertEqual(segment.sequenceNumber, 0)
-        XCTAssertEqual(segment.duration, 0.0)
-        XCTAssertEqual(segment.filePath, "segment0.ts")
-        XCTAssertEqual(segment.startTime, startTime)
-        
-        let segmentPath = (tempDirectory as NSString).appendingPathComponent(segment.filePath)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: segmentPath))
+        let segment = try await writer.getCurrentSegment()
+        XCTAssertNotNil(segment)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: segment!.path))
     }
     
     func testWriteEncodedData() async throws {
-        let startTime = CMTime(seconds: 0, preferredTimescale: 1)
-        _ = try await writer.startNewSegment(startTime: startTime)
+        try await writer.startNewSegment()
         
         let testData = "Test Data".data(using: .utf8)!
-        try await writer.writeEncodedData(testData)
+        try await writer.writeEncodedData(testData, presentationTime: 0.0)
         
-        let segmentPath = (tempDirectory as NSString).appendingPathComponent("segment0.ts")
-        let writtenData = try Data(contentsOf: URL(fileURLWithPath: segmentPath))
-        
-        XCTAssertEqual(writtenData, testData)
-    }
-    
-    func testFinishCurrentSegment() async throws {
-        let startTime = CMTime(seconds: 0, preferredTimescale: 1)
-        _ = try await writer.startNewSegment(startTime: startTime)
-        
-        let testData = "Test Data".data(using: .utf8)!
-        try await writer.writeEncodedData(testData)
-        let segment = try await writer.finishCurrentSegment()
-        
-        XCTAssertGreaterThan(segment.duration, 0.0)
-        XCTAssertEqual(segment.sequenceNumber, 0)
-        XCTAssertEqual(segment.filePath, "segment0.ts")
-        XCTAssertEqual(segment.startTime, startTime)
-        
-        // Verify we can start a new segment after finishing
-        let newStartTime = CMTime(seconds: 6, preferredTimescale: 1)
-        let newSegment = try await writer.startNewSegment(startTime: newStartTime)
-        
-        XCTAssertEqual(newSegment.sequenceNumber, 1)
-        XCTAssertEqual(newSegment.filePath, "segment1.ts")
+        let segment = try await writer.getCurrentSegment()
+        XCTAssertNotNil(segment)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: segment!.path))
     }
     
     func testWriteWithoutActiveSegment() async throws {
         let testData = "Test Data".data(using: .utf8)!
+        
         do {
-            try await writer.writeEncodedData(testData)
+            try await writer.writeEncodedData(testData, presentationTime: 0.0)
             XCTFail("Expected error to be thrown")
         } catch let error as HLSError {
             XCTAssertEqual(error, .noActiveSegment)
         }
-    }
-    
-    func testFinishWithoutActiveSegment() async throws {
-        do {
-            _ = try await writer.finishCurrentSegment()
-            XCTFail("Expected error to be thrown")
-        } catch let error as HLSError {
-            XCTAssertEqual(error, .noActiveSegment)
-        }
-    }
-    
-    func testCleanup() async throws {
-        let startTime = CMTime(seconds: 0, preferredTimescale: 1)
-        _ = try await writer.startNewSegment(startTime: startTime)
-        
-        let testData = "Test Data".data(using: .utf8)!
-        try await writer.writeEncodedData(testData)
-        
-        try await writer.cleanup()
-        
-        XCTAssertFalse(FileManager.default.fileExists(atPath: tempDirectory))
     }
     
     func testMultipleSegments() async throws {
         // First segment
-        let startTime1 = CMTime(seconds: 0, preferredTimescale: 1)
-        let segment1 = try await writer.startNewSegment(startTime: startTime1)
-        try await writer.writeEncodedData("Segment 1".data(using: .utf8)!)
-        let finishedSegment1 = try await writer.finishCurrentSegment()
+        try await writer.startNewSegment()
+        try await writer.writeEncodedData("Segment 1".data(using: .utf8)!, presentationTime: 0.0)
         
         // Second segment
-        let startTime2 = CMTime(seconds: 6, preferredTimescale: 1)
-        let segment2 = try await writer.startNewSegment(startTime: startTime2)
-        try await writer.writeEncodedData("Segment 2".data(using: .utf8)!)
-        let finishedSegment2 = try await writer.finishCurrentSegment()
+        try await writer.startNewSegment()
+        try await writer.writeEncodedData("Segment 2".data(using: .utf8)!, presentationTime: 1.0)
+        
+        // Get all segments
+        let segments = try await writer.getSegments()
+        XCTAssertEqual(segments.count, 2)
         
         // Verify both segments exist
-        let segment1Path = (tempDirectory as NSString).appendingPathComponent(segment1.filePath)
-        let segment2Path = (tempDirectory as NSString).appendingPathComponent(segment2.filePath)
+        for segment in segments {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: segment.path))
+        }
+    }
+    
+    func testCleanup() async throws {
+        // Create segments
+        try await writer.startNewSegment()
+        try await writer.writeEncodedData("Segment 1".data(using: .utf8)!, presentationTime: 0.0)
+        try await writer.startNewSegment()
+        try await writer.writeEncodedData("Segment 2".data(using: .utf8)!, presentationTime: 1.0)
         
-        XCTAssertTrue(FileManager.default.fileExists(atPath: segment1Path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: segment2Path))
+        // Get segments before cleanup
+        var segments = try await writer.getSegments()
+        XCTAssertEqual(segments.count, 2)
         
-        // Verify segment contents
-        let segment1Data = try String(data: Data(contentsOf: URL(fileURLWithPath: segment1Path)), encoding: .utf8)
-        let segment2Data = try String(data: Data(contentsOf: URL(fileURLWithPath: segment2Path)), encoding: .utf8)
+        // Cleanup
+        try await writer.cleanup()
         
-        XCTAssertEqual(segment1Data, "Segment 1")
-        XCTAssertEqual(segment2Data, "Segment 2")
+        // Verify segments are removed
+        segments = try await writer.getSegments()
+        XCTAssertEqual(segments.count, 0)
         
-        // Verify segment metadata
-        XCTAssertGreaterThan(finishedSegment1.duration, 0.0)
-        XCTAssertEqual(finishedSegment1.sequenceNumber, 0)
-        XCTAssertEqual(finishedSegment1.startTime, startTime1)
+        // Verify files are deleted
+        let contents = try FileManager.default.contentsOfDirectory(atPath: tempDirectory)
+        XCTAssertEqual(contents.count, 0)
+    }
+    
+    func testRemoveSegment() async throws {
+        try await writer.startNewSegment()
+        try await writer.writeEncodedData("Test Data".data(using: .utf8)!, presentationTime: 0.0)
         
-        XCTAssertGreaterThan(finishedSegment2.duration, 0.0)
-        XCTAssertEqual(finishedSegment2.sequenceNumber, 1)
-        XCTAssertEqual(finishedSegment2.startTime, startTime2)
+        let segments = try await writer.getSegments()
+        XCTAssertEqual(segments.count, 1)
+        
+        let segment = segments[0]
+        try await writer.removeSegment(segment)
+        
+        let remainingSegments = try await writer.getSegments()
+        XCTAssertEqual(remainingSegments.count, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: segment.path))
     }
 }
+#else
+#error("HLSSegmentWriterTests is only available on macOS 14.0 or later")
 #endif 

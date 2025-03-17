@@ -3,16 +3,20 @@ import Foundation
 import SwiftUI
 import ScreenCaptureKit
 import AVFoundation
+import CoreGraphics
+import OSLog
 
 /// An actor that provides thread-safe access to frame processors.
 /// This ensures that frame processor references are managed safely across concurrent operations.
 @available(macOS 14.0, *)
-actor FrameProcessor {
+actor FrameProcessorActor {
     /// The current frame processor instance
     private var processor: AnyObject?
     
     /// Set a new frame processor
     /// - Parameter processor: The frame processor to set, or nil to clear
+    public init() {}
+    
     func set(_ processor: AnyObject?) {
         self.processor = processor
     }
@@ -44,7 +48,7 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
     private let frameProcessingQueue = DispatchQueue(label: "com.cursor-window.frame-processing")
     
     /// An actor that provides thread-safe access to the current frame processor
-    private let frameProcessor = FrameProcessor()
+    private let frameProcessor = FrameProcessorActor()
     
     /// Initialize the screen capture manager and check initial permission status
     public override init() {

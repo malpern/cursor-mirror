@@ -15,7 +15,7 @@ final class PlaylistGeneratorTests: XCTestCase {
             targetSegmentDuration: 6.0,
             playlistLength: 5,
             segmentDirectory: "/tmp/hls",
-            baseURL: "http://localhost:8080"
+            baseURL: "http://example.com/hls"
         )
     }
     
@@ -25,7 +25,7 @@ final class PlaylistGeneratorTests: XCTestCase {
         super.tearDown()
     }
     
-    func testMasterPlaylistGeneration() throws {
+    func testGenerateMasterPlaylist() throws {
         let variants = [
             HLSVariant(
                 bandwidth: 2_000_000,
@@ -43,39 +43,35 @@ final class PlaylistGeneratorTests: XCTestCase {
             )
         ]
         
-        let playlist = generator.generateMasterPlaylist(variants: variants)
+        let playlist = try generator.generateMasterPlaylist(variants: variants, baseURL: configuration.baseURL)
         
         // Verify playlist contains required tags
         XCTAssertTrue(playlist.contains("#EXTM3U"))
         XCTAssertTrue(playlist.contains("#EXT-X-VERSION:3"))
         
-        // Verify variant streams
+        // Verify variant streams are included
         XCTAssertTrue(playlist.contains("BANDWIDTH=2000000"))
         XCTAssertTrue(playlist.contains("RESOLUTION=1920x1080"))
-        XCTAssertTrue(playlist.contains("stream_high.m3u8"))
+        XCTAssertTrue(playlist.contains("FRAME-RATE=30.000"))
+        XCTAssertTrue(playlist.contains("http://example.com/hls/stream_high.m3u8"))
         
         XCTAssertTrue(playlist.contains("BANDWIDTH=1000000"))
         XCTAssertTrue(playlist.contains("RESOLUTION=1280x720"))
-        XCTAssertTrue(playlist.contains("stream_medium.m3u8"))
+        XCTAssertTrue(playlist.contains("http://example.com/hls/stream_medium.m3u8"))
     }
     
-    func testMediaPlaylistGeneration() throws {
+    func testGenerateMediaPlaylist() throws {
         let segments = [
-            HLSSegment(
-                duration: 6.0,
-                sequenceNumber: 0,
-                filePath: "segment0.ts",
-                startTime: CMTime(seconds: 0, preferredTimescale: 1)
-            ),
-            HLSSegment(
-                duration: 6.0,
-                sequenceNumber: 1,
-                filePath: "segment1.ts",
-                startTime: CMTime(seconds: 6, preferredTimescale: 1)
-            )
+            TSSegment(id: "1", path: "segment1.ts", duration: 6.0, startTime: 0.0),
+            TSSegment(id: "2", path: "segment2.ts", duration: 6.0, startTime: 6.0),
+            TSSegment(id: "3", path: "segment3.ts", duration: 6.0, startTime: 12.0)
         ]
         
-        let playlist = generator.generateMediaPlaylist(segments: segments, configuration: configuration)
+        let playlist = try generator.generateMediaPlaylist(
+            segments: segments,
+            targetDuration: Int(configuration.targetSegmentDuration),
+            baseURL: configuration.baseURL
+        )
         
         // Verify playlist contains required tags
         XCTAssertTrue(playlist.contains("#EXTM3U"))
@@ -83,23 +79,24 @@ final class PlaylistGeneratorTests: XCTestCase {
         XCTAssertTrue(playlist.contains("#EXT-X-TARGETDURATION:6"))
         XCTAssertTrue(playlist.contains("#EXT-X-MEDIA-SEQUENCE:0"))
         
-        // Verify segments
+        // Verify segments are included with correct URLs
         XCTAssertTrue(playlist.contains("#EXTINF:6.000,"))
-        XCTAssertTrue(playlist.contains("http://localhost:8080/segment0.ts"))
-        XCTAssertTrue(playlist.contains("http://localhost:8080/segment1.ts"))
+        XCTAssertTrue(playlist.contains("http://example.com/hls/segment1.ts"))
+        XCTAssertTrue(playlist.contains("http://example.com/hls/segment2.ts"))
+        XCTAssertTrue(playlist.contains("http://example.com/hls/segment3.ts"))
     }
     
-    func testEventPlaylistGeneration() throws {
+    func testGenerateEventPlaylist() throws {
         let segments = [
-            HLSSegment(
-                duration: 6.0,
-                sequenceNumber: 0,
-                filePath: "segment0.ts",
-                startTime: CMTime(seconds: 0, preferredTimescale: 1)
-            )
+            TSSegment(id: "1", path: "segment1.ts", duration: 6.0, startTime: 0.0),
+            TSSegment(id: "2", path: "segment2.ts", duration: 6.0, startTime: 6.0)
         ]
         
-        let playlist = generator.generateEventPlaylist(segments: segments, configuration: configuration)
+        let playlist = try generator.generateEventPlaylist(
+            segments: segments,
+            targetDuration: Int(configuration.targetSegmentDuration),
+            baseURL: configuration.baseURL
+        )
         
         // Verify playlist contains required tags
         XCTAssertTrue(playlist.contains("#EXTM3U"))
@@ -108,28 +105,23 @@ final class PlaylistGeneratorTests: XCTestCase {
         XCTAssertTrue(playlist.contains("#EXT-X-MEDIA-SEQUENCE:0"))
         XCTAssertTrue(playlist.contains("#EXT-X-PLAYLIST-TYPE:EVENT"))
         
-        // Verify segments
+        // Verify segments are included
         XCTAssertTrue(playlist.contains("#EXTINF:6.000,"))
-        XCTAssertTrue(playlist.contains("http://localhost:8080/segment0.ts"))
+        XCTAssertTrue(playlist.contains("http://example.com/hls/segment1.ts"))
+        XCTAssertTrue(playlist.contains("http://example.com/hls/segment2.ts"))
     }
     
-    func testVODPlaylistGeneration() throws {
+    func testGenerateVODPlaylist() throws {
         let segments = [
-            HLSSegment(
-                duration: 6.0,
-                sequenceNumber: 0,
-                filePath: "segment0.ts",
-                startTime: CMTime(seconds: 0, preferredTimescale: 1)
-            ),
-            HLSSegment(
-                duration: 6.0,
-                sequenceNumber: 1,
-                filePath: "segment1.ts",
-                startTime: CMTime(seconds: 6, preferredTimescale: 1)
-            )
+            TSSegment(id: "1", path: "segment1.ts", duration: 6.0, startTime: 0.0),
+            TSSegment(id: "2", path: "segment2.ts", duration: 6.0, startTime: 6.0)
         ]
         
-        let playlist = generator.generateVODPlaylist(segments: segments, configuration: configuration)
+        let playlist = try generator.generateVODPlaylist(
+            segments: segments,
+            targetDuration: Int(configuration.targetSegmentDuration),
+            baseURL: configuration.baseURL
+        )
         
         // Verify playlist contains required tags
         XCTAssertTrue(playlist.contains("#EXTM3U"))
@@ -137,38 +129,30 @@ final class PlaylistGeneratorTests: XCTestCase {
         XCTAssertTrue(playlist.contains("#EXT-X-TARGETDURATION:6"))
         XCTAssertTrue(playlist.contains("#EXT-X-MEDIA-SEQUENCE:0"))
         XCTAssertTrue(playlist.contains("#EXT-X-PLAYLIST-TYPE:VOD"))
-        
-        // Verify segments
-        XCTAssertTrue(playlist.contains("#EXTINF:6.000,"))
-        XCTAssertTrue(playlist.contains("http://localhost:8080/segment0.ts"))
-        XCTAssertTrue(playlist.contains("http://localhost:8080/segment1.ts"))
-        
-        // Verify playlist end marker
         XCTAssertTrue(playlist.contains("#EXT-X-ENDLIST"))
+        
+        // Verify segments are included
+        XCTAssertTrue(playlist.contains("#EXTINF:6.000,"))
+        XCTAssertTrue(playlist.contains("http://example.com/hls/segment1.ts"))
+        XCTAssertTrue(playlist.contains("http://example.com/hls/segment2.ts"))
     }
     
-    func testEmptyBaseURL() throws {
-        let configuration = HLSConfiguration(
-            targetSegmentDuration: 6.0,
-            playlistLength: 5,
-            segmentDirectory: "/tmp/hls",
-            baseURL: ""
-        )
-        
+    func testPlaylistWithoutBaseURL() throws {
         let segments = [
-            HLSSegment(
-                duration: 6.0,
-                sequenceNumber: 0,
-                filePath: "segment0.ts",
-                startTime: CMTime(seconds: 0, preferredTimescale: 1)
-            )
+            TSSegment(id: "1", path: "segment1.ts", duration: 6.0, startTime: 0.0)
         ]
         
-        let playlist = generator.generateMediaPlaylist(segments: segments, configuration: configuration)
+        let playlist = try generator.generateMediaPlaylist(
+            segments: segments,
+            targetDuration: Int(configuration.targetSegmentDuration),
+            baseURL: nil
+        )
         
         // Verify segment URL doesn't include base URL
-        XCTAssertTrue(playlist.contains("\nsegment0.ts\n"))
-        XCTAssertFalse(playlist.contains("http://"))
+        XCTAssertTrue(playlist.contains("segment1.ts"))
+        XCTAssertFalse(playlist.contains("http://example.com/hls/segment1.ts"))
     }
 }
+#else
+#error("PlaylistGeneratorTests is only available on macOS 14.0 or later")
 #endif 

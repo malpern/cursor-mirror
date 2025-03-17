@@ -7,7 +7,7 @@ import VideoToolbox
 /// A video encoder that uses H.264 compression to encode captured frames
 /// into a video file suitable for playback or streaming.
 @available(macOS 14.0, *)
-public actor H264VideoEncoder: @unchecked Sendable {
+public actor H264VideoEncoder: VideoEncoder {
     /// The current encoding state
     private var isEncoding = false
     

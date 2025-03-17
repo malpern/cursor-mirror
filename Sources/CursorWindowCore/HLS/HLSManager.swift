@@ -3,117 +3,124 @@ import Foundation
 import AVFoundation
 
 @available(macOS 14.0, *)
-actor HLSManager: HLSManagerProtocol {
+public actor HLSManager: HLSManagerProtocol {
     private let configuration: HLSConfiguration
-    private let segmentWriter: TSSegmentWriter
-    private let playlistGenerator: PlaylistGenerator
-    
+    private let segmentWriter: TSSegmentWriterProtocol
+    private let playlistGenerator: PlaylistGeneratorProtocol
     private var isStreaming = false
-    private var currentSegmentStartTime: CMTime?
-    private var segments: [HLSSegment] = []
     private var variants: [HLSVariant] = []
     
-    init(configuration: HLSConfiguration) async throws {
+    public init(configuration: HLSConfiguration) async throws {
         self.configuration = configuration
         self.segmentWriter = try await TSSegmentWriter(segmentDirectory: configuration.segmentDirectory)
         self.playlistGenerator = M3U8PlaylistGenerator()
     }
     
-    func startStreaming() async throws {
+    public func startStreaming() async throws {
+        guard !isStreaming else { return }
         isStreaming = true
-        segments.removeAll()
     }
     
-    func stopStreaming() async throws {
+    public func stopStreaming() async throws {
+        guard isStreaming else { return }
         isStreaming = false
         try await segmentWriter.cleanup()
-        segments.removeAll()
     }
     
-    func processEncodedData(_ data: Data, presentationTime: CMTime) async throws {
-        guard isStreaming else {
-            throw HLSError.streamingNotStarted
+    public func processEncodedData(_ data: Data, presentationTime: Double) async throws {
+        guard isStreaming else { throw HLSError.streamingNotStarted }
+        
+        let currentSegment = try await segmentWriter.getCurrentSegment()
+        let shouldStart = currentSegment == nil || 
+            (presentationTime - (currentSegment?.startTime ?? 0)) >= configuration.targetSegmentDuration
+        
+        if shouldStart {
+            try await segmentWriter.startNewSegment()
+            try await cleanupSegments()
         }
         
-        if try await shouldStartNewSegment(at: presentationTime) {
-            let segment = try await segmentWriter.startNewSegment(startTime: presentationTime)
-            segments.append(segment)
-            currentSegmentStartTime = presentationTime
-            
-            // Remove old segments if we exceed the playlist length
-            if segments.count > configuration.playlistLength {
-                segments.removeFirst()
-            }
+        try await segmentWriter.writeEncodedData(data, presentationTime: presentationTime)
+    }
+    
+    private func shouldStartNewSegment() async throws -> Bool {
+        if let currentSegment = try await segmentWriter.getCurrentSegment() {
+            return currentSegment.duration >= configuration.targetSegmentDuration
         }
-        
-        try await segmentWriter.writeEncodedData(data)
+        return true
     }
     
-    func getCurrentPlaylist() async throws -> String {
-        guard isStreaming else {
-            throw HLSError.streamingNotStarted
-        }
-        
-        return playlistGenerator.generateMediaPlaylist(segments: segments, configuration: configuration)
-    }
-    
-    private func shouldStartNewSegment(at time: CMTime) async throws -> Bool {
-        guard let currentStartTime = currentSegmentStartTime else {
-            return true
-        }
-        
-        if let currentSegment = try? await segmentWriter.finishCurrentSegment() {
-            if let index = segments.firstIndex(where: { $0.id == currentSegment.id }) {
-                segments[index] = currentSegment
-            }
-        }
-        
-        let duration = time.seconds - currentStartTime.seconds
-        return duration >= configuration.targetSegmentDuration
-    }
-    
-    func getActiveSegments() async -> [HLSSegment] {
-        return segments
-    }
-    
-    func cleanupOldSegments() async throws {
-        // Keep only the most recent segments based on playlist length
-        if segments.count > configuration.playlistLength {
-            segments.removeFirst(segments.count - configuration.playlistLength)
-        }
-    }
-    
-    func addVariant(_ variant: HLSVariant) async {
-        variants.append(variant)
-    }
-    
-    func removeVariant(_ variant: HLSVariant) async {
-        if let index = variants.firstIndex(where: { 
-            $0.bandwidth == variant.bandwidth &&
-            $0.width == variant.width &&
-            $0.height == variant.height &&
-            $0.frameRate == variant.frameRate &&
-            $0.playlistPath == variant.playlistPath
-        }) {
-            variants.remove(at: index)
-        }
-    }
-    
-    func getMasterPlaylist() async -> String {
-        return playlistGenerator.generateMasterPlaylist(variants: variants)
-    }
-    
-    func getEventPlaylist() async -> String {
-        return playlistGenerator.generateEventPlaylist(
+    public func getCurrentPlaylist() async throws -> String {
+        let segments = try await getActiveSegments()
+        return try playlistGenerator.generateMediaPlaylist(
             segments: segments,
-            configuration: configuration
+            targetDuration: Int(configuration.targetSegmentDuration),
+            baseURL: configuration.baseURL
         )
     }
     
-    func getVODPlaylist() async -> String {
-        return playlistGenerator.generateVODPlaylist(
+    private func cleanupSegments() async throws {
+        let segments = try await segmentWriter.getSegments()
+        let maxSegments = configuration.playlistLength
+        
+        if segments.count > maxSegments {
+            let segmentsToKeep = segments.suffix(maxSegments)
+            let segmentsToRemove = segments.prefix(segments.count - maxSegments)
+            
+            for segment in segmentsToRemove {
+                try await segmentWriter.removeSegment(segment)
+            }
+            
+            // Start a new segment if the current one was removed
+            if let currentSegment = try await segmentWriter.getCurrentSegment(),
+               !segmentsToKeep.contains(where: { $0.id == currentSegment.id }) {
+                try await segmentWriter.startNewSegment()
+            }
+        }
+    }
+    
+    public func getActiveSegments() async throws -> [TSSegment] {
+        // Simply return all segments - we manage segment creation in processEncodedData
+        return try await segmentWriter.getSegments()
+    }
+    
+    public func cleanupOldSegments() async throws {
+        try await cleanupSegments()
+    }
+    
+    public func addVariant(_ variant: HLSVariant) {
+        variants.append(variant)
+    }
+    
+    public func removeVariant(_ variant: HLSVariant) {
+        variants.removeAll { $0 == variant }
+    }
+    
+    private func generateMasterPlaylist() throws -> String {
+        try playlistGenerator.generateMasterPlaylist(
+            variants: variants,
+            baseURL: configuration.baseURL
+        )
+    }
+    
+    public func getMasterPlaylist() throws -> String {
+        try generateMasterPlaylist()
+    }
+    
+    public func getEventPlaylist() async throws -> String {
+        let segments = try await getActiveSegments()
+        return try playlistGenerator.generateEventPlaylist(
             segments: segments,
-            configuration: configuration
+            targetDuration: Int(configuration.targetSegmentDuration),
+            baseURL: configuration.baseURL
+        )
+    }
+    
+    public func getVODPlaylist() async throws -> String {
+        let segments = try await getActiveSegments()
+        return try playlistGenerator.generateVODPlaylist(
+            segments: segments,
+            targetDuration: Int(configuration.targetSegmentDuration),
+            baseURL: configuration.baseURL
         )
     }
 }
