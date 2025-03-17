@@ -23,33 +23,25 @@ A macOS application for capturing and streaming screen content with HLS (HTTP Li
   - Async/await support for thread safety
   - Improved segment timing accuracy
 - Local HTTP server for stream distribution
-  - Phase 1: Core Server Implementation ✅
-    - ✅ Add Vapor dependency
-    - ✅ Create `HTTPServerManager` class with configuration options
-    - ✅ Implement basic routing (health check, version endpoint)
-    - ✅ Add static file serving capability
-    - ✅ Write tests for server functionality
-  - Phase 2: HLS Integration ✅
-    - ✅ Create HLS endpoint routes
-    - ✅ Implement single-connection stream access control
-    - ✅ Add connection timeout handling
-    - ✅ Implement playlist generation
-      - ✅ Master playlist with quality options
-      - ✅ Media playlist with segments
-      - ✅ Proper segment sequence handling
-    - ✅ Set up video segment handling
-      - ✅ Segment creation from H264 stream
-      - ✅ Segment storage and cleanup
-      - ✅ Segment delivery with proper headers
-    - ✅ Write integration tests
+  - Phase 1: Core Server Implementation
+    - Vapor-based HTTP server with configuration options
+    - Basic routing (health check, version endpoint)
+    - Static file serving capability
+    - Comprehensive server tests
+  - Phase 2: HLS Integration
+    - HLS endpoint routes
+    - Single-connection stream access control
+    - Connection timeout handling
+    - Master and media playlist generation
+    - Video segment handling and delivery
+  - Phase 3: Advanced Features
+    - Authentication (multiple methods, protected routes, session management)
+    - CORS support (configurable settings, preflight requests)
+    - Request logging (with configurable levels and filtering)
+    - Rate limiting (with configuration options and IP-based tracking)
+    - Admin dashboard (UI for configuration, monitoring, and management)
 
 🚧 **In Progress**
-  - Phase 3: Advanced Features
-    - [x] Authentication (multiple methods, protected routes, session management, admin protection)
-    - [x] CORS support (configurable settings, preflight requests)
-    - [x] Request logging (with configurable levels and filtering)
-    - [x] Rate limiting (with configuration options and IP-based tracking)
-    - [x] Admin dashboard (UI for configuration, monitoring, and management)
   - Phase 4: Performance & Security
     - [ ] Optimize segment delivery
     - [ ] Add SSL/TLS support
@@ -100,6 +92,8 @@ Sources/
     │   ├── HTTPServerManager # Vapor server configuration
     │   ├── HLSStreamManager # Stream access control
     │   ├── HLSPlaylistGenerator # HTTP-specific playlist generation
+    │   ├── AdminController # Admin dashboard controller
+    │   ├── AuthenticationManager # Authentication handling
     │   └── VideoSegmentHandler # Segment delivery
     ├── Capture/          # Screen capture components
     └── Encoding/         # Video encoding components
@@ -108,101 +102,57 @@ Sources/
 ## Development
 
 ### Testing
-- Comprehensive test suite with 59 tests across all components:
-  - HLS streaming and segment management (12 tests)
-  - H.264 video encoding (6 tests)
-    - Basic encoding validation
-    - Error handling and edge cases
-    - Memory management
-    - Concurrent processing
-    - Performance benchmarks
-  - Frame processing (6 tests)
-  - Screen capture (2 tests)
-  - HTTP server and HLS integration (7 tests)
-    - Server configuration tests
-    - HLS streaming flow validation
-    - Video segment handling
-    - Proper lifecycle management
-  - Playlist generation (5 tests)
-  - UI components (12 tests, requires GUI)
-- Run tests: `swift test`
+- Comprehensive test suite with 70+ tests across all components:
+  - HLS streaming and segment management
+  - H.264 video encoding
+  - Frame processing
+  - Screen capture
+  - HTTP server and HLS integration
+  - Admin dashboard functionality
+  - Authentication and security
+  - Run tests: `swift test`
 
-Note: UI tests require a GUI environment and will be skipped when running headless.
+### Feature Highlights
 
-### Test Infrastructure
-- `VaporTestHelper` class for managing Vapor application lifecycle in tests
-  - Proper async/await server startup and shutdown
-  - Resource cleanup with appropriate timing
-  - HLS content type configuration
-  - Temporary directory management
-  - Debug logging for test tracing
-
-### HLS Features
+#### HLS Features
 - Configurable segment duration and playlist length
 - Automatic segment rotation and cleanup
 - Support for multiple variant streams
 - Event and VOD playlist generation
 - Base URL configuration for flexible deployment
-- Improved segment timing accuracy
-- Enhanced error handling and recovery
 
-### Performance Features
-- Background frame processing
-- 60fps UI update throttling
-- Metal-accelerated rendering
-- Debounced controls
-- Proper task cancellation
-- Efficient segment management
-- Memory-optimized frame handling
-- Thread-safe video encoding
+#### HTTP Server Features
+- Authentication (Basic, Token, API Key)
+- CORS support with configurable policies
+- Request logging with filtering and levels
+- Rate limiting with multiple strategies
+- Admin dashboard for monitoring and management
 
-### Authentication Features
-- Configurable authentication methods (Basic, API Key)
-- Protected routes with middleware
-- Session-based authentication with configurable duration
-- Automatic session expiration and cleanup
-- Admin routes protection
-- Authentication endpoints for login and API key verification
+#### Admin Dashboard Features
+- Dashboard overview with real-time monitoring
+- Stream management interface
+- Settings configuration panel
+- Log viewer with filtering and export
+- Authentication protection
+- Responsive design with Bootstrap 5
 
-### CORS Features
-- Configurable CORS policy with multiple presets (permissive, strict, disabled)
-- Support for specific origin restrictions
-- Control over allowed headers, methods, and credentials
-- Preflight request handling
-- Customizable cache expiration for OPTIONS responses
+## Next Steps
 
-### Logging Features
-- Comprehensive request/response logging
-- Configurable log levels based on response status codes
-- Path exclusion for high-volume endpoints
-- Request and response body logging options
-- Request timing and performance tracking
-- Request ID tracking for correlation
+### Phase 4: Performance & Security
+The next phase focuses on optimizing performance and enhancing security:
+- Segment delivery optimization to reduce latency
+- SSL/TLS support for secure connections
+- Performance benchmarking and optimization
+- Security hardening with best practices
+- Monitoring and metrics integration
 
-### Rate Limiting Features
-- Time-window based rate limiting with IP or custom identifier
-- Standard rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
-- Per-route group rate limiting for fine-grained control
-- Path exclusions for health checks and static resources
-- Automatic bucket cleanup to prevent memory leaks
-- Multiple preset configurations (standard, strict, disabled)
-
-### Admin Dashboard Features
-
-The admin dashboard provides a web-based interface for managing and monitoring the HTTP server. Key features include:
-
-- **Dashboard Overview**: Real-time monitoring of server status, stream connections, and request traffic
-- **Stream Management**: Monitor active streams, view connection history, and manage stream timeouts
-- **Settings Management**: Configure all server settings through a user-friendly interface
-- **Logs Viewer**: Browse, filter, and export server logs
-- **Authentication**: Login protection for admin access
-- **Responsive Design**: Works on desktop and mobile devices
-- **Real-time Updates**: Automatic refreshing of dynamic content
-
-The dashboard is built using:
-- Leaf templates (server-side rendering)
-- Bootstrap 5 for responsive layouts
-- Chart.js for traffic visualization
+### Phase 5: UI Integration
+The final phase will integrate the HTTP server with the main application UI:
+- Server controls in the main application interface
+- QR code generation for easy mobile connection
+- Server status indicators in the UI
+- Connection management interface
+- Improved error handling and user feedback
 
 ## Contributing
 
