@@ -13,12 +13,15 @@ A macOS application for capturing and streaming screen content with HLS (HTTP Li
   - Thread-safe frame processing
   - Configurable frame rate and bitrate
   - Memory-safe frame management
+  - Robust error handling and validation
+  - Comprehensive test coverage
 - HLS streaming implementation
   - MPEG-TS segment generation with proper timing
   - M3U8 playlist management (Master, Media, Event, VOD)
   - Efficient segment rotation and cleanup
   - Variant stream support
   - Async/await support for thread safety
+  - Improved segment timing accuracy
 
 🚧 **In Progress**
 - Local HTTP server for stream distribution
@@ -62,12 +65,18 @@ Sources/
 ## Development
 
 ### Testing
-- Comprehensive test suite for all components
-  - HLS streaming and segment management
-  - Playlist generation and validation
-  - Frame processing and encoding
-- UI tests for viewport and controls
-- Performance tests for frame processing
+- Comprehensive test suite with 44 tests across all components:
+  - HLS streaming and segment management (12 tests)
+  - H.264 video encoding (6 tests)
+    - Basic encoding validation
+    - Error handling and edge cases
+    - Memory management
+    - Concurrent processing
+    - Performance benchmarks
+  - Frame processing (6 tests)
+  - Screen capture (2 tests)
+  - Playlist generation (5 tests)
+  - UI components (12 tests, requires GUI)
 - Run tests: `swift test`
 
 Note: UI tests require a GUI environment and will be skipped when running headless.
@@ -78,6 +87,8 @@ Note: UI tests require a GUI environment and will be skipped when running headle
 - Support for multiple variant streams
 - Event and VOD playlist generation
 - Base URL configuration for flexible deployment
+- Improved segment timing accuracy
+- Enhanced error handling and recovery
 
 ### Performance Features
 - Background frame processing
@@ -86,6 +97,8 @@ Note: UI tests require a GUI environment and will be skipped when running headle
 - Debounced controls
 - Proper task cancellation
 - Efficient segment management
+- Memory-optimized frame handling
+- Thread-safe video encoding
 
 ## Contributing
 

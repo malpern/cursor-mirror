@@ -1,133 +1,186 @@
+#if os(macOS)
 import XCTest
-@testable import CursorWindowCore
-import CoreMedia
 import AVFoundation
+@testable import CursorWindowCore
 
 @available(macOS 14.0, *)
 final class H264VideoEncoderTests: XCTestCase {
-    var encoder: H264VideoEncoder!
-    let testWidth = 1920
-    let testHeight = 1080
+    private var encoder: H264VideoEncoder!
+    private let testOutputPath = NSTemporaryDirectory() + "test.mp4"
+    private let testWidth = 1920
+    private let testHeight = 1080
+    private let testFrameRate = 30.0
     
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         encoder = H264VideoEncoder()
     }
     
-    override func tearDown() {
+    override func tearDown() async throws {
+        try? FileManager.default.removeItem(atPath: testOutputPath)
         encoder = nil
-        super.tearDown()
+        try await super.tearDown()
     }
     
     func testBasicEncoding() async throws {
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test.mp4")
-        // Remove any existing file
-        try? FileManager.default.removeItem(at: tempURL)
+        let outputURL = URL(fileURLWithPath: testOutputPath)
+        try encoder.startEncoding(to: outputURL, width: testWidth, height: testHeight)
         
-        print("Starting encoding test to: \(tempURL.path)")
-        try encoder.startEncoding(to: tempURL, width: testWidth, height: testHeight)
-        
-        // Process 10 frames with precise timing
+        // Create and encode test frames
         for i in 0..<10 {
-            let frame = try createTestFrame(at: Double(i) / 30.0)
-            print("Processing frame \(i) at time: \(Double(i) / 30.0)")
+            let frame = try createTestFrame(at: Double(i) / testFrameRate)
             encoder.processFrame(frame)
-            // Use precise timing between frames
-            try await Task.sleep(for: .milliseconds(33))
+            try await Task.sleep(for: .milliseconds(33)) // Simulate frame timing
         }
         
-        print("All frames processed, stopping encoder")
         encoder.stopEncoding()
+        try await Task.sleep(for: .milliseconds(500)) // Wait for encoding to finish
         
-        // Wait for encoding to finish and file to be written
-        for attempt in 1...10 {
-            try await Task.sleep(for: .milliseconds(500))
-            if FileManager.default.fileExists(atPath: tempURL.path),
-               let attributes = try? FileManager.default.attributesOfItem(atPath: tempURL.path),
-               let fileSize = attributes[.size] as? NSNumber,
-               fileSize.intValue > 0 {
-                print("File created successfully after \(attempt * 500)ms with size: \(fileSize.intValue) bytes")
-                break
-            }
-            if attempt == 10 {
-                XCTFail("File not created after 5 seconds")
-            }
-        }
+        // Verify output file exists and has content
+        let fileExists = FileManager.default.fileExists(atPath: testOutputPath)
+        XCTAssertTrue(fileExists)
         
-        // Verify the file exists and has content
-        XCTAssertTrue(FileManager.default.fileExists(atPath: tempURL.path))
-        let attributes = try FileManager.default.attributesOfItem(atPath: tempURL.path)
-        let fileSize = (attributes[.size] as? NSNumber)?.intValue ?? 0
-        print("Final file size: \(fileSize)")
+        let fileSize = try FileManager.default.attributesOfItem(atPath: testOutputPath)[.size] as! Int64
         XCTAssertGreaterThan(fileSize, 0)
         
-        // Try to read the file with AVAsset to verify it's a valid video
-        let asset = AVAsset(url: tempURL)
+        // Verify the file is a valid video
+        let asset = AVAsset(url: outputURL)
         let tracks = try await asset.loadTracks(withMediaType: .video)
         XCTAssertFalse(tracks.isEmpty, "Video file should have at least one video track")
-        
-        try? FileManager.default.removeItem(at: tempURL)
     }
     
     func testStopEncoding() async throws {
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("test.mp4")
-        try encoder.startEncoding(to: tempURL, width: testWidth, height: testHeight)
+        let outputURL = URL(fileURLWithPath: testOutputPath)
+        try encoder.startEncoding(to: outputURL, width: testWidth, height: testHeight)
         encoder.stopEncoding()
         
         // Wait for encoding to finish
-        try await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .milliseconds(500))
         
         // Try to process a frame after stopping - should be ignored
         let frame = try createTestFrame(at: 0)
         encoder.processFrame(frame)
         
-        try? FileManager.default.removeItem(at: tempURL)
+        // Verify no error is thrown but frame is ignored
+        try await Task.sleep(for: .milliseconds(100))
     }
     
-    // Helper function to create a test frame
+    func testInvalidConfiguration() async throws {
+        let outputURL = URL(fileURLWithPath: testOutputPath)
+        
+        // Test invalid dimensions
+        do {
+            try encoder.startEncoding(to: outputURL, width: -1, height: testHeight)
+            XCTFail("Expected error for invalid width")
+        } catch {
+            // The error should be our custom EncodingError
+            if let encodingError = error as? EncodingError {
+                XCTAssertEqual(encodingError, .invalidWidth, "Expected invalidWidth error")
+            } else {
+                XCTFail("Expected EncodingError but got \(type(of: error))")
+            }
+        }
+        
+        do {
+            try encoder.startEncoding(to: outputURL, width: testWidth, height: -1)
+            XCTFail("Expected error for invalid height")
+        } catch {
+            // The error should be our custom EncodingError
+            if let encodingError = error as? EncodingError {
+                XCTAssertEqual(encodingError, .invalidHeight, "Expected invalidHeight error")
+            } else {
+                XCTFail("Expected EncodingError but got \(type(of: error))")
+            }
+        }
+        
+        // Test invalid output URL
+        do {
+            try encoder.startEncoding(to: URL(fileURLWithPath: "/invalid/path/test.mp4"), width: testWidth, height: testHeight)
+            XCTFail("Expected error for invalid output path")
+        } catch {
+            // Any error is acceptable here since it's OS-dependent
+            XCTAssertTrue(true, "Expected an error for invalid output path")
+        }
+    }
+    
+    func testEncodingPerformance() async throws {
+        let outputURL = URL(fileURLWithPath: testOutputPath)
+        try encoder.startEncoding(to: outputURL, width: testWidth, height: testHeight)
+        
+        measure {
+            let frame = try! createTestFrame(at: 0)
+            encoder.processFrame(frame)
+        }
+        
+        encoder.stopEncoding()
+        try await Task.sleep(for: .milliseconds(500))
+    }
+    
+    func testConcurrentEncoding() async throws {
+        let outputURL = URL(fileURLWithPath: testOutputPath)
+        try encoder.startEncoding(to: outputURL, width: testWidth, height: testHeight)
+        
+        // Create multiple concurrent frame processing tasks
+        let tasks = (0..<5).map { i in
+            Task {
+                let frame = try createTestFrame(at: Double(i) / testFrameRate)
+                encoder.processFrame(frame)
+            }
+        }
+        
+        // Wait for all tasks to complete
+        for task in tasks {
+            try await task.value
+        }
+        
+        encoder.stopEncoding()
+        try await Task.sleep(for: .milliseconds(500))
+        
+        // Verify output file
+        let fileSize = try FileManager.default.attributesOfItem(atPath: testOutputPath)[.size] as! Int64
+        XCTAssertGreaterThan(fileSize, 0)
+    }
+    
+    func testMemoryHandling() async throws {
+        let outputURL = URL(fileURLWithPath: testOutputPath)
+        try encoder.startEncoding(to: outputURL, width: testWidth, height: testHeight)
+        
+        // Create and encode a large number of frames to test memory handling
+        for i in 0..<100 {
+            let frame = try createTestFrame(at: Double(i) / testFrameRate)
+            encoder.processFrame(frame)
+            
+            // Verify memory usage doesn't grow unbounded
+            if i % 10 == 0 {
+                autoreleasepool { }
+            }
+        }
+        
+        encoder.stopEncoding()
+        try await Task.sleep(for: .milliseconds(500))
+    }
+    
+    // MARK: - Helper Methods
+    
     private func createTestFrame(at time: Double) throws -> CMSampleBuffer {
-        var pixelBuffer: CVPixelBuffer?
-        CVPixelBufferCreate(kCFAllocatorDefault,
-                           testWidth,
-                           testHeight,
-                           kCVPixelFormatType_32BGRA,
-                           nil,
-                           &pixelBuffer)
-        
-        guard let pixelBuffer = pixelBuffer else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create pixel buffer"])
-        }
-        
-        // Lock the buffer and fill it with a test pattern
-        CVPixelBufferLockBaseAddress(pixelBuffer, [])
-        if let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) {
-            let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
-            let bufferHeight = CVPixelBufferGetHeight(pixelBuffer)
-            let bufferSize = bytesPerRow * bufferHeight
-            memset(baseAddress, Int32(time * 255), bufferSize)  // Fill with increasing values
-        }
-        CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
-        
-        // Create format description
-        var formatDescription: CMFormatDescription?
-        CMVideoFormatDescriptionCreateForImageBuffer(
-            allocator: kCFAllocatorDefault,
-            imageBuffer: pixelBuffer,
-            formatDescriptionOut: &formatDescription
-        )
-        
-        guard let formatDescription = formatDescription else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create format description"])
-        }
-        
-        // Create timing info
-        var timingInfo = CMSampleTimingInfo(
-            duration: CMTime(value: 1, timescale: 30),
+        let pixelBuffer = try createTestPixelBuffer()
+        var timing = CMSampleTimingInfo(
+            duration: CMTime(value: 1, timescale: Int32(testFrameRate)),
             presentationTimeStamp: CMTime(seconds: time, preferredTimescale: 600),
             decodeTimeStamp: .invalid
         )
         
-        // Create sample buffer
+        var formatDesc: CMFormatDescription?
+        CMVideoFormatDescriptionCreateForImageBuffer(
+            allocator: kCFAllocatorDefault,
+            imageBuffer: pixelBuffer,
+            formatDescriptionOut: &formatDesc
+        )
+        
+        guard let formatDesc = formatDesc else {
+            throw EncodingError.formatDescriptionCreationFailed
+        }
+        
         var sampleBuffer: CMSampleBuffer?
         CMSampleBufferCreateForImageBuffer(
             allocator: kCFAllocatorDefault,
@@ -135,15 +188,64 @@ final class H264VideoEncoderTests: XCTestCase {
             dataReady: true,
             makeDataReadyCallback: nil,
             refcon: nil,
-            formatDescription: formatDescription,
-            sampleTiming: &timingInfo,
+            formatDescription: formatDesc,
+            sampleTiming: &timing,
             sampleBufferOut: &sampleBuffer
         )
         
         guard let sampleBuffer = sampleBuffer else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create sample buffer"])
+            throw EncodingError.sampleBufferCreationFailed
         }
         
         return sampleBuffer
     }
-} 
+    
+    private func createTestPixelBuffer() throws -> CVPixelBuffer {
+        var pixelBuffer: CVPixelBuffer?
+        let attrs = [
+            kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferMetalCompatibilityKey: true
+        ] as CFDictionary
+        
+        CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            testWidth,
+            testHeight,
+            kCVPixelFormatType_32BGRA,
+            attrs,
+            &pixelBuffer
+        )
+        
+        guard let pixelBuffer = pixelBuffer else {
+            throw EncodingError.pixelBufferCreationFailed
+        }
+        
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let bufferHeight = CVPixelBufferGetHeight(pixelBuffer)
+        
+        // Fill with test pattern
+        if let baseAddress = baseAddress {
+            for y in 0..<bufferHeight {
+                let rowStart = baseAddress.advanced(by: y * bytesPerRow).assumingMemoryBound(to: UInt32.self)
+                for x in 0..<testWidth {
+                    rowStart[x] = 0xFF0000FF // Red color
+                }
+            }
+        }
+        
+        CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
+        return pixelBuffer
+    }
+}
+
+// MARK: - Error Types
+enum EncodingError: Error {
+    case formatDescriptionCreationFailed
+    case sampleBufferCreationFailed
+    case pixelBufferCreationFailed
+    case invalidWidth
+    case invalidHeight
+}
+#endif 

@@ -167,6 +167,14 @@ extension H264VideoEncoder: EncodingFrameProcessorProtocol {
     ///   - height: The height of the video in pixels
     /// - Throws: An error if encoding initialization fails
     nonisolated public func startEncoding(to url: URL, width: Int, height: Int) throws {
+        // Validate parameters
+        guard width > 0 else {
+            throw EncodingError.invalidWidth
+        }
+        guard height > 0 else {
+            throw EncodingError.invalidHeight
+        }
+        
         // Start the encoding session synchronously
         let semaphore = DispatchSemaphore(value: 0)
         var setupError: Error?
@@ -251,6 +259,17 @@ extension H264VideoEncoder: EncodingFrameProcessorProtocol {
         videoWriter = nil
         videoWriterInput = nil
     }
+}
+
+/// Errors that can occur during video encoding
+public enum EncodingError: Error {
+    case invalidWidth
+    case invalidHeight
+    case formatDescriptionCreationFailed
+    case sampleBufferCreationFailed
+    case pixelBufferCreationFailed
+    case encodingNotStarted
+    case encodingAlreadyInProgress
 }
 
 #else

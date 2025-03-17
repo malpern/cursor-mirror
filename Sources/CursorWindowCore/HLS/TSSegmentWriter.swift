@@ -102,14 +102,13 @@ public actor TSSegmentWriter: TSSegmentWriterProtocol {
     }
     
     private func finishCurrentSegment() async throws {
-        guard let segment = currentSegment else {
+        guard let currentFile = currentSegmentFile else {
             return
         }
         
-        try currentSegmentFile?.close()
-        currentSegment = nil
+        try currentFile.synchronize()
+        try currentFile.close()
         currentSegmentFile = nil
-        segmentStartTime = nil
     }
 }
 #else
