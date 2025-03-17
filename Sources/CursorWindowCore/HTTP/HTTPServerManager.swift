@@ -21,6 +21,7 @@ public enum HTTPServerError: Error, Equatable {
     case serverAlreadyRunning
     case serverNotRunning
     case invalidConfiguration
+    case streamError(String)
 }
 
 /// Manages an HTTP server for streaming HLS content
@@ -28,9 +29,11 @@ public actor HTTPServerManager {
     private let config: HTTPServerConfig
     private var app: Application?
     internal private(set) var isRunning: Bool = false
+    private let streamManager: HLSStreamManager
     
     public init(config: HTTPServerConfig = HTTPServerConfig()) {
         self.config = config
+        self.streamManager = HLSStreamManager()
     }
     
     deinit {
@@ -92,10 +95,81 @@ public actor HTTPServerManager {
             "1.0.0"
         }
         
-        // Static files endpoint
-        app.get("static", "**") { req async throws -> Response in
-            let path = req.parameters.getCatchall().joined(separator: "/")
-            return try await req.fileio.asyncStreamFile(at: path)
+        // Stream access endpoint
+        app.post("stream", "access") { [streamManager] req -> Response in
+            do {
+                let streamKey = try await streamManager.requestAccess()
+                let response = Response(status: .ok)
+                response.headers.contentType = .json
+                try response.content.encode(["streamKey": streamKey.uuidString] as [String: String])
+                return response
+            } catch {
+                let response = Response(status: .conflict)
+                response.headers.contentType = .json
+                try response.content.encode(["error": "Stream is currently in use"] as [String: String])
+                return response
+            }
+        }
+        
+        // Master playlist endpoint
+        app.get("stream", "master.m3u8") { [streamManager] req -> Response in
+            // Validate stream key from query parameter
+            guard let streamKeyStr = req.query[String.self, at: "key"],
+                  let streamKey = UUID(uuidString: streamKeyStr),
+                  await streamManager.validateAccess(streamKey) else {
+                return Response(status: .unauthorized)
+            }
+            
+            // TODO: Generate master playlist
+            let response = Response(status: .ok)
+            response.headers.contentType = .init(type: "application", subType: "vnd.apple.mpegurl")
+            response.headers.cacheControl = .init(noCache: true)
+            response.body = .init(string: "#EXTM3U\n#EXT-X-VERSION:3\n")
+            return response
+        }
+        
+        // Media playlist endpoint
+        app.get("stream", ":quality", "playlist.m3u8") { [streamManager] req -> Response in
+            // Validate stream key from query parameter
+            guard let streamKeyStr = req.query[String.self, at: "key"],
+                  let streamKey = UUID(uuidString: streamKeyStr),
+                  await streamManager.validateAccess(streamKey) else {
+                return Response(status: .unauthorized)
+            }
+            
+            // TODO: Generate media playlist for quality
+            let response = Response(status: .ok)
+            response.headers.contentType = .init(type: "application", subType: "vnd.apple.mpegurl")
+            response.headers.cacheControl = .init(noCache: true)
+            response.body = .init(string: "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n")
+            return response
+        }
+        
+        // Segment endpoint
+        app.get("stream", ":quality", "segment_:index.ts") { [streamManager] req -> Response in
+            // Validate stream key from query parameter
+            guard let streamKeyStr = req.query[String.self, at: "key"],
+                  let streamKey = UUID(uuidString: streamKeyStr),
+                  await streamManager.validateAccess(streamKey) else {
+                return Response(status: .unauthorized)
+            }
+            
+            // TODO: Deliver segment data
+            let response = Response(status: .ok)
+            response.headers.contentType = .init(type: "video", subType: "mp2t")
+            response.headers.cacheControl = .init(noCache: true)
+            return response
+        }
+        
+        // Stream release endpoint
+        app.delete("stream", "access") { [streamManager] req -> Response in
+            guard let streamKeyStr = req.query[String.self, at: "key"],
+                  let streamKey = UUID(uuidString: streamKeyStr) else {
+                return Response(status: .badRequest)
+            }
+            
+            await streamManager.releaseAccess(streamKey)
+            return Response(status: .ok)
         }
     }
 } 

@@ -73,33 +73,34 @@ final class H264VideoEncoderTests: XCTestCase {
             try encoder.startEncoding(to: outputURL, width: -1, height: testHeight)
             XCTFail("Expected error for invalid width")
         } catch {
-            // The error should be our custom EncodingError
-            if let encodingError = error as? EncodingError {
-                XCTAssertEqual(encodingError, .invalidWidth, "Expected invalidWidth error")
-            } else {
+            guard let encodingError = error as? CursorWindowCore.EncodingError else {
                 XCTFail("Expected EncodingError but got \(type(of: error))")
+                return
             }
+            XCTAssertEqual(encodingError, .invalidWidth, "Expected invalidWidth error")
         }
         
         do {
             try encoder.startEncoding(to: outputURL, width: testWidth, height: -1)
             XCTFail("Expected error for invalid height")
         } catch {
-            // The error should be our custom EncodingError
-            if let encodingError = error as? EncodingError {
-                XCTAssertEqual(encodingError, .invalidHeight, "Expected invalidHeight error")
-            } else {
+            guard let encodingError = error as? CursorWindowCore.EncodingError else {
                 XCTFail("Expected EncodingError but got \(type(of: error))")
+                return
             }
+            XCTAssertEqual(encodingError, .invalidHeight, "Expected invalidHeight error")
         }
         
         // Test invalid output URL
         do {
-            try encoder.startEncoding(to: URL(fileURLWithPath: "/invalid/path/test.mp4"), width: testWidth, height: testHeight)
+            let invalidURL = URL(fileURLWithPath: "/invalid/path/test.mp4")
+            try encoder.startEncoding(to: invalidURL, width: testWidth, height: testHeight)
             XCTFail("Expected error for invalid output path")
+        } catch let error as CursorWindowCore.EncodingError {
+            XCTAssertEqual(error, .outputPathError, "Expected outputPathError")
         } catch {
-            // Any error is acceptable here since it's OS-dependent
-            XCTAssertTrue(true, "Expected an error for invalid output path")
+            // Any other error type is also acceptable since it's OS-dependent
+            XCTAssertTrue(true, "Got expected error for invalid output path")
         }
     }
     
@@ -247,5 +248,6 @@ enum EncodingError: Error {
     case pixelBufferCreationFailed
     case invalidWidth
     case invalidHeight
+    case outputPathError
 }
 #endif 

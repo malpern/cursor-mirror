@@ -139,7 +139,7 @@ final class VideoSegmentHandlerTests: XCTestCase {
             _ = try await handler.getSegmentData(quality: quality, filename: filename)
             XCTFail("Expected error for nonexistent segment")
         } catch let error as HLSError {
-            XCTAssertEqual(error.errorDescription, "Segment not found: nonexistent.ts")
+            XCTAssertEqual(error.errorDescription, "File operation failed: Segment not found: nonexistent.ts")
         }
     }
 }

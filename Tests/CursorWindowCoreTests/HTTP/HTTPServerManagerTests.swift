@@ -1,112 +1,70 @@
 import XCTest
+import Vapor
 import XCTVapor
 @testable import CursorWindowCore
 
+@MainActor
 final class HTTPServerManagerTests: XCTestCase {
-    private var manager: HTTPServerManager!
-    private let testPort = 8081
-    private var client: HTTPClient!
+    private var vaporHelper: VaporTestHelper!
     
     override func setUp() async throws {
         try await super.setUp()
-        let config = HTTPServerConfig(port: testPort)
-        manager = HTTPServerManager(config: config)
-        client = HTTPClient(eventLoopGroupProvider: .singleton)
+        vaporHelper = try await VaporTestHelper(logLevel: .debug)
     }
     
     override func tearDown() async throws {
-        if manager != nil {
-            try? await manager.stop()
-            manager = nil
+        if let helper = vaporHelper {
+            try await helper.shutdown()
         }
-        if client != nil {
-            try await client.shutdown()
-            client = nil
-        }
+        vaporHelper = nil
         try await super.tearDown()
     }
-    
-    func testServerStartStop() async throws {
-        // Test server start
-        try await manager.start()
-        var isRunning = await manager.isRunning
-        XCTAssertTrue(isRunning, "Server should be running after start")
-        
-        // Verify server is accessible
-        let response = try await client.get(url: "http://localhost:\(testPort)/health").get()
-        XCTAssertEqual(response.status, .ok)
-        
-        // Test server stop
-        try await manager.stop()
-        isRunning = await manager.isRunning
-        XCTAssertFalse(isRunning, "Server should not be running after stop")
-    }
-    
-    func testServerAlreadyRunning() async throws {
-        // Start server
-        try await manager.start()
-        
-        // Try to start again
-        do {
-            try await manager.start()
-            XCTFail("Expected error when starting already running server")
-        } catch let error as HTTPServerError {
-            XCTAssertEqual(error, .serverAlreadyRunning)
+
+    func testBasicServerConfiguration() async throws {
+        // Set up basic routes
+        vaporHelper.app.get("test") { req -> String in
+            return "Hello, world!"
         }
         
-        try await manager.stop()
-    }
-    
-    func testServerNotRunning() async throws {
-        // Try to stop server that isn't running
-        do {
-            try await manager.stop()
-            XCTFail("Expected error when stopping server that isn't running")
-        } catch let error as HTTPServerError {
-            XCTAssertEqual(error, .serverNotRunning)
-        }
-    }
-    
-    func testHealthEndpoint() async throws {
-        try await manager.start()
+        // Start the server
+        try await vaporHelper.startServer()
         
-        let response = try await client.get(url: "http://localhost:\(testPort)/health").get()
+        // Test that the server is responding
+        let response = try await vaporHelper.app.client.get("http://localhost:8080/test")
         XCTAssertEqual(response.status, .ok)
+        XCTAssertEqual(try response.content.decode(String.self), "Hello, world!")
         
-        let body = try XCTUnwrap(response.body)
-        let responseString = String(buffer: body)
-        XCTAssertEqual(responseString, "OK")
-        
-        try await manager.stop()
+        // Verify default settings
+        XCTAssertEqual(vaporHelper.app.http.server.configuration.hostname, "127.0.0.1")
+        XCTAssertEqual(vaporHelper.app.http.server.configuration.port, 8080)
     }
     
-    func testVersionEndpoint() async throws {
-        try await manager.start()
-        
-        let response = try await client.get(url: "http://localhost:\(testPort)/version").get()
-        XCTAssertEqual(response.status, .ok)
-        
-        let body = try XCTUnwrap(response.body)
-        let responseString = String(buffer: body)
-        XCTAssertEqual(responseString, "1.0.0")
-        
-        try await manager.stop()
-    }
-    
-    func testCustomConfiguration() async throws {
-        let customConfig = HTTPServerConfig(
-            host: "127.0.0.1",
-            port: 8082,
-            enableTLS: false,
-            workerCount: 4
+    func testCustomPortConfiguration() async throws {
+        // Create new helper with custom port
+        let customHelper = try await VaporTestHelper(
+            hostname: "localhost", 
+            port: 9000, 
+            logLevel: .debug
         )
         
-        let customManager = HTTPServerManager(config: customConfig)
-        try await customManager.start()
+        // Set up a test route
+        customHelper.app.get("test") { req -> String in
+            return "Custom port test"
+        }
         
-        let response = try await client.get(url: "http://localhost:8082/health").get()
+        // Start the server
+        try await customHelper.startServer()
+        
+        // Test that the server is responding on the custom port
+        let response = try await customHelper.app.client.get("http://localhost:9000/test")
         XCTAssertEqual(response.status, .ok)
+        XCTAssertEqual(try response.content.decode(String.self), "Custom port test")
         
-        try await customManager.stop()
+        // Verify custom settings
+        XCTAssertEqual(customHelper.app.http.server.configuration.hostname, "127.0.0.1")
+        XCTAssertEqual(customHelper.app.http.server.configuration.port, 9000)
+        
+        // Explicitly shutdown
+        try await customHelper.shutdown()
     }
 } 

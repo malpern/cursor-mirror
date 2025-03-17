@@ -162,17 +162,25 @@ extension H264VideoEncoder: EncodingFrameProcessorProtocol {
     
     /// Start encoding video to a specified URL
     /// - Parameters:
-    ///   - url: The destination URL for the encoded video file
+    ///   - outputURL: The destination URL for the encoded video file
     ///   - width: The width of the video in pixels
     ///   - height: The height of the video in pixels
     /// - Throws: An error if encoding initialization fails
-    nonisolated public func startEncoding(to url: URL, width: Int, height: Int) throws {
-        // Validate parameters
-        guard width > 0 else {
-            throw EncodingError.invalidWidth
+    nonisolated public func startEncoding(to outputURL: URL, width: Int, height: Int) throws {
+        guard width > 0 else { throw EncodingError.invalidWidth }
+        guard height > 0 else { throw EncodingError.invalidHeight }
+        
+        // Check if the output directory exists and is writable
+        let outputDirectory = outputURL.deletingLastPathComponent()
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: outputDirectory.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            throw EncodingError.outputPathError
         }
-        guard height > 0 else {
-            throw EncodingError.invalidHeight
+        
+        // Check if we can write to the output directory
+        guard FileManager.default.isWritableFile(atPath: outputDirectory.path) else {
+            throw EncodingError.outputPathError
         }
         
         // Start the encoding session synchronously
@@ -181,7 +189,7 @@ extension H264VideoEncoder: EncodingFrameProcessorProtocol {
         
         Task { @MainActor [weak self] in
             do {
-                try await self?.startEncodingInternal(to: url, width: width, height: height)
+                try await self?.startEncodingInternal(to: outputURL, width: width, height: height)
             } catch {
                 setupError = error
             }
@@ -195,12 +203,12 @@ extension H264VideoEncoder: EncodingFrameProcessorProtocol {
     }
     
     /// Internal method to start encoding within the actor's isolation domain
-    private func startEncodingInternal(to url: URL, width: Int, height: Int) throws {
+    private func startEncodingInternal(to outputURL: URL, width: Int, height: Int) throws {
         // Remove any existing file
-        try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: outputURL)
         
         // Create video writer
-        videoWriter = try AVAssetWriter(url: url, fileType: .mp4)
+        videoWriter = try AVAssetWriter(url: outputURL, fileType: .mp4)
         
         // Configure video settings
         let videoSettings: [String: Any] = [
@@ -270,6 +278,7 @@ public enum EncodingError: Error {
     case pixelBufferCreationFailed
     case encodingNotStarted
     case encodingAlreadyInProgress
+    case outputPathError
 }
 
 #else

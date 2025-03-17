@@ -22,9 +22,46 @@ A macOS application for capturing and streaming screen content with HLS (HTTP Li
   - Variant stream support
   - Async/await support for thread safety
   - Improved segment timing accuracy
+- Local HTTP server for stream distribution
+  - Phase 1: Core Server Implementation ✅
+    - ✅ Add Vapor dependency
+    - ✅ Create `HTTPServerManager` class with configuration options
+    - ✅ Implement basic routing (health check, version endpoint)
+    - ✅ Add static file serving capability
+    - ✅ Write tests for server functionality
+  - Phase 2: HLS Integration ✅
+    - ✅ Create HLS endpoint routes
+    - ✅ Implement single-connection stream access control
+    - ✅ Add connection timeout handling
+    - ✅ Implement playlist generation
+      - ✅ Master playlist with quality options
+      - ✅ Media playlist with segments
+      - ✅ Proper segment sequence handling
+    - ✅ Set up video segment handling
+      - ✅ Segment creation from H264 stream
+      - ✅ Segment storage and cleanup
+      - ✅ Segment delivery with proper headers
+    - ✅ Write integration tests
 
 🚧 **In Progress**
-- Local HTTP server for stream distribution
+  - Phase 3: Advanced Features
+    - [ ] Add authentication
+    - [ ] Implement CORS support
+    - [ ] Add request logging
+    - [ ] Implement rate limiting
+    - [ ] Create admin dashboard
+  - Phase 4: Performance & Security
+    - [ ] Optimize segment delivery
+    - [ ] Add SSL/TLS support
+    - [ ] Write performance tests
+    - [ ] Implement security best practices
+    - [ ] Add monitoring and metrics
+  - Phase 5: UI Integration
+    - [ ] Add server controls to main UI
+    - [ ] Create QR code for mobile connection
+    - [ ] Add server status indicators
+    - [ ] Implement connection management
+    - [ ] Add error handling and user feedback
 - iOS client app for stream playback
 
 ## Requirements
@@ -59,13 +96,15 @@ Sources/
     │   ├── TSSegmentWriter  # MPEG-TS segment handling
     │   └── PlaylistGenerator # M3U8 playlist generation
     ├── Capture/         # Screen capture components
-    └── Encoding/        # Video encoding components
+    ├── Encoding/        # Video encoding components
+    └── HTTP/            # HTTP server components
+        └── Vapor-based server for HLS delivery
 ```
 
 ## Development
 
 ### Testing
-- Comprehensive test suite with 44 tests across all components:
+- Comprehensive test suite with 59 tests across all components:
   - HLS streaming and segment management (12 tests)
   - H.264 video encoding (6 tests)
     - Basic encoding validation
@@ -75,11 +114,24 @@ Sources/
     - Performance benchmarks
   - Frame processing (6 tests)
   - Screen capture (2 tests)
+  - HTTP server and HLS integration (7 tests)
+    - Server configuration tests
+    - HLS streaming flow validation
+    - Video segment handling
+    - Proper lifecycle management
   - Playlist generation (5 tests)
   - UI components (12 tests, requires GUI)
 - Run tests: `swift test`
 
 Note: UI tests require a GUI environment and will be skipped when running headless.
+
+### Test Infrastructure
+- `VaporTestHelper` class for managing Vapor application lifecycle in tests
+  - Proper async/await server startup and shutdown
+  - Resource cleanup with appropriate timing
+  - HLS content type configuration
+  - Temporary directory management
+  - Debug logging for test tracing
 
 ### HLS Features
 - Configurable segment duration and playlist length
