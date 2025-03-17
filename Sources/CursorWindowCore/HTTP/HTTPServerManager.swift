@@ -21,6 +21,9 @@ public struct HTTPServerConfig: Equatable {
     /// CORS configuration
     public let cors: CORSConfiguration
     
+    /// Request logging configuration
+    public let logging: RequestLoggingConfiguration
+    
     /// Creates a new HTTP server configuration
     public init(
         host: String = "127.0.0.1",
@@ -28,7 +31,8 @@ public struct HTTPServerConfig: Equatable {
         enableTLS: Bool = false,
         workerCount: Int = System.coreCount,
         authentication: AuthenticationConfig = .disabled,
-        cors: CORSConfiguration = .permissive
+        cors: CORSConfiguration = .permissive,
+        logging: RequestLoggingConfiguration = .basic
     ) {
         self.host = host
         self.port = port
@@ -36,6 +40,7 @@ public struct HTTPServerConfig: Equatable {
         self.workerCount = workerCount
         self.authentication = authentication
         self.cors = cors
+        self.logging = logging
     }
 }
 
@@ -48,7 +53,7 @@ public struct CORSConfiguration: Equatable {
     public let allowedMethods: [HTTPMethod]
     
     /// Allowed HTTP headers
-    public let allowedHeaders: [String]
+    public let allowedHeaders: [HTTPHeaders.Name]
     
     /// Whether to allow credentials
     public let allowCredentials: Bool
@@ -63,7 +68,7 @@ public struct CORSConfiguration: Equatable {
     public init(
         allowedOrigin: String = "*",
         allowedMethods: [HTTPMethod] = [.GET, .POST, .PUT, .DELETE, .PATCH, .OPTIONS],
-        allowedHeaders: [String] = ["Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"],
+        allowedHeaders: [HTTPHeaders.Name] = [.accept, .authorization, .contentType, .origin, "X-Requested-With"],
         allowCredentials: Bool = false,
         cacheExpiration: Int = 600,
         isEnabled: Bool = true
@@ -86,6 +91,89 @@ public struct CORSConfiguration: Equatable {
     public static func strict(origin: String) -> CORSConfiguration {
         CORSConfiguration(allowedOrigin: origin, allowCredentials: true)
     }
+}
+
+/// Request logging configuration for the HTTP server
+public struct RequestLoggingConfiguration: Equatable {
+    /// Log levels for different status code ranges
+    public enum LogLevel: Equatable {
+        case debug
+        case info
+        case notice
+        case warning
+        case error
+        case critical
+        
+        /// Converts to Vapor's Logger.Level
+        var vaporLevel: Logger.Level {
+            switch self {
+            case .debug: return .debug
+            case .info: return .info
+            case .notice: return .notice
+            case .warning: return .warning
+            case .error: return .error
+            case .critical: return .critical
+            }
+        }
+    }
+    
+    /// Log level for successful responses (2xx)
+    public let successLevel: LogLevel
+    
+    /// Log level for redirect responses (3xx)
+    public let redirectLevel: LogLevel
+    
+    /// Log level for client error responses (4xx)
+    public let clientErrorLevel: LogLevel
+    
+    /// Log level for server error responses (5xx)
+    public let serverErrorLevel: LogLevel
+    
+    /// Request paths to exclude from logging
+    public let excludedPaths: [String]
+    
+    /// Whether to log request bodies
+    public let logRequestBodies: Bool
+    
+    /// Whether to log response bodies
+    public let logResponseBodies: Bool
+    
+    /// Whether request logging is enabled
+    public let isEnabled: Bool
+    
+    /// Creates a new request logging configuration
+    public init(
+        successLevel: LogLevel = .info,
+        redirectLevel: LogLevel = .notice,
+        clientErrorLevel: LogLevel = .warning,
+        serverErrorLevel: LogLevel = .error,
+        excludedPaths: [String] = ["/health", "/version", "/favicon.ico"],
+        logRequestBodies: Bool = false,
+        logResponseBodies: Bool = false,
+        isEnabled: Bool = true
+    ) {
+        self.successLevel = successLevel
+        self.redirectLevel = redirectLevel
+        self.clientErrorLevel = clientErrorLevel
+        self.serverErrorLevel = serverErrorLevel
+        self.excludedPaths = excludedPaths
+        self.logRequestBodies = logRequestBodies
+        self.logResponseBodies = logResponseBodies
+        self.isEnabled = isEnabled
+    }
+    
+    /// Basic logging configuration that logs only status codes
+    public static let basic = RequestLoggingConfiguration()
+    
+    /// Disabled logging configuration
+    public static let disabled = RequestLoggingConfiguration(isEnabled: false)
+    
+    /// Verbose logging configuration that includes request and response bodies
+    public static let verbose = RequestLoggingConfiguration(
+        excludedPaths: ["/health", "/favicon.ico"],
+        logRequestBodies: true,
+        logResponseBodies: true
+    )
 }
 
 /// Errors that can occur during HTTP server operations
@@ -175,7 +263,17 @@ public actor HTTPServerManager {
     
     /// Configure server routes
     private func configureRoutes(_ app: Application) throws {
-        // Configure CORS if enabled
+        // Configure middleware in proper order
+        
+        // 1. First add request logging if enabled
+        if config.logging.isEnabled {
+            app.middleware.use(RequestLoggerMiddleware(
+                configuration: config.logging,
+                logger: app.logger
+            ))
+        }
+        
+        // 2. Add CORS if enabled
         if config.cors.isEnabled {
             let corsConfiguration = CORSMiddleware.Configuration(
                 allowedOrigin: .custom(config.cors.allowedOrigin),
@@ -188,13 +286,21 @@ public actor HTTPServerManager {
             app.middleware.use(corsMiddleware)
         }
         
-        // Configure middleware
+        // 3. Add static file middleware
         app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
+        
+        // 4. Add error middleware
         app.middleware.use(ErrorMiddleware.default(environment: app.environment))
         
-        // Add authentication middleware
+        // 5. Add authentication middleware
         app.middleware.use(AuthMiddleware(authManager: authManager))
         
+        // Configure route handlers
+        configureRouteHandlers(app)
+    }
+    
+    /// Configure route handlers
+    private func configureRouteHandlers(_ app: Application) {
         // Public routes
         
         // Health check endpoint
@@ -426,5 +532,98 @@ extension HLSStreamManager {
                 return true
             }
         }
+    }
+}
+
+/// Middleware for logging HTTP requests and responses
+struct RequestLoggerMiddleware: AsyncMiddleware {
+    let configuration: RequestLoggingConfiguration
+    let logger: Logger
+    
+    init(configuration: RequestLoggingConfiguration, logger: Logger) {
+        self.configuration = configuration
+        self.logger = logger
+    }
+    
+    func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
+        // Skip logging for excluded paths
+        if configuration.excludedPaths.contains(request.url.path) {
+            return try await next.respond(to: request)
+        }
+        
+        // Log request details
+        let startTime = Date()
+        let requestId = request.headers.first(name: "X-Request-ID") ?? UUID().uuidString
+        
+        // Log request
+        var requestLog = "[\(request.method)] \(request.url.path)"
+        if let query = request.url.query, !query.isEmpty {
+            requestLog += "?\(query)"
+        }
+        
+        logger.debug("\(requestId) Request: \(requestLog)")
+        
+        if configuration.logRequestBodies, 
+           let body = request.body.data, 
+           let bodyString = body.getString(at: body.readerIndex, length: body.readableBytes),
+           !bodyString.isEmpty {
+            logger.debug("\(requestId) Request body: \(bodyString)")
+        }
+        
+        // Process the request and capture response
+        let response: Response
+        do {
+            response = try await next.respond(to: request)
+        } catch {
+            // Log errors
+            logger.error("\(requestId) Error: \(error)")
+            throw error
+        }
+        
+        // Calculate duration
+        let duration = Date().timeIntervalSince(startTime)
+        let durationMs = Int(duration * 1000)
+        
+        // Determine log level based on status code
+        let logLevel: RequestLoggingConfiguration.LogLevel
+        switch response.status.code {
+        case 200..<300:
+            logLevel = configuration.successLevel
+        case 300..<400:
+            logLevel = configuration.redirectLevel
+        case 400..<500:
+            logLevel = configuration.clientErrorLevel
+        default:
+            logLevel = configuration.serverErrorLevel
+        }
+        
+        // Create log message
+        var logMessage = "\(requestId) Response: \(response.status.code) \(response.status.reasonPhrase) (\(durationMs)ms)"
+        
+        // Log with appropriate level
+        switch logLevel {
+        case .debug:
+            logger.debug("\(logMessage)")
+        case .info:
+            logger.info("\(logMessage)")
+        case .notice:
+            logger.notice("\(logMessage)")
+        case .warning:
+            logger.warning("\(logMessage)")
+        case .error:
+            logger.error("\(logMessage)")
+        case .critical:
+            logger.critical("\(logMessage)")
+        }
+        
+        // Log response body if enabled
+        if configuration.logResponseBodies, 
+           let body = response.body,
+           let bodyString = body.getString(at: 0, length: body.readableBytes),
+           !bodyString.isEmpty {
+            logger.debug("\(requestId) Response body: \(bodyString)")
+        }
+        
+        return response
     }
 } 
