@@ -10,6 +10,7 @@ struct CursorWindowApp: App {
     @StateObject private var screenCaptureManager = ScreenCaptureManager()
     @StateObject private var capturePreviewVM = LiveCapturePreviewViewModel()
     @StateObject private var encodingControlVM = LiveEncodingControlViewModel()
+    @StateObject private var serverControlVM = ServerControlViewModel()
     
     var body: some Scene {
         WindowGroup("Cursor Mirror") {
@@ -17,6 +18,7 @@ struct CursorWindowApp: App {
                 .environment(\.capturePreviewViewModel, capturePreviewVM)
                 .environment(\.encodingControlViewModel, encodingControlVM)
                 .environmentObject(screenCaptureManager)
+                .environmentObject(serverControlVM)
         }
     }
 }

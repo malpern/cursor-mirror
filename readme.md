@@ -52,15 +52,21 @@ A macOS application for capturing and streaming screen content with HLS (HTTP Li
       - Request validation and sanitization
       - DoS protection middleware
       - Input size validation
-
-🚧 **In Progress**
   - Phase 5: UI Integration
-    - [ ] Add server controls to main UI
-    - [ ] Create QR code for mobile connection
-    - [ ] Add server status indicators
-    - [ ] Implement connection management
-    - [ ] Add error handling and user feedback
-    - [ ] iOS client app for stream playback
+    - Server controls in main application interface
+    - QR code generation for mobile device connections
+    - Server status indicators and visualization
+    - Stream URL management and sharing
+    - Connection monitoring and management
+    - Integrated admin dashboard access
+
+🚧 **Future Development**
+  - iOS client app for stream playback
+  - Recording capabilities
+  - Additional stream formats (RTMP, WebRTC)
+  - Stream quality presets
+  - Custom viewport dimensions
+  - Remote control capabilities
 
 ## Requirements
 
@@ -81,13 +87,17 @@ swift build
    - Grant screen recording permission when prompted
    - Use Preview tab to position capture viewport
    - Use Encoding tab to configure and start streaming
-   - Access HLS stream at the configured URL
+   - Use Server tab to start the HTTP server and get stream access
+   - Access HLS stream at the provided URL or scan the QR code with a mobile device
 
 ## Project Structure
 
 ```
 Sources/
 ├── CursorWindow/         # Main application code
+│   ├── Views/            # SwiftUI views
+│   ├── ViewModels/       # View models for SwiftUI
+│   └── Utilities/        # Helper classes and utilities
 └── CursorWindowCore/     # Core functionality
     ├── HLS/              # Core HLS implementation
     │   ├── HLSManager    # HLS streaming management
@@ -108,7 +118,7 @@ Sources/
 ## Development
 
 ### Testing
-- Comprehensive test suite with 70+ tests across all components:
+- Comprehensive test suite with 80+ tests across all components:
   - HLS streaming and segment management
   - H.264 video encoding
   - Frame processing
@@ -116,6 +126,8 @@ Sources/
   - HTTP server and HLS integration
   - Admin dashboard functionality
   - Authentication and security
+  - Performance and load testing
+  - UI and integration testing
   - Run tests: `swift test`
 
 ### Feature Highlights
@@ -137,6 +149,14 @@ Sources/
 - Performance optimizations for segment delivery
 - Prometheus metrics for monitoring
 
+#### UI Integration
+- Tabbed interface with Preview, Encoding, and Server controls
+- Server configuration with hostname, port, and SSL options
+- Stream status indicators with real-time updates
+- QR code generation for easy mobile device connections
+- Direct access to admin dashboard from the app
+- Clipboard integration for sharing stream URLs
+
 #### Video Segment Optimization
 - In-memory caching of segment data to reduce disk I/O
 - Support for HTTP range requests (partial content)
@@ -152,16 +172,15 @@ Sources/
 - Configurable metrics collection interval
 - Optional metrics endpoint for Prometheus scraping
 
-## Next Steps
+## Future Development
 
-### Phase 5: UI Integration
-The final phase will integrate the HTTP server with the main application UI:
-- Server controls in the main application interface
-- QR code generation for easy mobile connection
-- Server status indicators in the UI
-- Connection management interface
-- Improved error handling and user feedback
-- Development of iOS client app for stream playback
+- iOS client app for stream playback
+- Recording capabilities for saving streams
+- Additional stream formats (RTMP, WebRTC)
+- Stream quality presets for different use cases
+- Custom viewport dimensions
+- Remote control capabilities
+- Cloud integration options
 
 ## Contributing
 
