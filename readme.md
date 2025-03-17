@@ -45,7 +45,12 @@ A macOS application for capturing and streaming screen content with HLS (HTTP Li
 
 🚧 **In Progress**
   - Phase 3: Advanced Features
-    - [ ] Add authentication
+    - [x] Add authentication
+      - [x] Basic authentication with username/password
+      - [x] API key authentication
+      - [x] Session-based token authentication
+      - [x] Protected routes and middleware
+      - [x] Session expiration and cleanup
     - [ ] Implement CORS support
     - [ ] Add request logging
     - [ ] Implement rate limiting
@@ -155,6 +160,14 @@ Note: UI tests require a GUI environment and will be skipped when running headle
 - Efficient segment management
 - Memory-optimized frame handling
 - Thread-safe video encoding
+
+### Authentication Features
+- Configurable authentication methods (Basic, API Key)
+- Protected routes with middleware
+- Session-based authentication with configurable duration
+- Automatic session expiration and cleanup
+- Admin routes protection
+- Authentication endpoints for login and API key verification
 
 ## Contributing
 
