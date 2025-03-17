@@ -76,13 +76,15 @@ The iOS client app will serve as a simple viewer application for CursorWindow st
 - Implement HLS stream player using AVPlayer 
 - Support single concurrent connection (enforce on server side)
 - Focus on reliable, stable playback with minimal latency
+- Use iCloud for seamless device discovery and authentication
 
 ### Implementation Plan
-1. **Basic Setup & Connection**
-   - Stream URL input (manual entry)
-   - QR code scanner for quick connection
-   - Connection status indicator
-   - Simple error handling with clear user feedback
+1. **iCloud Integration & Device Discovery**
+   - Authenticate with iCloud account (same account on macOS and iOS)
+   - Automatic discovery of available CursorWindow instances on user's devices
+   - No manual URL entry or QR code scanning required
+   - Simple device selection if multiple sources are available
+   - Background synchronization of connection details
 
 2. **Playback Functionality**
    - Full-screen video player with native controls
@@ -90,13 +92,14 @@ The iOS client app will serve as a simple viewer application for CursorWindow st
    - Network quality indicator
    - Basic playback controls (play/pause, volume)
    - Portrait and landscape orientation support
+   - One-tap connection to available stream
 
 3. **Optional Enhancements** (if time allows)
-   - Saved connections (remember recent URLs)
    - Picture-in-Picture support
    - Background audio playback
-   - Stream authentication support (for password-protected streams)
    - Simple network diagnostics
+   - Stream priority settings when multiple sources available
+   - Connection handoff between different networks (Wi-Fi to cellular)
 
 ### Technical Approach
 - **Architecture**: Simple MVVM with SwiftUI
@@ -104,11 +107,12 @@ The iOS client app will serve as a simple viewer application for CursorWindow st
 - **Key Frameworks**:
   - SwiftUI for UI components
   - AVFoundation/AVKit for video playback
-  - Vision for QR code scanning
-- **Design Focus**: Minimalist interface with clear feedback
+  - CloudKit for iCloud integration and device discovery
+  - Network framework for connection management
+- **Design Focus**: Zero-configuration experience with minimal user intervention
 - **Performance Priority**: Connection reliability and playback stability
 
-The iOS client app will be a relatively straightforward implementation compared to the server components, focused on reliable playback rather than extensive features.
+The iOS client app will provide a nearly effortless connection experience - just sign in with your iCloud account on both devices, and the connection happens automatically. This eliminates all manual configuration steps, greatly simplifying the user experience.
 
 ## Requirements
 
