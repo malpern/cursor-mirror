@@ -40,14 +40,17 @@ A macOS application for capturing and streaming screen content with HLS (HTTP Li
     - Request logging (with configurable levels and filtering)
     - Rate limiting (with configuration options and IP-based tracking)
     - Admin dashboard (UI for configuration, monitoring, and management)
+  - Phase 4: Performance & Security (Partially Completed)
+    - [x] Optimize segment delivery with caching
+    - [x] Implement byte range requests for segments
+    - [x] Add SSL/TLS support
+    - [x] Add monitoring and metrics with Prometheus
+    - [ ] Write performance tests
 
 🚧 **In Progress**
-  - Phase 4: Performance & Security
-    - [ ] Optimize segment delivery
-    - [ ] Add SSL/TLS support
+  - Remaining Phase 4: Performance & Security
     - [ ] Write performance tests
-    - [ ] Implement security best practices
-    - [ ] Add monitoring and metrics
+    - [ ] Implement additional security best practices
   - Phase 5: UI Integration
     - [ ] Add server controls to main UI
     - [ ] Create QR code for mobile connection
@@ -127,24 +130,34 @@ Sources/
 - Request logging with filtering and levels
 - Rate limiting with multiple strategies
 - Admin dashboard for monitoring and management
+- SSL/TLS support with automatic self-signed certificates
+- Performance optimizations for segment delivery
+- Prometheus metrics for monitoring
 
-#### Admin Dashboard Features
-- Dashboard overview with real-time monitoring
-- Stream management interface
-- Settings configuration panel
-- Log viewer with filtering and export
-- Authentication protection
-- Responsive design with Bootstrap 5
+#### Video Segment Optimization
+- In-memory caching of segment data to reduce disk I/O
+- Support for HTTP range requests (partial content)
+- Efficient buffer management with NIO ByteBuffer
+- Improved HTTP headers for caching and content negotiation
+- Asynchronous segment cleanup operations
+
+#### Monitoring & Metrics
+- Prometheus integration for metrics collection
+- Request counts, durations, and status codes
+- Active connection tracking
+- Segment size histograms by quality level
+- Configurable metrics collection interval
+- Optional metrics endpoint for Prometheus scraping
 
 ## Next Steps
 
-### Phase 4: Performance & Security
-The next phase focuses on optimizing performance and enhancing security:
-- Segment delivery optimization to reduce latency
-- SSL/TLS support for secure connections
-- Performance benchmarking and optimization
-- Security hardening with best practices
-- Monitoring and metrics integration
+### Completing Phase 4: Performance & Security
+- Implement comprehensive performance tests
+- Add additional security best practices:
+  - Content Security Policy headers
+  - HTTPS redirect middleware
+  - Input validation and sanitization
+  - Denial of service protection
 
 ### Phase 5: UI Integration
 The final phase will integrate the HTTP server with the main application UI:
