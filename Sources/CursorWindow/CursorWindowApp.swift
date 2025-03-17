@@ -4,6 +4,7 @@ import ScreenCaptureKit
 import AppKit
 import AVFoundation
 import CursorWindowCore
+import CloudKit
 
 @main
 struct CursorWindowApp: App {
@@ -12,6 +13,12 @@ struct CursorWindowApp: App {
     @StateObject private var encodingControlVM = LiveEncodingControlViewModel()
     @StateObject private var serverControlVM = ServerControlViewModel()
     
+    // App initialization
+    init() {
+        // Set up CloudKit container if needed
+        setupCloudKit()
+    }
+    
     var body: some Scene {
         WindowGroup("Cursor Mirror") {
             MainView()
@@ -19,6 +26,45 @@ struct CursorWindowApp: App {
                 .environment(\.encodingControlViewModel, encodingControlVM)
                 .environmentObject(screenCaptureManager)
                 .environmentObject(serverControlVM)
+                .onAppear {
+                    // Verify iCloud is available when app launches
+                    verifyCloudKitAvailability()
+                }
+        }
+    }
+    
+    // Set up CloudKit container
+    private func setupCloudKit() {
+        // Verify container configuration
+        #if DEBUG
+        let container = CKContainer.default()
+        print("CloudKit container identifier: \(container.containerIdentifier ?? "Unknown")")
+        #endif
+    }
+    
+    // Verify CloudKit availability
+    private func verifyCloudKitAvailability() {
+        let container = CKContainer.default()
+        container.accountStatus { status, error in
+            if let error = error {
+                print("CloudKit availability check error: \(error.localizedDescription)")
+                return
+            }
+            
+            switch status {
+            case .available:
+                print("CloudKit is available and ready")
+            case .noAccount:
+                print("No iCloud account found. Please sign in to use CloudKit features.")
+            case .restricted:
+                print("iCloud account is restricted")
+            case .couldNotDetermine:
+                print("Could not determine iCloud account status")
+            case .temporarilyUnavailable:
+                print("iCloud account is temporarily unavailable")
+            @unknown default:
+                print("Unknown iCloud account status")
+            }
         }
     }
 }

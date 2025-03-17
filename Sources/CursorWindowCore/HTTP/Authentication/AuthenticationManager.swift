@@ -21,6 +21,9 @@ public struct AuthenticationConfig: Equatable {
     /// Authentication methods to enable
     public let methods: Set<AuthenticationMethod>
     
+    /// Whether to limit streaming to single viewer
+    public let singleViewerOnly: Bool
+    
     /// Creates a configuration with authentication disabled
     public static var disabled: AuthenticationConfig {
         AuthenticationConfig(enabled: false, username: nil, password: nil, apiKey: nil)
@@ -48,6 +51,18 @@ public struct AuthenticationConfig: Equatable {
         )
     }
     
+    /// Creates a configuration for iCloud authentication
+    public static func iCloud(singleViewerOnly: Bool = true) -> AuthenticationConfig {
+        AuthenticationConfig(
+            enabled: true,
+            username: nil,
+            password: nil,
+            apiKey: nil,
+            methods: [.iCloud],
+            singleViewerOnly: singleViewerOnly
+        )
+    }
+    
     /// Creates an authentication configuration
     public init(
         enabled: Bool = true,
@@ -55,7 +70,8 @@ public struct AuthenticationConfig: Equatable {
         password: String? = nil,
         apiKey: String? = nil,
         sessionDuration: Int = 3600,
-        methods: Set<AuthenticationMethod> = [.basic, .apiKey]
+        methods: Set<AuthenticationMethod> = [.basic, .apiKey],
+        singleViewerOnly: Bool = false
     ) {
         self.enabled = enabled
         self.username = username
@@ -63,6 +79,7 @@ public struct AuthenticationConfig: Equatable {
         self.apiKey = apiKey
         self.sessionDuration = sessionDuration
         self.methods = methods
+        self.singleViewerOnly = singleViewerOnly
     }
 }
 
@@ -76,6 +93,9 @@ public enum AuthenticationMethod: String, Hashable {
     
     /// JWT token authentication
     case jwt
+    
+    /// iCloud authentication
+    case iCloud
 }
 
 /// Represents an authenticated user or client
@@ -212,6 +232,41 @@ public actor AuthenticationManager {
         return user
     }
     
+    /// Authenticates a user using iCloud identity
+    public func authenticateWithiCloud(
+        deviceIdentifier: String,
+        userIdentityToken: String
+    ) throws -> AuthenticatedUser {
+        guard config.enabled else {
+            // Create a default user if authentication is disabled
+            return AuthenticatedUser(username: "icloud-user", method: .iCloud)
+        }
+        
+        guard config.methods.contains(.iCloud) else {
+            throw AuthenticationError.unsupportedMethod
+        }
+        
+        // In a real implementation, we would validate the iCloud identity token
+        // with Apple's identity verification service. This is a simplified version.
+        
+        // For now, we'll just check that the token is not empty
+        guard !userIdentityToken.isEmpty else {
+            throw AuthenticationError.invalidCredentials
+        }
+        
+        // Create a user record based on the provided identity
+        let user = AuthenticatedUser(
+            username: "icloud-user-\(deviceIdentifier)",
+            method: .iCloud,
+            expiresAt: Date().addingTimeInterval(TimeInterval(config.sessionDuration))
+        )
+        
+        // Store the session
+        sessions[user.id] = user
+        
+        return user
+    }
+    
     /// Validate a session token
     public func validateSession(_ token: UUID) -> Bool {
         guard config.enabled else {
@@ -234,6 +289,59 @@ public actor AuthenticationManager {
     public func cleanupExpiredSessions() {
         let now = Date()
         sessions = sessions.filter { $0.value.expiresAt > now }
+    }
+    
+    // Add active viewer tracking for single-viewer mode
+    private var activeViewerId: UUID?
+
+    /// Request a streaming session
+    public func requestStreamingSession() async throws -> UUID {
+        if config.singleViewerOnly {
+            // Only allow one viewer at a time if configured
+            if let existingId = activeViewerId, 
+               let user = sessions[existingId], 
+               user.isValid {
+                throw StreamError.streamInUse
+            }
+        }
+        
+        // Generate a new session ID
+        let sessionId = UUID()
+        
+        // Create an authentication record
+        let user = AuthenticatedUser(
+            id: sessionId,
+            username: "stream-viewer",
+            method: .basic,
+            expiresAt: Date().addingTimeInterval(TimeInterval(config.sessionDuration))
+        )
+        
+        // Store the session
+        sessions[sessionId] = user
+        
+        // Track active viewer if we're in single-viewer mode
+        if config.singleViewerOnly {
+            activeViewerId = sessionId
+        }
+        
+        return sessionId
+    }
+
+    /// Release a streaming session
+    public func releaseStreamingSession(_ sessionId: UUID) {
+        // Remove the session
+        sessions.removeValue(forKey: sessionId)
+        
+        // Clear the active viewer if this was the active one
+        if activeViewerId == sessionId {
+            activeViewerId = nil
+        }
+    }
+
+    /// Error type for stream operations
+    public enum StreamError: Error, Equatable {
+        case streamInUse
+        case invalidToken
     }
 }
 

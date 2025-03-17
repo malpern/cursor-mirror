@@ -48,6 +48,15 @@ public struct HTTPServerConfig: Equatable {
     /// Middleware configuration
     public let middleware: MiddlewareConfig
     
+    /// Whether to enable CloudKit integration
+    public let enableCloudKit: Bool
+    
+    /// Authentication configuration
+    public let authentication: AuthenticationConfig
+    
+    /// Whether to limit streaming to a single viewer
+    public let singleViewerOnly: Bool
+    
     /// Create a new HTTP server configuration
     public init(
         hostname: String = "127.0.0.1",
@@ -61,7 +70,10 @@ public struct HTTPServerConfig: Equatable {
         maxRequestLogs: Int = 100,
         enableCORS: Bool = true,
         security: SecurityConfiguration = .standard,
-        middleware: MiddlewareConfig = .standard
+        middleware: MiddlewareConfig = .standard,
+        enableCloudKit: Bool = false,
+        authentication: AuthenticationConfig = .basic(username: "admin", password: "admin"),
+        singleViewerOnly: Bool = false
     ) {
         self.hostname = hostname
         self.port = port
@@ -75,6 +87,9 @@ public struct HTTPServerConfig: Equatable {
         self.enableCORS = enableCORS
         self.security = security
         self.middleware = middleware
+        self.enableCloudKit = enableCloudKit
+        self.authentication = authentication
+        self.singleViewerOnly = singleViewerOnly
     }
 }
 
@@ -415,6 +430,13 @@ public actor HTTPServerManager {
         // 9. Add authentication middleware
         app.middleware.use(AuthMiddleware(authManager: authManager))
         
+        // 10. Add CloudKit authentication middleware if enabled
+        if config.enableCloudKit {
+            #if os(macOS)
+            app.middleware.use(CloudKitAuthMiddleware(authManager: authManager))
+            #endif
+        }
+        
         // Configure route handlers
         configureRouteHandlers(app)
         
@@ -519,19 +541,53 @@ public actor HTTPServerManager {
             streamRoutes = app.routes.protected(using: authManager)
         }
             
-        streamRoutes.post("stream", "access") { [streamManager] (req: Request) -> Response in
+        streamRoutes.post("stream", "access") { [streamManager, authManager] (req: Request) -> Response in
             do {
+                // First try to request a streaming session from the auth manager (handles single viewer case)
+                let sessionId = try await authManager.requestStreamingSession()
+                
+                // Then try to request access from the stream manager
                 let streamKey = try await streamManager.requestAccess()
+                
+                // Return both keys in the response
                 let response = Response(status: .ok)
                 response.headers.contentType = .json
-                try response.content.encode(["streamKey": streamKey.uuidString] as [String: String])
+                try response.content.encode([
+                    "streamKey": streamKey.uuidString,
+                    "sessionId": sessionId.uuidString
+                ] as [String: String])
+                
+                return response
+            } catch AuthenticationManager.StreamError.streamInUse {
+                // Stream is already in use by another viewer
+                let response = Response(status: .conflict)
+                response.headers.contentType = .json
+                try response.content.encode(["error": "Stream is already being viewed by another user"] as [String: String])
                 return response
             } catch {
+                // Other errors (like HLSStreamManager.StreamError.streamInUse)
                 let response = Response(status: .conflict)
                 response.headers.contentType = .json
                 try response.content.encode(["error": "Stream is currently in use"] as [String: String])
                 return response
             }
+        }
+        
+        // Add a new endpoint to release a stream session
+        streamRoutes.post("stream", "release") { [streamManager, authManager] (req: Request) -> Response in
+            if let streamKeyStr = try? req.content.get(String.self, at: "streamKey"),
+               let streamKey = UUID(uuidString: streamKeyStr),
+               let sessionIdStr = try? req.content.get(String.self, at: "sessionId"),
+               let sessionId = UUID(uuidString: sessionIdStr) {
+                
+                // Release both the stream access and the session
+                await streamManager.releaseAccess(streamKey)
+                await authManager.releaseStreamingSession(sessionId)
+                
+                return Response(status: .ok)
+            }
+            
+            return Response(status: .badRequest)
         }
         
         // Stream content endpoints - check stream key for validation
