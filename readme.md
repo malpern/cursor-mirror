@@ -62,11 +62,53 @@ A macOS application for capturing and streaming screen content with HLS (HTTP Li
 
 🚧 **Future Development**
   - iOS client app for stream playback
-  - Recording capabilities
   - Additional stream formats (RTMP, WebRTC)
   - Stream quality presets
   - Custom viewport dimensions
   - Remote control capabilities
+
+## iOS Client App Development Plan
+
+The iOS client app will serve as a simple viewer application for CursorWindow streams, limited to a single viewer connection at a time.
+
+### Core Requirements
+- Create a minimalist SwiftUI-based iOS app with iOS 17+ target
+- Implement HLS stream player using AVPlayer 
+- Support single concurrent connection (enforce on server side)
+- Focus on reliable, stable playback with minimal latency
+
+### Implementation Plan
+1. **Basic Setup & Connection**
+   - Stream URL input (manual entry)
+   - QR code scanner for quick connection
+   - Connection status indicator
+   - Simple error handling with clear user feedback
+
+2. **Playback Functionality**
+   - Full-screen video player with native controls
+   - Stream quality/resolution display
+   - Network quality indicator
+   - Basic playback controls (play/pause, volume)
+   - Portrait and landscape orientation support
+
+3. **Optional Enhancements** (if time allows)
+   - Saved connections (remember recent URLs)
+   - Picture-in-Picture support
+   - Background audio playback
+   - Stream authentication support (for password-protected streams)
+   - Simple network diagnostics
+
+### Technical Approach
+- **Architecture**: Simple MVVM with SwiftUI
+- **Minimum iOS Version**: iOS 17.0
+- **Key Frameworks**:
+  - SwiftUI for UI components
+  - AVFoundation/AVKit for video playback
+  - Vision for QR code scanning
+- **Design Focus**: Minimalist interface with clear feedback
+- **Performance Priority**: Connection reliability and playback stability
+
+The iOS client app will be a relatively straightforward implementation compared to the server components, focused on reliable playback rather than extensive features.
 
 ## Requirements
 
@@ -174,8 +216,6 @@ Sources/
 
 ## Future Development
 
-- iOS client app for stream playback
-- Recording capabilities for saving streams
 - Additional stream formats (RTMP, WebRTC)
 - Stream quality presets for different use cases
 - Custom viewport dimensions
