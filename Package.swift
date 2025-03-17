@@ -18,19 +18,32 @@ let package = Package(
             targets: ["CursorWindow"])
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0")
+        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
+        .package(url: "https://github.com/vapor/vapor.git", from: "4.89.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "CursorWindowCore"),
+            name: "CursorWindowCore",
+            dependencies: [
+                .product(name: "Vapor", package: "vapor")
+            ],
+            swiftSettings: [
+                .unsafeFlags(["-cross-module-optimization"], .when(configuration: .release))
+            ]),
         .executableTarget(
             name: "CursorWindow",
-            dependencies: ["CursorWindowCore"]),
+            dependencies: ["CursorWindowCore"],
+            swiftSettings: [
+                .unsafeFlags(["-cross-module-optimization"], .when(configuration: .release))
+            ]),
         .testTarget(
             name: "CursorWindowCoreTests",
-            dependencies: ["CursorWindowCore"]),
+            dependencies: [
+                "CursorWindowCore",
+                .product(name: "XCTVapor", package: "vapor")
+            ]),
         .testTarget(
             name: "CursorWindowTests",
             dependencies: ["CursorWindow"]),
