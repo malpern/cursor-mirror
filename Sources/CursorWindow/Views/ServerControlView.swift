@@ -12,6 +12,11 @@ struct ServerControlView: View {
                 
                 Divider()
                 
+                // iCloud status section
+                iCloudStatusSection
+                
+                Divider()
+                
                 // Configuration section
                 serverConfigSection
                 
@@ -57,6 +62,36 @@ struct ServerControlView: View {
             Text(viewModel.serverStatus)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
+        }
+    }
+    
+    private var iCloudStatusSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("iCloud Connection")
+                    .font(.headline)
+                
+                Spacer()
+                
+                Circle()
+                    .fill(viewModel.iCloudAvailable ? Color.green : Color.orange)
+                    .frame(width: 10, height: 10)
+            }
+            
+            Text(viewModel.iCloudStatus)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            if viewModel.iCloudAvailable {
+                HStack {
+                    Text("Device Name:")
+                        .fontWeight(.medium)
+                    
+                    TextField("Device Name", text: $viewModel.deviceName)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                }
+                .padding(.top, 5)
+            }
         }
     }
     
