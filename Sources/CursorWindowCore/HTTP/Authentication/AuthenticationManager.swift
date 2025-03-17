@@ -83,21 +83,6 @@ public struct AuthenticationConfig: Equatable {
     }
 }
 
-/// Authentication methods supported by the server
-public enum AuthenticationMethod: String, Hashable {
-    /// HTTP Basic authentication
-    case basic
-    
-    /// API key authentication
-    case apiKey
-    
-    /// JWT token authentication
-    case jwt
-    
-    /// iCloud authentication
-    case iCloud
-}
-
 /// Represents an authenticated user or client
 public struct AuthenticatedUser: Hashable {
     /// Unique identifier for the user/client
@@ -312,7 +297,7 @@ public actor AuthenticationManager {
         let user = AuthenticatedUser(
             id: sessionId,
             username: "stream-viewer",
-            method: .basic,
+            method: .token,
             expiresAt: Date().addingTimeInterval(TimeInterval(config.sessionDuration))
         )
         
