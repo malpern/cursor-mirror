@@ -40,24 +40,27 @@ A macOS application for capturing and streaming screen content with HLS (HTTP Li
     - Request logging (with configurable levels and filtering)
     - Rate limiting (with configuration options and IP-based tracking)
     - Admin dashboard (UI for configuration, monitoring, and management)
-  - Phase 4: Performance & Security (Partially Completed)
-    - [x] Optimize segment delivery with caching
-    - [x] Implement byte range requests for segments
-    - [x] Add SSL/TLS support
-    - [x] Add monitoring and metrics with Prometheus
-    - [ ] Write performance tests
+  - Phase 4: Performance & Security
+    - Optimize segment delivery with caching
+    - Implement byte range requests for segments
+    - Add SSL/TLS support with HTTPS redirects
+    - Add monitoring and metrics with Prometheus
+    - Implement comprehensive performance tests
+    - Add security best practices:
+      - Content Security Policy (CSP) configuration
+      - Secure headers middleware
+      - Request validation and sanitization
+      - DoS protection middleware
+      - Input size validation
 
 🚧 **In Progress**
-  - Remaining Phase 4: Performance & Security
-    - [ ] Write performance tests
-    - [ ] Implement additional security best practices
   - Phase 5: UI Integration
     - [ ] Add server controls to main UI
     - [ ] Create QR code for mobile connection
     - [ ] Add server status indicators
     - [ ] Implement connection management
     - [ ] Add error handling and user feedback
-- iOS client app for stream playback
+    - [ ] iOS client app for stream playback
 
 ## Requirements
 
@@ -151,14 +154,6 @@ Sources/
 
 ## Next Steps
 
-### Completing Phase 4: Performance & Security
-- Implement comprehensive performance tests
-- Add additional security best practices:
-  - Content Security Policy headers
-  - HTTPS redirect middleware
-  - Input validation and sanitization
-  - Denial of service protection
-
 ### Phase 5: UI Integration
 The final phase will integrate the HTTP server with the main application UI:
 - Server controls in the main application interface
@@ -166,6 +161,7 @@ The final phase will integrate the HTTP server with the main application UI:
 - Server status indicators in the UI
 - Connection management interface
 - Improved error handling and user feedback
+- Development of iOS client app for stream playback
 
 ## Contributing
 
