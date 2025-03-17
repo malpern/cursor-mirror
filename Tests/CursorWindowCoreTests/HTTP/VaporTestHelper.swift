@@ -31,7 +31,7 @@ public class VaporTestHelper {
         logger.logLevel = logLevel
         
         // Create application
-        app = Application(environment)
+        app = try await Application.make(environment)
         app.logger.logLevel = logLevel
         
         // Keep strong reference

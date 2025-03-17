@@ -23,8 +23,10 @@ final class AuthenticationTests: XCTestCase {
         authManager = AuthenticationManager(config: .basic(username: "testuser", password: "testpass"))
         
         // Configure middleware and routes for testing
-        vaporHelper.app.middleware.use(AuthMiddleware(authManager: authManager))
-        configureTestRoutes(vaporHelper.app)
+        await MainActor.run {
+            vaporHelper.app.middleware.use(AuthMiddleware(authManager: authManager))
+            configureTestRoutes(vaporHelper.app)
+        }
         
         // Start the server
         try await vaporHelper.startServer()
@@ -41,23 +43,27 @@ final class AuthenticationTests: XCTestCase {
     
     func testBasicAuthentication() async throws {
         // Test successful authentication
-        try await vaporHelper.app.test(.POST, "auth/login", beforeRequest: { req in
-            try req.content.encode(["username": "testuser", "password": "testpass"])
-        }, afterResponse: { response in
-            XCTAssertEqual(response.status, .ok)
-            
-            // Decode the response
-            let data = try response.content.decode([String: String].self)
-            XCTAssertNotNil(data["token"])
-            XCTAssertEqual(data["username"], "testuser")
-        })
+        try await MainActor.run {
+            try vaporHelper.app.test(.POST, "auth/login", beforeRequest: { req in
+                try req.content.encode(["username": "testuser", "password": "testpass"])
+            }, afterResponse: { response in
+                XCTAssertEqual(response.status, .ok)
+                
+                // Decode the response
+                let data = try response.content.decode([String: String].self)
+                XCTAssertNotNil(data["token"])
+                XCTAssertEqual(data["username"], "testuser")
+            })
+        }
         
         // Test failed authentication
-        try await vaporHelper.app.test(.POST, "auth/login", beforeRequest: { req in
-            try req.content.encode(["username": "wronguser", "password": "wrongpass"])
-        }, afterResponse: { response in
-            XCTAssertEqual(response.status, .unauthorized)
-        })
+        try await MainActor.run {
+            try vaporHelper.app.test(.POST, "auth/login", beforeRequest: { req in
+                try req.content.encode(["username": "wronguser", "password": "wrongpass"])
+            }, afterResponse: { response in
+                XCTAssertEqual(response.status, .unauthorized)
+            })
+        }
     }
     
     func testAPIKeyAuthentication() async throws {
@@ -65,53 +71,65 @@ final class AuthenticationTests: XCTestCase {
         await authManager.updateConfig(.apiKey("test-api-key"))
         
         // Test successful authentication
-        try await vaporHelper.app.test(.POST, "auth/verify", beforeRequest: { req in
-            try req.content.encode(["apiKey": "test-api-key"])
-        }, afterResponse: { response in
-            XCTAssertEqual(response.status, .ok)
-            
-            // Decode the response
-            let data = try response.content.decode([String: String].self)
-            XCTAssertNotNil(data["token"])
-            XCTAssertEqual(data["username"], "api-client")
-        })
+        try await MainActor.run {
+            try vaporHelper.app.test(.POST, "auth/verify", beforeRequest: { req in
+                try req.content.encode(["apiKey": "test-api-key"])
+            }, afterResponse: { response in
+                XCTAssertEqual(response.status, .ok)
+                
+                // Decode the response
+                let data = try response.content.decode([String: String].self)
+                XCTAssertNotNil(data["token"])
+                XCTAssertEqual(data["username"], "api-client")
+            })
+        }
         
         // Test failed authentication
-        try await vaporHelper.app.test(.POST, "auth/verify", beforeRequest: { req in
-            try req.content.encode(["apiKey": "wrong-api-key"])
-        }, afterResponse: { response in
-            XCTAssertEqual(response.status, .unauthorized)
-        })
+        try await MainActor.run {
+            try vaporHelper.app.test(.POST, "auth/verify", beforeRequest: { req in
+                try req.content.encode(["apiKey": "wrong-api-key"])
+            }, afterResponse: { response in
+                XCTAssertEqual(response.status, .unauthorized)
+            })
+        }
     }
     
     func testProtectedRoute() async throws {
         // First authenticate to get a token
         var token: String = ""
         
-        try await vaporHelper.app.test(.POST, "auth/login", beforeRequest: { req in
-            try req.content.encode(["username": "testuser", "password": "testpass"])
-        }, afterResponse: { response in
-            XCTAssertEqual(response.status, .ok)
-            let data = try response.content.decode([String: String].self)
-            token = data["token"] ?? ""
-            XCTAssertFalse(token.isEmpty)
-        })
+        try await MainActor.run {
+            try vaporHelper.app.test(.POST, "auth/login", beforeRequest: { req in
+                try req.content.encode(["username": "testuser", "password": "testpass"])
+            }, afterResponse: { response in
+                XCTAssertEqual(response.status, .ok)
+                let data = try response.content.decode([String: String].self)
+                token = data["token"] ?? ""
+                XCTAssertFalse(token.isEmpty)
+            })
+        }
         
         // Test accessing protected route with valid token
-        try await vaporHelper.app.test(.GET, "protected?token=\(token)", afterResponse: { response in
-            XCTAssertEqual(response.status, .ok)
-            XCTAssertEqual(response.body.string, "Protected content")
-        })
+        try await MainActor.run {
+            try vaporHelper.app.test(.GET, "protected?token=\(token)", afterResponse: { response in
+                XCTAssertEqual(response.status, .ok)
+                XCTAssertEqual(response.body.string, "Protected content")
+            })
+        }
         
         // Test accessing protected route without token
-        try await vaporHelper.app.test(.GET, "protected", afterResponse: { response in
-            XCTAssertEqual(response.status, .unauthorized)
-        })
+        try await MainActor.run {
+            try vaporHelper.app.test(.GET, "protected", afterResponse: { response in
+                XCTAssertEqual(response.status, .unauthorized)
+            })
+        }
         
         // Test accessing protected route with invalid token
-        try await vaporHelper.app.test(.GET, "protected?token=00000000-0000-0000-0000-000000000000", afterResponse: { response in
-            XCTAssertEqual(response.status, .unauthorized)
-        })
+        try await MainActor.run {
+            try vaporHelper.app.test(.GET, "protected?token=00000000-0000-0000-0000-000000000000", afterResponse: { response in
+                XCTAssertEqual(response.status, .unauthorized)
+            })
+        }
     }
     
     func testSessionExpiration() async throws {
@@ -127,19 +145,23 @@ final class AuthenticationTests: XCTestCase {
         // Get a token
         var token: String = ""
         
-        try await vaporHelper.app.test(.POST, "auth/login", beforeRequest: { req in
-            try req.content.encode(["username": "testuser", "password": "testpass"])
-        }, afterResponse: { response in
-            XCTAssertEqual(response.status, .ok)
-            let data = try response.content.decode([String: String].self)
-            token = data["token"] ?? ""
-            XCTAssertFalse(token.isEmpty)
-        })
+        try await MainActor.run {
+            try vaporHelper.app.test(.POST, "auth/login", beforeRequest: { req in
+                try req.content.encode(["username": "testuser", "password": "testpass"])
+            }, afterResponse: { response in
+                XCTAssertEqual(response.status, .ok)
+                let data = try response.content.decode([String: String].self)
+                token = data["token"] ?? ""
+                XCTAssertFalse(token.isEmpty)
+            })
+        }
         
         // Test access works immediately
-        try await vaporHelper.app.test(.GET, "protected?token=\(token)", afterResponse: { response in
-            XCTAssertEqual(response.status, .ok)
-        })
+        try await MainActor.run {
+            try vaporHelper.app.test(.GET, "protected?token=\(token)", afterResponse: { response in
+                XCTAssertEqual(response.status, .ok)
+            })
+        }
         
         // Wait for session to expire
         try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
@@ -148,26 +170,30 @@ final class AuthenticationTests: XCTestCase {
         await authManager.cleanupExpiredSessions()
         
         // Test that access fails after expiration
-        try await vaporHelper.app.test(.GET, "protected?token=\(token)", afterResponse: { response in
-            XCTAssertEqual(response.status, .unauthorized)
-        })
+        try await MainActor.run {
+            try vaporHelper.app.test(.GET, "protected?token=\(token)", afterResponse: { response in
+                XCTAssertEqual(response.status, .unauthorized)
+            })
+        }
     }
     
     /// Configure routes for testing
+    @MainActor
     private func configureTestRoutes(_ app: Application) {
         // Protected route
-        app.get("protected").protected(using: authManager).get { req -> String in
+        let protectedRoutes = app.routes.grouped().protected(using: authManager)
+        protectedRoutes.get("protected") { req -> String in
             "Protected content"
         }
         
         // Authentication routes for login and verify
-        app.post("auth", "login") { [authManager] req -> Response in
+        app.post("auth", "login") { req -> Response in
             guard let credentials = try? req.content.decode(LoginCredentials.self) else {
                 throw Abort(.badRequest)
             }
             
             do {
-                let user = try await authManager.authenticateBasic(
+                let user = try await self.authManager.authenticateBasic(
                     username: credentials.username,
                     password: credentials.password
                 )
@@ -185,13 +211,13 @@ final class AuthenticationTests: XCTestCase {
             }
         }
         
-        app.post("auth", "verify") { [authManager] req -> Response in
+        app.post("auth", "verify") { req -> Response in
             guard let apiKeyData = try? req.content.decode(APIKeyData.self) else {
                 throw Abort(.badRequest)
             }
             
             do {
-                let user = try await authManager.authenticateApiKey(apiKeyData.apiKey)
+                let user = try await self.authManager.authenticateApiKey(apiKeyData.apiKey)
                 
                 let response = Response(status: .ok)
                 response.headers.contentType = .json
