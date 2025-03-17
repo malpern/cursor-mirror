@@ -18,19 +18,73 @@ public struct HTTPServerConfig: Equatable {
     /// Authentication configuration
     public let authentication: AuthenticationConfig
     
+    /// CORS configuration
+    public let cors: CORSConfiguration
+    
     /// Creates a new HTTP server configuration
     public init(
         host: String = "127.0.0.1",
         port: Int = 8080,
         enableTLS: Bool = false,
         workerCount: Int = System.coreCount,
-        authentication: AuthenticationConfig = .disabled
+        authentication: AuthenticationConfig = .disabled,
+        cors: CORSConfiguration = .permissive
     ) {
         self.host = host
         self.port = port
         self.enableTLS = enableTLS
         self.workerCount = workerCount
         self.authentication = authentication
+        self.cors = cors
+    }
+}
+
+/// CORS configuration for the HTTP server
+public struct CORSConfiguration: Equatable {
+    /// Allowed origin domains
+    public let allowedOrigin: String
+    
+    /// Allowed HTTP methods
+    public let allowedMethods: [HTTPMethod]
+    
+    /// Allowed HTTP headers
+    public let allowedHeaders: [String]
+    
+    /// Whether to allow credentials
+    public let allowCredentials: Bool
+    
+    /// Max age for preflight requests in seconds
+    public let cacheExpiration: Int
+    
+    /// Whether CORS is enabled
+    public let isEnabled: Bool
+    
+    /// Creates a new CORS configuration
+    public init(
+        allowedOrigin: String = "*",
+        allowedMethods: [HTTPMethod] = [.GET, .POST, .PUT, .DELETE, .PATCH, .OPTIONS],
+        allowedHeaders: [String] = ["Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"],
+        allowCredentials: Bool = false,
+        cacheExpiration: Int = 600,
+        isEnabled: Bool = true
+    ) {
+        self.allowedOrigin = allowedOrigin
+        self.allowedMethods = allowedMethods
+        self.allowedHeaders = allowedHeaders
+        self.allowCredentials = allowCredentials
+        self.cacheExpiration = cacheExpiration
+        self.isEnabled = isEnabled
+    }
+    
+    /// Permissive CORS configuration that allows all origins
+    public static let permissive = CORSConfiguration()
+    
+    /// Disabled CORS configuration
+    public static let disabled = CORSConfiguration(isEnabled: false)
+    
+    /// Strict CORS configuration for a specific origin
+    public static func strict(origin: String) -> CORSConfiguration {
+        CORSConfiguration(allowedOrigin: origin, allowCredentials: true)
     }
 }
 
@@ -121,6 +175,26 @@ public actor HTTPServerManager {
     
     /// Configure server routes
     private func configureRoutes(_ app: Application) throws {
+        // Configure CORS if enabled
+        if config.cors.isEnabled {
+            let corsConfiguration = CORSMiddleware.Configuration(
+                allowedOrigin: .custom(config.cors.allowedOrigin),
+                allowedMethods: config.cors.allowedMethods,
+                allowedHeaders: config.cors.allowedHeaders,
+                allowCredentials: config.cors.allowCredentials,
+                cacheExpiration: config.cors.cacheExpiration
+            )
+            let corsMiddleware = CORSMiddleware(configuration: corsConfiguration)
+            app.middleware.use(corsMiddleware)
+        }
+        
+        // Configure middleware
+        app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
+        app.middleware.use(ErrorMiddleware.default(environment: app.environment))
+        
+        // Add authentication middleware
+        app.middleware.use(AuthMiddleware(authManager: authManager))
+        
         // Public routes
         
         // Health check endpoint
