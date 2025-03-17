@@ -24,6 +24,9 @@ public struct HTTPServerConfig: Equatable {
     /// Request logging configuration
     public let logging: RequestLoggingConfiguration
     
+    /// Rate limiting configuration
+    public let rateLimit: RateLimitConfiguration
+    
     /// Creates a new HTTP server configuration
     public init(
         host: String = "127.0.0.1",
@@ -32,7 +35,8 @@ public struct HTTPServerConfig: Equatable {
         workerCount: Int = System.coreCount,
         authentication: AuthenticationConfig = .disabled,
         cors: CORSConfiguration = .permissive,
-        logging: RequestLoggingConfiguration = .basic
+        logging: RequestLoggingConfiguration = .basic,
+        rateLimit: RateLimitConfiguration = .standard
     ) {
         self.host = host
         self.port = port
@@ -41,6 +45,7 @@ public struct HTTPServerConfig: Equatable {
         self.authentication = authentication
         self.cors = cors
         self.logging = logging
+        self.rateLimit = rateLimit
     }
 }
 
@@ -191,6 +196,7 @@ public actor HTTPServerManager {
     internal private(set) var isRunning: Bool = false
     private let streamManager: HLSStreamManager
     private let authManager: AuthenticationManager
+    private var rateLimiter: RateLimiter?
     
     public init(config: HTTPServerConfig = HTTPServerConfig()) {
         self.config = config
@@ -219,14 +225,7 @@ public actor HTTPServerManager {
         app.http.server.configuration.hostname = config.host
         app.http.server.configuration.port = config.port
         
-        // Configure middleware
-        app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
-        app.middleware.use(ErrorMiddleware.default(environment: app.environment))
-        
-        // Add authentication middleware
-        app.middleware.use(AuthMiddleware(authManager: authManager))
-        
-        // Configure routes
+        // Configure routes and middleware
         try configureRoutes(app)
         
         // Start the server
@@ -234,11 +233,27 @@ public actor HTTPServerManager {
         self.app = app
         self.isRunning = true
         
-        // Periodically clean up expired sessions
+        // Start maintenance tasks
+        startMaintenanceTasks()
+    }
+    
+    /// Starts background maintenance tasks
+    private func startMaintenanceTasks() {
+        // Task for cleaning up expired sessions
         Task.detached { [weak self] in
             while await self?.isRunning == true {
                 await self?.authManager.cleanupExpiredSessions()
-                try await Task.sleep(nanoseconds: 60_000_000_000) // 60 seconds
+                try? await Task.sleep(nanoseconds: 60_000_000_000) // 60 seconds
+            }
+        }
+        
+        // Task for cleaning up rate limit buckets
+        if config.rateLimit.isEnabled, let rateLimiter = rateLimiter {
+            Task.detached { [weak self] in
+                while await self?.isRunning == true {
+                    await rateLimiter.cleanupExpiredBuckets()
+                    try? await Task.sleep(nanoseconds: 300_000_000_000) // 5 minutes
+                }
             }
         }
     }
@@ -273,7 +288,12 @@ public actor HTTPServerManager {
             ))
         }
         
-        // 2. Add CORS if enabled
+        // 2. Add rate limiting if enabled
+        if config.rateLimit.isEnabled {
+            self.rateLimiter = app.enableRateLimiting(config.rateLimit)
+        }
+        
+        // 3. Add CORS if enabled
         if config.cors.isEnabled {
             let corsConfiguration = CORSMiddleware.Configuration(
                 allowedOrigin: .custom(config.cors.allowedOrigin),
@@ -286,13 +306,13 @@ public actor HTTPServerManager {
             app.middleware.use(corsMiddleware)
         }
         
-        // 3. Add static file middleware
+        // 4. Add static file middleware
         app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
         
-        // 4. Add error middleware
+        // 5. Add error middleware
         app.middleware.use(ErrorMiddleware.default(environment: app.environment))
         
-        // 5. Add authentication middleware
+        // 6. Add authentication middleware
         app.middleware.use(AuthMiddleware(authManager: authManager))
         
         // Configure route handlers
@@ -313,10 +333,19 @@ public actor HTTPServerManager {
             "1.0.0"
         }
         
-        // Authentication endpoints
+        // Authentication endpoints - apply stricter rate limits
+        let authRoutes = app.routes.grouped("auth")
+        
+        if config.rateLimit.isEnabled, let rateLimiter = rateLimiter {
+            // Create a stricter rate limiter for auth endpoints
+            let authRateLimiter = RateLimiter(configuration: .strict)
+            
+            // Apply stricter rate limits to auth endpoints
+            authRoutes.rateLimited(using: authRateLimiter)
+        }
         
         // Login endpoint
-        app.post("auth", "login") { [authManager] req -> Response in
+        authRoutes.post("login") { [authManager] req -> Response in
             guard let credentials = try? req.content.decode(LoginCredentials.self) else {
                 throw Abort(.badRequest, reason: "Invalid login credentials")
             }
@@ -342,7 +371,7 @@ public actor HTTPServerManager {
         }
         
         // API key validation endpoint
-        app.post("auth", "verify") { [authManager] req -> Response in
+        authRoutes.post("verify") { [authManager] req -> Response in
             guard let apiKeyData = try? req.content.decode(APIKeyData.self) else {
                 throw Abort(.badRequest, reason: "Invalid API key data")
             }
@@ -365,7 +394,7 @@ public actor HTTPServerManager {
         }
         
         // Logout endpoint
-        app.delete("auth", "logout") { [authManager] req -> Response in
+        authRoutes.delete("logout") { [authManager] req -> Response in
             if let tokenStr = req.query[String.self, at: "token"],
                let token = UUID(uuidString: tokenStr) {
                 await authManager.invalidateSession(token)
