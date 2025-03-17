@@ -197,10 +197,10 @@ public actor HTTPServerManager {
         // Protected or Semi-protected routes
         
         // Stream access endpoint - may be protected depending on configuration
-        var streamRoutes: RoutesBuilder = app
+        var streamRoutes: RoutesBuilder = app.routes
         
         if config.authentication.enabled {
-            streamRoutes = app.routes.grouped().protected(using: authManager)
+            streamRoutes = app.routes.protected(using: authManager)
         }
             
         streamRoutes.post("stream", "access") { [streamManager] (req: Request) -> Response in
@@ -341,8 +341,16 @@ extension HLSStreamManager {
     /// Check if there is an active stream
     var hasActiveStream: Bool {
         get async {
-            // The activeConnection property indicates if there's an active stream
-            return await activeConnection != nil
+            // Try to request access, if it fails with streamInUse, there's an active stream
+            do {
+                let token = try await requestAccess()
+                // If we got here, there was no active stream, so release the token we just got
+                await releaseAccess(token)
+                return false
+            } catch {
+                // If we can't get access, assume it's because a stream is active
+                return true
+            }
         }
     }
 } 
