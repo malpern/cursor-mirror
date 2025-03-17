@@ -94,13 +94,6 @@ The iOS client app will serve as a simple viewer application for CursorWindow st
    - Portrait and landscape orientation support
    - One-tap connection to available stream
 
-3. **Optional Enhancements** (if time allows)
-   - Picture-in-Picture support
-   - Background audio playback
-   - Simple network diagnostics
-   - Stream priority settings when multiple sources available
-   - Connection handoff between different networks (Wi-Fi to cellular)
-
 ### Technical Approach
 - **Architecture**: Simple MVVM with SwiftUI
 - **Minimum iOS Version**: iOS 17.0
@@ -113,6 +106,52 @@ The iOS client app will serve as a simple viewer application for CursorWindow st
 - **Performance Priority**: Connection reliability and playback stability
 
 The iOS client app will provide a nearly effortless connection experience - just sign in with your iCloud account on both devices, and the connection happens automatically. This eliminates all manual configuration steps, greatly simplifying the user experience.
+
+## Server-Side Changes for iCloud Integration
+
+To support the iCloud-based device discovery and authentication system, the following changes will be needed in the server component:
+
+### 1. CloudKit Integration
+- Add CloudKit framework dependency to the macOS application
+- Implement a `CloudKitManager` class to handle iCloud operations
+- Create a private CloudKit container for secure device data sharing
+- Set up a record type for CursorWindow instances with the following fields:
+  - Device identifier (UUID)
+  - Device name (string)
+  - Server status (boolean)
+  - Network addresses (array of strings)
+  - Last updated timestamp (date)
+  - Stream configuration (dictionary)
+
+### 2. Server Identity & Discovery
+- Generate and persist a unique server identifier
+- Broadcast server availability through CloudKit when running
+- Automatically update network information when network changes
+- Implement background refresh for server status updates
+- Add server name customization in preferences
+
+### 3. Authentication Changes
+- Extend `AuthenticationManager` to support iCloud authentication
+- Create secure tokens using CloudKit private database
+- Implement automatic single-viewer access control
+- Add CloudKit user identity verification
+- Create a mechanism to revoke access when needed
+
+### 4. Network Address Management
+- Add automatic detection of local and public IP addresses
+- Implement NAT traversal capabilities where possible
+- Create address prioritization based on network type
+- Add network reachability monitoring
+- Support automatic server reconfiguration on network changes
+
+### 5. Application Integration
+- Add iCloud capability to the main application
+- Modify `HTTPServerManager` to broadcast through CloudKit
+- Create UI indicators for CloudKit connection status
+- Implement user-facing controls for managing connections
+- Provide fallback to manual connection methods when iCloud is unavailable
+
+These changes will enable the macOS application to advertise its availability through iCloud, allowing any iOS device signed in with the same Apple ID to automatically discover and connect to the stream without manual configuration.
 
 ## Requirements
 
