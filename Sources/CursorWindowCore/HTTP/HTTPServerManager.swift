@@ -298,9 +298,9 @@ public actor HTTPServerManager {
             try response.content.encode(ServerStatus(
                 serverRunning: true,
                 streamActive: await self.checkStreamActive(streamManager),
-                authEnabled: self.config.authentication.enabled,
-                hostname: self.config.host,
-                port: self.config.port
+                authEnabled: await self.config.authentication.enabled,
+                hostname: await self.config.host,
+                port: await self.config.port
             ))
             
             return response

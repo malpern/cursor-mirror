@@ -38,11 +38,10 @@ public struct ProtectedRouteMiddleware: AsyncMiddleware {
         
         // If we get here, authentication failed
         let response = Response(status: .unauthorized)
-        response.headers.bearerWWWAuthenticate = .init(realm: "CursorWindow")
         
         // Add WWW-Authenticate header for basic auth if it's supported
         if requiredMethods.contains(.basic) {
-            response.headers.basicWWWAuthenticate = .init(realm: "CursorWindow")
+            response.headers.add(name: "WWW-Authenticate", value: "Basic realm=\"CursorWindow\"")
         }
         
         return response
