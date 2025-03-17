@@ -45,16 +45,11 @@ A macOS application for capturing and streaming screen content with HLS (HTTP Li
 
 🚧 **In Progress**
   - Phase 3: Advanced Features
-    - [x] Add authentication
-      - [x] Basic authentication with username/password
-      - [x] API key authentication
-      - [x] Session-based token authentication
-      - [x] Protected routes and middleware
-      - [x] Session expiration and cleanup
-    - [ ] Implement CORS support
-    - [ ] Add request logging
-    - [ ] Implement rate limiting
-    - [ ] Create admin dashboard
+    - [x] Authentication (multiple methods, protected routes, session management, admin protection)
+    - [x] CORS support (configurable settings, preflight requests)
+    - [x] Request logging (with configurable levels and filtering)
+    - [x] Rate limiting (with configuration options and IP-based tracking)
+    - [x] Admin dashboard (UI for configuration, monitoring, and management)
   - Phase 4: Performance & Security
     - [ ] Optimize segment delivery
     - [ ] Add SSL/TLS support
@@ -168,6 +163,46 @@ Note: UI tests require a GUI environment and will be skipped when running headle
 - Automatic session expiration and cleanup
 - Admin routes protection
 - Authentication endpoints for login and API key verification
+
+### CORS Features
+- Configurable CORS policy with multiple presets (permissive, strict, disabled)
+- Support for specific origin restrictions
+- Control over allowed headers, methods, and credentials
+- Preflight request handling
+- Customizable cache expiration for OPTIONS responses
+
+### Logging Features
+- Comprehensive request/response logging
+- Configurable log levels based on response status codes
+- Path exclusion for high-volume endpoints
+- Request and response body logging options
+- Request timing and performance tracking
+- Request ID tracking for correlation
+
+### Rate Limiting Features
+- Time-window based rate limiting with IP or custom identifier
+- Standard rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset)
+- Per-route group rate limiting for fine-grained control
+- Path exclusions for health checks and static resources
+- Automatic bucket cleanup to prevent memory leaks
+- Multiple preset configurations (standard, strict, disabled)
+
+### Admin Dashboard Features
+
+The admin dashboard provides a web-based interface for managing and monitoring the HTTP server. Key features include:
+
+- **Dashboard Overview**: Real-time monitoring of server status, stream connections, and request traffic
+- **Stream Management**: Monitor active streams, view connection history, and manage stream timeouts
+- **Settings Management**: Configure all server settings through a user-friendly interface
+- **Logs Viewer**: Browse, filter, and export server logs
+- **Authentication**: Login protection for admin access
+- **Responsive Design**: Works on desktop and mobile devices
+- **Real-time Updates**: Automatic refreshing of dynamic content
+
+The dashboard is built using:
+- Leaf templates (server-side rendering)
+- Bootstrap 5 for responsive layouts
+- Chart.js for traffic visualization
 
 ## Contributing
 

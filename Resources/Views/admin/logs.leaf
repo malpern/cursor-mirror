@@ -1,0 +1,268 @@
+#extend("base"):
+    #export("title", "Server Logs")
+    
+    #export("actions"):
+        <button class="btn btn-sm btn-outline-secondary" id="refreshBtn">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+        <button class="btn btn-sm btn-outline-danger" id="clearBtn">
+            <i class="bi bi-trash"></i> Clear Logs
+        </button>
+    #endexport
+    
+    #export("content"):
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Log Filters</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="filterForm" class="mb-0">
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <label for="logLevel" class="form-label">Minimum Log Level</label>
+                                    <select class="form-select" id="logLevel" name="logLevel">
+                                        <option value="trace" #if(filter.level == "trace"){selected}>Trace</option>
+                                        <option value="debug" #if(filter.level == "debug"){selected}>Debug</option>
+                                        <option value="info" #if(filter.level == "info"){selected}>Info</option>
+                                        <option value="notice" #if(filter.level == "notice"){selected}>Notice</option>
+                                        <option value="warning" #if(filter.level == "warning"){selected}>Warning</option>
+                                        <option value="error" #if(filter.level == "error"){selected}>Error</option>
+                                        <option value="critical" #if(filter.level == "critical"){selected}>Critical</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label for="logSource" class="form-label">Source</label>
+                                    <select class="form-select" id="logSource" name="source">
+                                        <option value="all" #if(filter.source == "all"){selected}>All Sources</option>
+                                        <option value="server" #if(filter.source == "server"){selected}>Server</option>
+                                        <option value="auth" #if(filter.source == "auth"){selected}>Authentication</option>
+                                        <option value="stream" #if(filter.source == "stream"){selected}>Stream</option>
+                                        <option value="request" #if(filter.source == "request"){selected}>HTTP Requests</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="searchTerm" class="form-label">Search</label>
+                                    <input type="text" class="form-control" id="searchTerm" name="search" placeholder="Search logs..." value="#(filter.search)">
+                                </div>
+                                <div class="col-md-2 mb-3 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <label for="startDate" class="form-label">Start Date</label>
+                                    <input type="datetime-local" class="form-control" id="startDate" name="startDate" value="#(filter.startDate)">
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label for="endDate" class="form-label">End Date</label>
+                                    <input type="datetime-local" class="form-control" id="endDate" name="endDate" value="#(filter.endDate)">
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="limit" class="form-label">Limit</label>
+                                    <select class="form-select" id="limit" name="limit">
+                                        <option value="50" #if(filter.limit == 50){selected}>50 entries</option>
+                                        <option value="100" #if(filter.limit == 100){selected}>100 entries</option>
+                                        <option value="250" #if(filter.limit == 250){selected}>250 entries</option>
+                                        <option value="500" #if(filter.limit == 500){selected}>500 entries</option>
+                                        <option value="1000" #if(filter.limit == 1000){selected}>1000 entries</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2 mb-3 d-flex align-items-end">
+                                    <button type="reset" class="btn btn-secondary w-100">Reset Filters</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Server Logs</h5>
+                        <div>
+                            <span class="badge bg-secondary">#(totalLogs) Total Logs</span>
+                            <span class="badge bg-primary ms-2">#(filteredLogs) Filtered</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive" id="logsTable">
+                            <table class="table table-hover table-striped mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 180px;">Timestamp</th>
+                                        <th style="width: 100px;">Level</th>
+                                        <th style="width: 120px;">Source</th>
+                                        <th>Message</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    #if(logs && count(logs) > 0):
+                                        #for(log in logs):
+                                        <tr>
+                                            <td><small>#(log.timestamp)</small></td>
+                                            <td>
+                                                <span class="badge #if(log.level == "error" || log.level == "critical"){bg-danger}#elseif(log.level == "warning"){bg-warning}#elseif(log.level == "info"){bg-info}#elseif(log.level == "debug"){bg-secondary}#else{bg-primary}#endif">
+                                                    #(log.level)
+                                                </span>
+                                            </td>
+                                            <td><small>#(log.source)</small></td>
+                                            <td>
+                                                <div class="log-message">
+                                                    #(log.message)
+                                                    #if(log.details):
+                                                    <a href="#" class="log-details-toggle" data-log-id="#(log.id)">Details</a>
+                                                    <div class="log-details" id="details-#(log.id)" style="display: none;">
+                                                        <pre class="mt-2 p-2 bg-light"><code>#(log.details)</code></pre>
+                                                    </div>
+                                                    #endif
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        #endfor
+                                    #else:
+                                        <tr>
+                                            <td colspan="4" class="text-center py-4">
+                                                No logs found matching your filters.
+                                            </td>
+                                        </tr>
+                                    #endif
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <nav aria-label="Log navigation">
+                            <ul class="pagination justify-content-center mb-0">
+                                <li class="page-item #if(page == 1){disabled}">
+                                    <a class="page-link" href="#(page == 1 ? '#' : '/admin/logs?page=' + (page - 1) + '&' + paginationParams)" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                                
+                                #for(pageNum in pagination):
+                                <li class="page-item #if(pageNum == page){active}">
+                                    <a class="page-link" href="#(pageNum == page ? '#' : '/admin/logs?page=' + pageNum + '&' + paginationParams)">#(pageNum)</a>
+                                </li>
+                                #endfor
+                                
+                                <li class="page-item #if(page == lastPage){disabled}">
+                                    <a class="page-link" href="#(page == lastPage ? '#' : '/admin/logs?page=' + (page + 1) + '&' + paginationParams)" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal for log export -->
+        <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="exportModalLabel">Export Logs</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="exportForm">
+                            <div class="mb-3">
+                                <label for="exportFormat" class="form-label">Format</label>
+                                <select class="form-select" id="exportFormat" name="format">
+                                    <option value="csv">CSV</option>
+                                    <option value="json">JSON</option>
+                                    <option value="txt">Plain Text</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="exportAll" name="exportAll">
+                                    <label class="form-check-label" for="exportAll">
+                                        Export all logs (ignores current filters)
+                                    </label>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="startExport">Export</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    #endexport
+    
+    #export("scripts"):
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Toggle log details
+                const detailsToggles = document.querySelectorAll('.log-details-toggle');
+                detailsToggles.forEach(toggle => {
+                    toggle.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const logId = this.getAttribute('data-log-id');
+                        const detailsEl = document.getElementById(`details-${logId}`);
+                        
+                        if (detailsEl.style.display === 'none') {
+                            detailsEl.style.display = 'block';
+                            this.textContent = 'Hide Details';
+                        } else {
+                            detailsEl.style.display = 'none';
+                            this.textContent = 'Details';
+                        }
+                    });
+                });
+                
+                // Refresh button
+                document.getElementById('refreshBtn').addEventListener('click', function() {
+                    window.location.reload();
+                });
+                
+                // Clear logs button
+                document.getElementById('clearBtn').addEventListener('click', function() {
+                    if (confirm('Are you sure you want to clear all logs? This cannot be undone.')) {
+                        fetch('/admin/logs/clear', { method: 'POST' })
+                            .then(response => {
+                                if (response.ok) {
+                                    window.location.reload();
+                                }
+                            });
+                    }
+                });
+                
+                // Export logs functionality
+                const exportModal = new bootstrap.Modal(document.getElementById('exportModal'));
+                
+                document.getElementById('startExport').addEventListener('click', function() {
+                    const format = document.getElementById('exportFormat').value;
+                    const exportAll = document.getElementById('exportAll').checked;
+                    
+                    let url = `/admin/logs/export?format=${format}`;
+                    
+                    if (!exportAll) {
+                        // Append current filter parameters
+                        const urlParams = new URLSearchParams(window.location.search);
+                        urlParams.delete('page'); // Don't need pagination for export
+                        
+                        if (urlParams.toString()) {
+                            url += '&' + urlParams.toString();
+                        }
+                    }
+                    
+                    // Trigger download
+                    window.location.href = url;
+                    
+                    // Close modal
+                    exportModal.hide();
+                });
+            });
+        </script>
+    #endexport
+#endextend 

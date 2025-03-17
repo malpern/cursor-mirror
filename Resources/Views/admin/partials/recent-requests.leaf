@@ -1,0 +1,28 @@
+<table class="table table-striped table-sm">
+    <thead>
+        <tr>
+            <th>Time</th>
+            <th>Method</th>
+            <th>Path</th>
+            <th>Status</th>
+            <th>IP</th>
+        </tr>
+    </thead>
+    <tbody>
+        #if(count(recentRequests) > 0):
+            #for(request in recentRequests):
+            <tr>
+                <td>#(request.time)</td>
+                <td>#(request.method)</td>
+                <td>#(request.path)</td>
+                <td>#(request.status)</td>
+                <td>#(request.ip)</td>
+            </tr>
+            #endfor
+        #else:
+            <tr>
+                <td colspan="5" class="text-center">No recent requests</td>
+            </tr>
+        #endif
+    </tbody>
+</table> 

@@ -1,0 +1,28 @@
+<table class="table table-striped table-sm">
+    <thead>
+        <tr>
+            <th>Client ID</th>
+            <th>Connection Time</th>
+            <th>Disconnection Time</th>
+            <th>Duration</th>
+            <th>IP Address</th>
+        </tr>
+    </thead>
+    <tbody>
+        #if(count(connectionHistory) > 0):
+            #for(connection in connectionHistory):
+            <tr>
+                <td>#(connection.id)</td>
+                <td>#(connection.connected)</td>
+                <td>#(connection.disconnected)</td>
+                <td>#(connection.duration)</td>
+                <td>#(connection.ip)</td>
+            </tr>
+            #endfor
+        #else:
+            <tr>
+                <td colspan="5" class="text-center">No connection history</td>
+            </tr>
+        #endif
+    </tbody>
+</table> 

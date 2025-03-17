@@ -1,5 +1,7 @@
 import Vapor
 import Foundation
+import NIOSSL
+import Leaf
 
 /// Configuration options for the HTTP server
 public struct HTTPServerConfig: Equatable {
@@ -27,6 +29,24 @@ public struct HTTPServerConfig: Equatable {
     /// Rate limiting configuration
     public let rateLimit: RateLimitConfiguration
     
+    /// Configuration for the admin dashboard
+    public struct AdminDashboard {
+        /// Whether the admin dashboard is enabled
+        public var enabled: Bool
+        
+        /// Whether to serve static assets for the admin dashboard
+        public var serveAssets: Bool
+        
+        /// Initialize admin dashboard configuration
+        public init(enabled: Bool = true, serveAssets: Bool = true) {
+            self.enabled = enabled
+            self.serveAssets = serveAssets
+        }
+    }
+    
+    /// Admin dashboard configuration
+    public var admin: AdminDashboard
+    
     /// Creates a new HTTP server configuration
     public init(
         host: String = "127.0.0.1",
@@ -36,7 +56,8 @@ public struct HTTPServerConfig: Equatable {
         authentication: AuthenticationConfig = .disabled,
         cors: CORSConfiguration = .permissive,
         logging: RequestLoggingConfiguration = .basic,
-        rateLimit: RateLimitConfiguration = .standard
+        rateLimit: RateLimitConfiguration = .standard,
+        admin: AdminDashboard = AdminDashboard()
     ) {
         self.host = host
         self.port = port
@@ -46,6 +67,7 @@ public struct HTTPServerConfig: Equatable {
         self.cors = cors
         self.logging = logging
         self.rateLimit = rateLimit
+        self.admin = admin
     }
 }
 
@@ -197,6 +219,7 @@ public actor HTTPServerManager {
     private let streamManager: HLSStreamManager
     private let authManager: AuthenticationManager
     private var rateLimiter: RateLimiter?
+    private var adminController: AdminController?
     
     public init(config: HTTPServerConfig = HTTPServerConfig()) {
         self.config = config
@@ -527,6 +550,85 @@ public actor HTTPServerManager {
         } catch {
             // If we can't get access, assume it's because a stream is active
             return true
+        }
+    }
+    
+    /// Configures the application routes
+    private func configureRoutes(_ app: Application) {
+        app.middleware.use(RequestLoggerMiddleware(
+            configuration: config.logging,
+            logger: app.logger
+        ))
+        
+        // Set up CORS if enabled
+        if config.cors.isEnabled {
+            app.middleware.use(CORSMiddleware(configuration: config.cors))
+        }
+        
+        // Set up rate limiting if enabled
+        if config.rateLimit.isEnabled {
+            let rateLimiter = app.enableRateLimiting(config.rateLimit)
+            app.middleware.use(RateLimitMiddleware(rateLimiter: rateLimiter, excludedPaths: config.rateLimit.excludedPaths))
+            
+            // Set up the bucket cleanup task
+            let cleanupInterval = config.rateLimit.cleanupInterval * 60
+            app.eventLoopGroup.next().scheduleRepeatedTask(initialDelay: .seconds(cleanupInterval), delay: .seconds(cleanupInterval)) { task in
+                rateLimiter.cleanupExpiredBuckets()
+            }
+            
+            // Set up stricter rate limits for auth routes
+            let authRateLimiter = RateLimiter(configuration: config.rateLimit.stricterForAuth())
+            self.rateLimiter = rateLimiter
+            
+            let authRoutes = app.grouped("auth")
+                .grouped(RateLimitMiddleware(rateLimiter: authRateLimiter))
+            
+            // Configure auth routes with authentication
+            configureAuthRoutes(authRoutes)
+        } else {
+            // Configure auth routes without rate limiting
+            let authRoutes = app.grouped("auth")
+            configureAuthRoutes(authRoutes)
+        }
+        
+        // Configure stream routes
+        configureStreamRoutes(app)
+        
+        // Setup admin dashboard if enabled
+        if config.admin.enabled {
+            let leafResolver = LeafRenderer(configuration: .init(viewsDirectory: "Resources/Views"), viewsDirectory: "Resources/Views", eventLoop: app.eventLoopGroup.next())
+            
+            app.views.use(.leaf)
+            
+            // Create the admin controller
+            let adminController = AdminController(httpServer: self, hlsManager: streamManager, authManager: authManager)
+            adminController.setupRoutes(app)
+            self.adminController = adminController
+            
+            // Serve static assets if enabled
+            if config.admin.serveAssets {
+                app.middleware.use(FileMiddleware(publicDirectory: "Public"))
+            }
+        }
+    }
+    
+    // Request logging middleware will call this to record requests for the admin dashboard
+    public func recordRequest(method: String, path: String, statusCode: Int, ipAddress: String, duration: Double, details: String? = nil) {
+        guard let adminController = adminController else { return }
+        
+        let requestLog = AdminController.RequestLog(
+            id: UUID(),
+            timestamp: Date(),
+            method: method,
+            path: path,
+            statusCode: statusCode,
+            ipAddress: ipAddress,
+            duration: duration,
+            details: details
+        )
+        
+        Task {
+            await adminController.recordRequest(requestLog)
         }
     }
 }

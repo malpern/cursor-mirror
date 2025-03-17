@@ -1,0 +1,237 @@
+#extend("base"):
+    #export("title", "Dashboard")
+    
+    #export("actions"):
+        <button class="btn btn-sm btn-outline-secondary" id="refreshBtn">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    #endexport
+    
+    #export("content"):
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card status-card">
+                    <div class="card-body">
+                        <h5 class="card-title">Server Status</h5>
+                        <p class="card-text">
+                            <span class="status-indicator #if(serverRunning){status-active}else{status-inactive}"></span>
+                            #if(serverRunning):
+                                Running
+                            #else:
+                                Stopped
+                            #endif
+                        </p>
+                        <p class="card-text">
+                            <small class="text-muted">Uptime: #(uptime)</small>
+                        </p>
+                        <div class="btn-group">
+                            #if(serverRunning):
+                                <form method="POST" action="/admin/server/stop">
+                                    <button type="submit" class="btn btn-sm btn-danger">Stop Server</button>
+                                </form>
+                            #else:
+                                <form method="POST" action="/admin/server/start">
+                                    <button type="submit" class="btn btn-sm btn-success">Start Server</button>
+                                </form>
+                            #endif
+                            <form method="POST" action="/admin/server/restart" class="ms-2">
+                                <button type="submit" class="btn btn-sm btn-warning">Restart</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card status-card">
+                    <div class="card-body">
+                        <h5 class="card-title">Stream Status</h5>
+                        <p class="card-text">
+                            <span class="status-indicator #if(streamActive){status-active}else{status-inactive}"></span>
+                            #if(streamActive):
+                                Active
+                            #else:
+                                Inactive
+                            #endif
+                        </p>
+                        #if(streamActive):
+                            <p class="card-text">
+                                <small class="text-muted">Connected: #(connectionTime)</small>
+                            </p>
+                        #endif
+                        #if(streamActive):
+                            <form method="POST" action="/admin/stream/stop">
+                                <button type="submit" class="btn btn-sm btn-danger">Disconnect Client</button>
+                            </form>
+                        #endif
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card status-card">
+                    <div class="card-body">
+                        <h5 class="card-title">Authentication</h5>
+                        <p class="card-text">
+                            <span class="status-indicator #if(authEnabled){status-active}else{status-inactive}"></span>
+                            #if(authEnabled):
+                                Enabled
+                            #else:
+                                Disabled
+                            #endif
+                        </p>
+                        <p class="card-text">
+                            <small class="text-muted">Method: #(authMethod)</small>
+                        </p>
+                        <a href="/admin/settings#auth" class="btn btn-sm btn-primary">Configure</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card status-card">
+                    <div class="card-body">
+                        <h5 class="card-title">Rate Limiting</h5>
+                        <p class="card-text">
+                            <span class="status-indicator #if(rateLimitEnabled){status-active}else{status-inactive}"></span>
+                            #if(rateLimitEnabled):
+                                Enabled
+                            #else:
+                                Disabled
+                            #endif
+                        </p>
+                        <p class="card-text">
+                            <small class="text-muted">Limit: #(rateLimit) req/min</small>
+                        </p>
+                        <a href="/admin/settings#ratelimit" class="btn btn-sm btn-primary">Configure</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Recent Requests</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive" data-refresh-url="/admin/api/recent-requests" data-refresh-interval="5000">
+                            <table class="table table-striped table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Method</th>
+                                        <th>Path</th>
+                                        <th>Status</th>
+                                        <th>IP</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    #for(request in recentRequests):
+                                    <tr>
+                                        <td>#(request.time)</td>
+                                        <td>#(request.method)</td>
+                                        <td>#(request.path)</td>
+                                        <td>#(request.status)</td>
+                                        <td>#(request.ip)</td>
+                                    </tr>
+                                    #endfor
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">System Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-sm">
+                                <tbody>
+                                    <tr>
+                                        <th>Server Version</th>
+                                        <td>#(version)</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Hostname</th>
+                                        <td>#(hostname)</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Operating System</th>
+                                        <td>#(osInfo)</td>
+                                    </tr>
+                                    <tr>
+                                        <th>IP Address</th>
+                                        <td>#(ipAddress)</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Port</th>
+                                        <td>#(port)</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Server Started</th>
+                                        <td>#(startTime)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Traffic Overview</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="trafficChart" height="100"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    #endexport
+    
+    #export("scripts"):
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Set up refresh button
+                document.getElementById('refreshBtn').addEventListener('click', function() {
+                    window.location.reload();
+                });
+                
+                // Set up traffic chart
+                const ctx = document.getElementById('trafficChart').getContext('2d');
+                
+                const trafficData = {
+                    labels: #(chartLabels),
+                    datasets: [{
+                        label: 'Requests',
+                        data: #(chartValues),
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                };
+                
+                const trafficChart = new Chart(ctx, {
+                    type: 'line',
+                    data: trafficData,
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        },
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            });
+        </script>
+    #endexport
+#endextend 

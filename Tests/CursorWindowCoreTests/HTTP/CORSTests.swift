@@ -15,7 +15,7 @@ final class CORSTests: XCTestCase {
         let corsConfig = CORSConfiguration(
             allowedOrigin: "https://example.com",
             allowedMethods: [.GET, .POST, .OPTIONS],
-            allowedHeaders: ["X-Test-Header", "Content-Type", "Authorization"],
+            allowedHeaders: [.contentType, .authorization, "X-Test-Header"],
             allowCredentials: true,
             cacheExpiration: 3600
         )
@@ -101,7 +101,7 @@ final class CORSTests: XCTestCase {
             let corsConfiguration = CORSMiddleware.Configuration(
                 allowedOrigin: .all,
                 allowedMethods: [.GET, .POST, .OPTIONS],
-                allowedHeaders: ["X-Test-Header", "Content-Type"],
+                allowedHeaders: [.contentType, "X-Test-Header"],
                 allowCredentials: false
             )
             let corsMiddleware = CORSMiddleware(configuration: corsConfiguration)
@@ -113,15 +113,19 @@ final class CORSTests: XCTestCase {
             configureTestRoutes(vaporHelper.app)
         }
         
-        try await MainActor.run {
-            // Test that any origin is allowed
-            try vaporHelper.app.test(.GET, "test", beforeRequest: { req in
-                req.headers.add(name: "Origin", value: "https://any-origin.com")
-            }, afterResponse: { response in
-                XCTAssertEqual(response.status, .ok)
-                XCTAssertEqual(response.headers["Access-Control-Allow-Origin"].first, "*")
-                XCTAssertNil(response.headers["Access-Control-Allow-Credentials"].first)
-            })
+        // Test that any origin is allowed
+        await MainActor.run {
+            do {
+                try vaporHelper.app.test(.GET, "test", beforeRequest: { req in
+                    req.headers.add(name: "Origin", value: "https://any-origin.com")
+                }, afterResponse: { response in
+                    XCTAssertEqual(response.status, .ok)
+                    XCTAssertEqual(response.headers["Access-Control-Allow-Origin"].first, "*")
+                    XCTAssertNil(response.headers["Access-Control-Allow-Credentials"].first)
+                })
+            } catch {
+                XCTFail("Test failed with error: \(error)")
+            }
         }
     }
     

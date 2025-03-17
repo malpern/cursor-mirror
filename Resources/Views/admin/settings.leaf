@@ -1,0 +1,439 @@
+#extend("base"):
+    #export("title", "Settings")
+    
+    #export("actions"):
+        <button class="btn btn-sm btn-outline-secondary" id="resetBtn">
+            <i class="bi bi-arrow-clockwise"></i> Reset to Defaults
+        </button>
+    #endexport
+    
+    #export("content"):
+        <ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="server-tab" data-bs-toggle="tab" data-bs-target="#server-pane" type="button" role="tab">Server</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="auth-tab" data-bs-toggle="tab" data-bs-target="#auth-pane" type="button" role="tab">Authentication</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="cors-tab" data-bs-toggle="tab" data-bs-target="#cors-pane" type="button" role="tab">CORS</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="ratelimit-tab" data-bs-toggle="tab" data-bs-target="#ratelimit-pane" type="button" role="tab">Rate Limiting</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="logging-tab" data-bs-toggle="tab" data-bs-target="#logging-pane" type="button" role="tab">Logging</button>
+            </li>
+        </ul>
+        
+        <form method="POST" action="/admin/settings/update">
+            <div class="tab-content" id="settingsTabsContent">
+                <!-- Server Settings -->
+                <div class="tab-pane fade show active" id="server-pane" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Server Configuration</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="hostname" class="form-label">Hostname</label>
+                                    <input type="text" class="form-control" id="hostname" name="hostname" value="#(config.hostname)" required>
+                                    <div class="form-text">The hostname or IP address to bind the server to.</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="port" class="form-label">Port</label>
+                                    <input type="number" class="form-control" id="port" name="port" value="#(config.port)" min="1" max="65535" required>
+                                    <div class="form-text">The port to listen on (1-65535).</div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="streamTimeout" class="form-label">Stream Timeout (minutes)</label>
+                                    <input type="number" class="form-control" id="streamTimeout" name="streamTimeout" value="#(config.streamTimeout)" min="1" required>
+                                    <div class="form-text">Number of minutes of inactivity before a stream connection is terminated.</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="form-check form-switch mt-4">
+                                        <input class="form-check-input" type="checkbox" id="autoStart" name="autoStart" #if(config.autoStart){checked}>
+                                        <label class="form-check-label" for="autoStart">Auto-start server on application launch</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Authentication Settings -->
+                <div class="tab-pane fade" id="auth-pane" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Authentication Settings</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Authentication Method</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="authMethod" id="authMethodNone" value="none" #if(config.auth.method == "none"){checked}>
+                                        <label class="form-check-label" for="authMethodNone">
+                                            No Authentication
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="authMethod" id="authMethodBasic" value="basic" #if(config.auth.method == "basic"){checked}>
+                                        <label class="form-check-label" for="authMethodBasic">
+                                            Basic Authentication
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="authMethod" id="authMethodToken" value="token" #if(config.auth.method == "token"){checked}>
+                                        <label class="form-check-label" for="authMethodToken">
+                                            Token Authentication
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="adminAuthRequired" name="adminAuthRequired" #if(config.auth.adminAuthRequired){checked}>
+                                        <label class="form-check-label" for="adminAuthRequired">Require authentication for admin dashboard</label>
+                                    </div>
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" id="streamAuthRequired" name="streamAuthRequired" #if(config.auth.streamAuthRequired){checked}>
+                                        <label class="form-check-label" for="streamAuthRequired">Require authentication for stream access</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="basicAuthSettings" class="auth-settings-section" #if(config.auth.method != "basic"){style="display: none;"}>
+                                <hr>
+                                <h6>Basic Authentication Settings</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="username" class="form-label">Username</label>
+                                        <input type="text" class="form-control" id="username" name="username" value="#(config.auth.username)">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="password" class="form-label">Password</label>
+                                        <input type="password" class="form-control" id="password" name="password" placeholder="••••••••">
+                                        <div class="form-text">Leave blank to keep existing password.</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="tokenAuthSettings" class="auth-settings-section" #if(config.auth.method != "token"){style="display: none;"}>
+                                <hr>
+                                <h6>Token Authentication Settings</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="tokenExpiration" class="form-label">Token Expiration (hours)</label>
+                                        <input type="number" class="form-control" id="tokenExpiration" name="tokenExpiration" value="#(config.auth.tokenExpiration)" min="1">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="apiKey" class="form-label">API Key</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="apiKey" value="#(config.auth.apiKey)" readonly>
+                                            <button class="btn btn-outline-secondary" type="button" id="generateApiKey">Generate New</button>
+                                            <button class="btn btn-outline-secondary" type="button" id="copyApiKey">Copy</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- CORS Settings -->
+                <div class="tab-pane fade" id="cors-pane" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">CORS Configuration</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="corsEnabled" name="corsEnabled" #if(config.cors.enabled){checked}>
+                                        <label class="form-check-label" for="corsEnabled">Enable CORS</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="corsSettings" #if(!config.cors.enabled){style="display: none;"}>
+                                <div class="row mb-3">
+                                    <div class="col-md-12">
+                                        <label for="allowedOrigins" class="form-label">Allowed Origins</label>
+                                        <input type="text" class="form-control" id="allowedOrigins" name="allowedOrigins" value="#(config.cors.allowedOrigins)" placeholder="*">
+                                        <div class="form-text">Comma-separated list of allowed origins (e.g., https://example.com, https://sub.example.com) or * for all.</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="allowedMethods" class="form-label">Allowed Methods</label>
+                                        <input type="text" class="form-control" id="allowedMethods" name="allowedMethods" value="#(config.cors.allowedMethods)" placeholder="GET, POST, PUT, DELETE, OPTIONS">
+                                        <div class="form-text">Comma-separated list of allowed HTTP methods.</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="allowedHeaders" class="form-label">Allowed Headers</label>
+                                        <input type="text" class="form-control" id="allowedHeaders" name="allowedHeaders" value="#(config.cors.allowedHeaders)" placeholder="Content-Type, Authorization">
+                                        <div class="form-text">Comma-separated list of allowed headers.</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="maxAge" class="form-label">Max Age (seconds)</label>
+                                        <input type="number" class="form-control" id="maxAge" name="maxAge" value="#(config.cors.maxAge)" min="0">
+                                        <div class="form-text">How long the results of a preflight request can be cached.</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch mt-4">
+                                            <input class="form-check-input" type="checkbox" id="allowCredentials" name="allowCredentials" #if(config.cors.allowCredentials){checked}>
+                                            <label class="form-check-label" for="allowCredentials">Allow Credentials</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Rate Limiting Settings -->
+                <div class="tab-pane fade" id="ratelimit-pane" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Rate Limiting Configuration</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Rate Limiting Preset</label>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="rateLimitPreset" id="rateLimitDisabled" value="disabled" #if(!config.rateLimit.enabled){checked}>
+                                        <label class="form-check-label" for="rateLimitDisabled">
+                                            Disabled
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="rateLimitPreset" id="rateLimitStandard" value="standard" #if(config.rateLimit.enabled && config.rateLimit.requestsPerMinute == 60){checked}>
+                                        <label class="form-check-label" for="rateLimitStandard">
+                                            Standard (60 requests/minute)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="rateLimitPreset" id="rateLimitStrict" value="strict" #if(config.rateLimit.enabled && config.rateLimit.requestsPerMinute == 30){checked}>
+                                        <label class="form-check-label" for="rateLimitStrict">
+                                            Strict (30 requests/minute)
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="rateLimitPreset" id="rateLimitCustom" value="custom" #if(config.rateLimit.enabled && config.rateLimit.requestsPerMinute != 60 && config.rateLimit.requestsPerMinute != 30){checked}>
+                                        <label class="form-check-label" for="rateLimitCustom">
+                                            Custom
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6" id="customRateLimitSettings" #if(!config.rateLimit.enabled || (config.rateLimit.requestsPerMinute == 60 || config.rateLimit.requestsPerMinute == 30)){style="display: none;"}>
+                                    <label for="requestsPerMinute" class="form-label">Requests Per Minute</label>
+                                    <input type="number" class="form-control" id="requestsPerMinute" name="requestsPerMinute" value="#(config.rateLimit.requestsPerMinute)" min="1">
+                                    <div class="form-text">Maximum number of requests allowed per minute.</div>
+                                </div>
+                            </div>
+                            
+                            <div id="rateLimitAdditionalSettings" #if(!config.rateLimit.enabled){style="display: none;"}>
+                                <hr>
+                                <div class="row mb-3">
+                                    <div class="col-md-12">
+                                        <label for="excludedPaths" class="form-label">Excluded Paths</label>
+                                        <input type="text" class="form-control" id="excludedPaths" name="excludedPaths" value="#(config.rateLimit.excludedPaths)" placeholder="/health, /static/*, /public/*">
+                                        <div class="form-text">Comma-separated list of paths to exclude from rate limiting. Use * as a wildcard.</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="authRateLimitMultiplier" class="form-label">Auth Rate Limit Multiplier</label>
+                                        <input type="number" class="form-control" id="authRateLimitMultiplier" name="authRateLimitMultiplier" value="#(config.rateLimit.authMultiplier)" min="0" max="1" step="0.1">
+                                        <div class="form-text">Multiplier for auth endpoints (0.1-1.0, lower is stricter).</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="cleanupInterval" class="form-label">Cleanup Interval (minutes)</label>
+                                        <input type="number" class="form-control" id="cleanupInterval" name="cleanupInterval" value="#(config.rateLimit.cleanupInterval)" min="1">
+                                        <div class="form-text">How often to cleanup expired rate limit buckets.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Logging Settings -->
+                <div class="tab-pane fade" id="logging-pane" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Logging Configuration</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="logLevel" class="form-label">Log Level</label>
+                                    <select class="form-select" id="logLevel" name="logLevel">
+                                        <option value="trace" #if(config.logging.level == "trace"){selected}>Trace</option>
+                                        <option value="debug" #if(config.logging.level == "debug"){selected}>Debug</option>
+                                        <option value="info" #if(config.logging.level == "info"){selected}>Info</option>
+                                        <option value="notice" #if(config.logging.level == "notice"){selected}>Notice</option>
+                                        <option value="warning" #if(config.logging.level == "warning"){selected}>Warning</option>
+                                        <option value="error" #if(config.logging.level == "error"){selected}>Error</option>
+                                        <option value="critical" #if(config.logging.level == "critical"){selected}>Critical</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch mt-4">
+                                        <input class="form-check-input" type="checkbox" id="logRequests" name="logRequests" #if(config.logging.logRequests){checked}>
+                                        <label class="form-check-label" for="logRequests">Log HTTP Requests</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="requestLoggingSettings" #if(!config.logging.logRequests){style="display: none;"}>
+                                <div class="row mb-3">
+                                    <div class="col-md-12">
+                                        <label for="excludedPaths" class="form-label">Excluded Paths</label>
+                                        <input type="text" class="form-control" id="logExcludedPaths" name="logExcludedPaths" value="#(config.logging.excludedPaths)" placeholder="/health, /static/*, /public/*">
+                                        <div class="form-text">Comma-separated list of paths to exclude from request logging. Use * as a wildcard.</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="logRequestBody" name="logRequestBody" #if(config.logging.logRequestBody){checked}>
+                                            <label class="form-check-label" for="logRequestBody">Log Request Body</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="logResponseBody" name="logResponseBody" #if(config.logging.logResponseBody){checked}>
+                                            <label class="form-check-label" for="logResponseBody">Log Response Body</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="logPerformance" name="logPerformance" #if(config.logging.logPerformance){checked}>
+                                            <label class="form-check-label" for="logPerformance">Log Performance Metrics</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                <button type="reset" class="btn btn-secondary me-md-2">Reset</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    #endexport
+    
+    #export("scripts"):
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Handle tab selection from URL hash
+                const hash = window.location.hash.substring(1);
+                if (hash) {
+                    const tab = document.getElementById(`${hash}-tab`);
+                    if (tab) {
+                        tab.click();
+                    }
+                }
+                
+                // Handle auth method selection
+                const authMethodRadios = document.querySelectorAll('input[name="authMethod"]');
+                const basicAuthSettings = document.getElementById('basicAuthSettings');
+                const tokenAuthSettings = document.getElementById('tokenAuthSettings');
+                
+                authMethodRadios.forEach(radio => {
+                    radio.addEventListener('change', function() {
+                        basicAuthSettings.style.display = this.value === 'basic' ? 'block' : 'none';
+                        tokenAuthSettings.style.display = this.value === 'token' ? 'block' : 'none';
+                    });
+                });
+                
+                // Handle CORS toggle
+                const corsEnabledCheckbox = document.getElementById('corsEnabled');
+                const corsSettings = document.getElementById('corsSettings');
+                
+                corsEnabledCheckbox.addEventListener('change', function() {
+                    corsSettings.style.display = this.checked ? 'block' : 'none';
+                });
+                
+                // Handle rate limit preset selection
+                const rateLimitPresetRadios = document.querySelectorAll('input[name="rateLimitPreset"]');
+                const customRateLimitSettings = document.getElementById('customRateLimitSettings');
+                const rateLimitAdditionalSettings = document.getElementById('rateLimitAdditionalSettings');
+                
+                rateLimitPresetRadios.forEach(radio => {
+                    radio.addEventListener('change', function() {
+                        customRateLimitSettings.style.display = this.value === 'custom' ? 'block' : 'none';
+                        rateLimitAdditionalSettings.style.display = this.value === 'disabled' ? 'none' : 'block';
+                    });
+                });
+                
+                // Handle request logging toggle
+                const logRequestsCheckbox = document.getElementById('logRequests');
+                const requestLoggingSettings = document.getElementById('requestLoggingSettings');
+                
+                logRequestsCheckbox.addEventListener('change', function() {
+                    requestLoggingSettings.style.display = this.checked ? 'block' : 'none';
+                });
+                
+                // API Key generation and copying
+                const generateApiKeyBtn = document.getElementById('generateApiKey');
+                const copyApiKeyBtn = document.getElementById('copyApiKey');
+                const apiKeyInput = document.getElementById('apiKey');
+                
+                generateApiKeyBtn.addEventListener('click', function() {
+                    fetch('/admin/api/generate-api-key', { method: 'POST' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                apiKeyInput.value = data.apiKey;
+                            }
+                        });
+                });
+                
+                copyApiKeyBtn.addEventListener('click', function() {
+                    apiKeyInput.select();
+                    document.execCommand('copy');
+                    
+                    // Show copied message
+                    const originalText = this.textContent;
+                    this.textContent = 'Copied!';
+                    setTimeout(() => {
+                        this.textContent = originalText;
+                    }, 2000);
+                });
+                
+                // Reset to defaults
+                document.getElementById('resetBtn').addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (confirm('Are you sure you want to reset all settings to default values? This cannot be undone.')) {
+                        fetch('/admin/settings/reset', { method: 'POST' })
+                            .then(response => {
+                                if (response.ok) {
+                                    window.location.reload();
+                                }
+                            });
+                    }
+                });
+            });
+        </script>
+    #endexport
+#endextend 
