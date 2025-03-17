@@ -181,7 +181,7 @@ final class AuthenticationTests: XCTestCase {
     @MainActor
     private func configureTestRoutes(_ app: Application) {
         // Protected route
-        let protectedRoutes = app.routes.grouped().protected(using: authManager)
+        let protectedRoutes = app.routes.grouped([Middleware]()).protected(using: authManager)
         protectedRoutes.get("protected") { req -> String in
             "Protected content"
         }
