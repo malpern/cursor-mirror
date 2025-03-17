@@ -59,6 +59,19 @@ A macOS application for capturing and streaming screen content with HLS (HTTP Li
     - Stream URL management and sharing
     - Connection monitoring and management
     - Integrated admin dashboard access
+- CloudKit Integration
+  - Server-side CloudKit implementation
+    - CloudKit manager for iCloud communication
+    - Device discovery through iCloud private database
+    - Network address detection and monitoring
+    - User identity verification
+    - Server instance broadcasting
+  - Authentication enhancements
+    - iCloud authentication method
+    - Improved session management
+    - Single-viewer enforcement
+    - CloudKit middleware for authentication
+    - Enhanced streaming session control
 
 🚧 **Future Development**
   - iOS client app for stream playback
@@ -107,57 +120,52 @@ The iOS client app will serve as a simple viewer application for CursorWindow st
 
 The iOS client app will provide a nearly effortless connection experience - just sign in with your iCloud account on both devices, and the connection happens automatically. This eliminates all manual configuration steps, greatly simplifying the user experience.
 
-## Server-Side Changes for iCloud Integration
+## Server-Side iCloud Integration (✅ Completed)
 
-To support the iCloud-based device discovery and authentication system, the following changes will be needed in the server component:
+The server component now includes the following CloudKit integration features:
 
-### 1. CloudKit Integration
-- Add CloudKit framework dependency to the macOS application
-- Implement a `CloudKitManager` class to handle iCloud operations
-- Create a private CloudKit container for secure device data sharing
-- Set up a record type for CursorWindow instances with the following fields:
-  - Device identifier (UUID)
-  - Device name (string)
-  - Server status (boolean)
-  - Network addresses (array of strings)
-  - Last updated timestamp (date)
-  - Stream configuration (dictionary)
+### CloudKit Integration
+- CloudKit framework integration for iCloud operations
+- `CloudKitManager` class for managing device broadcasting
+- Server record type for sharing connection details
+- Private CloudKit database for secure communication
+- Background refresh for status updates
 
-### 2. Server Identity & Discovery
-- Generate and persist a unique server identifier
-- Broadcast server availability through CloudKit when running
-- Automatically update network information when network changes
-- Implement background refresh for server status updates
-- Add server name customization in preferences
+### Server Identity & Discovery
+- Unique server identifier generation and persistence
+- Server availability broadcasting via CloudKit
+- Automatic network address detection
+- Real-time network change monitoring
+- Server name customization
 
-### 3. Authentication Changes
-- Extend `AuthenticationManager` to support iCloud authentication
-- Create secure tokens using CloudKit private database
-- Implement automatic single-viewer access control
-- Add CloudKit user identity verification
-- Create a mechanism to revoke access when needed
+### Authentication Enhancements
+- Extended `AuthenticationManager` with iCloud support
+- `CloudKitAuthMiddleware` for iCloud identity verification
+- Single-viewer access control
+- Enhanced session management
+- Configurable authentication methods
 
-### 4. Network Address Management
-- Add automatic detection of local and public IP addresses
-- Implement NAT traversal capabilities where possible
-- Create address prioritization based on network type
-- Add network reachability monitoring
-- Support automatic server reconfiguration on network changes
+### Network Management
+- `NetworkAddressDetector` for automatic IP address discovery
+- Support for multiple interfaces and address types
+- Public IP detection
+- Network path monitoring for connection changes
+- Address prioritization for connection reliability
 
-### 5. Application Integration
-- Add iCloud capability to the main application
-- Modify `HTTPServerManager` to broadcast through CloudKit
-- Create UI indicators for CloudKit connection status
-- Implement user-facing controls for managing connections
-- Provide fallback to manual connection methods when iCloud is unavailable
+### Security Improvements
+- Enhanced error handling with `CloudKitError` type
+- Improved session timeout and cleanup
+- Structured notification system for status changes
+- Entitlements for CloudKit and network capabilities
 
-These changes will enable the macOS application to advertise its availability through iCloud, allowing any iOS device signed in with the same Apple ID to automatically discover and connect to the stream without manual configuration.
+This integration enables zero-configuration connections between devices using the same iCloud account, eliminating the need for manual URL entry or QR code scanning when using the upcoming iOS client app.
 
 ## Requirements
 
 - macOS 14.0 or later
 - Xcode 15.0 or later
 - Swift 5.9 or later
+- iCloud account (for CloudKit features)
 
 ## Quick Start
 
@@ -174,6 +182,7 @@ swift build
    - Use Encoding tab to configure and start streaming
    - Use Server tab to start the HTTP server and get stream access
    - Access HLS stream at the provided URL or scan the QR code with a mobile device
+   - For iCloud discovery, ensure you're signed into the same iCloud account on both devices
 
 ## Project Structure
 
@@ -182,6 +191,11 @@ Sources/
 ├── CursorWindow/         # Main application code
 │   ├── Views/            # SwiftUI views
 │   ├── ViewModels/       # View models for SwiftUI
+│   ├── CloudKit/         # CloudKit integration components
+│   │   ├── CloudKitManager      # iCloud operations handling
+│   │   ├── NetworkAddressDetector # IP address detection
+│   │   ├── CloudKitError        # Error handling
+│   │   └── ServerInstance       # Data model for server instances
 │   └── Utilities/        # Helper classes and utilities
 └── CursorWindowCore/     # Core functionality
     ├── HLS/              # Core HLS implementation
@@ -194,7 +208,10 @@ Sources/
     │   ├── HLSStreamManager # Stream access control
     │   ├── HLSPlaylistGenerator # HTTP-specific playlist generation
     │   ├── AdminController # Admin dashboard controller
-    │   ├── AuthenticationManager # Authentication handling
+    │   ├── Authentication/ # Authentication components
+    │   │   ├── AuthenticationManager # Authentication handling
+    │   │   ├── CloudKitAuthMiddleware # iCloud authentication
+    │   │   └── ProtectedRouteMiddleware # Route protection
     │   └── VideoSegmentHandler # Segment delivery
     ├── Capture/          # Screen capture components
     └── Encoding/         # Video encoding components
@@ -225,7 +242,7 @@ Sources/
 - Base URL configuration for flexible deployment
 
 #### HTTP Server Features
-- Authentication (Basic, Token, API Key)
+- Authentication (Basic, Token, API Key, iCloud)
 - CORS support with configurable policies
 - Request logging with filtering and levels
 - Rate limiting with multiple strategies
@@ -233,6 +250,7 @@ Sources/
 - SSL/TLS support with automatic self-signed certificates
 - Performance optimizations for segment delivery
 - Prometheus metrics for monitoring
+- Single-viewer mode with iCloud authentication
 
 #### UI Integration
 - Tabbed interface with Preview, Encoding, and Server controls
@@ -241,21 +259,16 @@ Sources/
 - QR code generation for easy mobile device connections
 - Direct access to admin dashboard from the app
 - Clipboard integration for sharing stream URLs
+- iCloud status indicators and controls
 
-#### Video Segment Optimization
-- In-memory caching of segment data to reduce disk I/O
-- Support for HTTP range requests (partial content)
-- Efficient buffer management with NIO ByteBuffer
-- Improved HTTP headers for caching and content negotiation
-- Asynchronous segment cleanup operations
-
-#### Monitoring & Metrics
-- Prometheus integration for metrics collection
-- Request counts, durations, and status codes
-- Active connection tracking
-- Segment size histograms by quality level
-- Configurable metrics collection interval
-- Optional metrics endpoint for Prometheus scraping
+#### CloudKit Integration
+- Zero-configuration device discovery
+- Automatic network address management
+- iCloud identity verification
+- Server broadcasting to private CloudKit database
+- Real-time status synchronization
+- Network path monitoring
+- Enhanced error handling
 
 ## Future Development
 
