@@ -2,6 +2,8 @@ import Vapor
 import Foundation
 import NIOSSL
 import Leaf
+import Metrics
+import SwiftPrometheus
 
 /// Configuration options for the HTTP server
 public struct HTTPServerConfig: Equatable {
@@ -13,6 +15,12 @@ public struct HTTPServerConfig: Equatable {
     
     /// Whether to enable TLS/SSL
     public let enableTLS: Bool
+    
+    /// TLS configuration options
+    public let tlsConfig: TLSConfiguration?
+    
+    /// SSL certificates directory
+    public let certificatesDirectory: String?
     
     /// Number of worker threads
     public let workerCount: Int
@@ -28,6 +36,9 @@ public struct HTTPServerConfig: Equatable {
     
     /// Rate limiting configuration
     public let rateLimit: RateLimitConfiguration
+    
+    /// Metrics configuration
+    public let metrics: MetricsConfiguration
     
     /// Configuration for the admin dashboard
     public struct AdminDashboard {
@@ -52,21 +63,27 @@ public struct HTTPServerConfig: Equatable {
         host: String = "127.0.0.1",
         port: Int = 8080,
         enableTLS: Bool = false,
+        certificatesDirectory: String? = nil,
+        tlsConfig: TLSConfiguration? = nil,
         workerCount: Int = System.coreCount,
         authentication: AuthenticationConfig = .disabled,
         cors: CORSConfiguration = .permissive,
         logging: RequestLoggingConfiguration = .basic,
         rateLimit: RateLimitConfiguration = .standard,
+        metrics: MetricsConfiguration = .standard,
         admin: AdminDashboard = AdminDashboard()
     ) {
         self.host = host
         self.port = port
         self.enableTLS = enableTLS
+        self.certificatesDirectory = certificatesDirectory
+        self.tlsConfig = tlsConfig
         self.workerCount = workerCount
         self.authentication = authentication
         self.cors = cors
         self.logging = logging
         self.rateLimit = rateLimit
+        self.metrics = metrics
         self.admin = admin
     }
 }
@@ -203,12 +220,53 @@ public struct RequestLoggingConfiguration: Equatable {
     )
 }
 
+/// Configuration for the metrics collection
+public struct MetricsConfiguration: Equatable {
+    /// Whether metrics collection is enabled
+    public let isEnabled: Bool
+    
+    /// Metrics collection interval in seconds
+    public let collectInterval: Double
+    
+    /// Whether to expose Prometheus metrics endpoint
+    public let exposePrometheusEndpoint: Bool
+    
+    /// Create a new metrics configuration
+    public init(
+        isEnabled: Bool = true,
+        collectInterval: Double = 30.0,
+        exposePrometheusEndpoint: Bool = true
+    ) {
+        self.isEnabled = isEnabled
+        self.collectInterval = collectInterval
+        self.exposePrometheusEndpoint = exposePrometheusEndpoint
+    }
+    
+    /// Standard metrics configuration with all features enabled
+    public static let standard = MetricsConfiguration()
+    
+    /// Minimal metrics configuration with only basic metrics
+    public static let minimal = MetricsConfiguration(
+        isEnabled: true,
+        collectInterval: 60.0,
+        exposePrometheusEndpoint: false
+    )
+    
+    /// Disabled metrics configuration
+    public static let disabled = MetricsConfiguration(
+        isEnabled: false,
+        collectInterval: 0,
+        exposePrometheusEndpoint: false
+    )
+}
+
 /// Errors that can occur during HTTP server operations
 public enum HTTPServerError: Error, Equatable {
     case serverAlreadyRunning
     case serverNotRunning
     case invalidConfiguration
     case streamError(String)
+    case sslConfigurationError
 }
 
 /// Manages an HTTP server for streaming HLS content
@@ -220,6 +278,14 @@ public actor HTTPServerManager {
     private let authManager: AuthenticationManager
     private var rateLimiter: RateLimiter?
     private var adminController: AdminController?
+    
+    // Add metrics properties
+    private var requestCounter: CounterHandler?
+    private var activeConnectionsGauge: GaugeHandler?
+    private var requestDurationHistogram: TimerHandler?
+    private var segmentSizeHistogram: HistogramHandler?
+    private var lastMetricsCollection: Date?
+    private var metricsTimer: Task<Void, Error>?
     
     public init(config: HTTPServerConfig = HTTPServerConfig()) {
         self.config = config
@@ -242,7 +308,7 @@ public actor HTTPServerManager {
         }
         
         // Create the application
-        let app = try await Application.make(.development)
+        let app = try await configureApp()
         
         // Configure server settings
         app.http.server.configuration.hostname = config.host
@@ -340,6 +406,13 @@ public actor HTTPServerManager {
         
         // Configure route handlers
         configureRouteHandlers(app)
+        
+        // Add metrics middleware if enabled
+        if config.metrics.isEnabled {
+            app.middleware.use(MetricsMiddleware(recordMetrics: { req, res, startTime in
+                await self.recordRequestMetrics(req: req, startTime: startTime, status: res.status)
+            }))
+        }
     }
     
     /// Configure route handlers
@@ -511,6 +584,45 @@ public actor HTTPServerManager {
             return Response(status: .ok)
         }
         
+        // Video segment routes
+        app.get("stream", ":quality", "video", ":filename") { req -> Response in
+            let startTime = Date()
+            
+            guard let quality = req.parameters.get("quality"),
+                  let filename = req.parameters.get("filename") else {
+                throw Abort(.badRequest, reason: "Invalid segment request")
+            }
+            
+            // Check if this is a range request
+            var range: HTTPRange? = nil
+            if let rangeHeader = req.headers.first(name: "Range") {
+                range = HTTPRange.parse(from: rangeHeader)
+            }
+            
+            // Get segment data with possible range
+            let (data, headers) = try await self.videoSegmentHandler.getSegmentData(
+                quality: quality,
+                filename: filename,
+                range: range
+            )
+            
+            // Record metrics for this segment delivery
+            self.recordSegmentMetrics(quality: quality, size: data.count)
+            
+            var response = Response(status: range != nil ? .partialContent : .ok)
+            response.body = .init(data: data)
+            
+            // Add headers
+            for (key, value) in headers {
+                response.headers.add(name: key, value: value)
+            }
+            
+            // Record request metrics
+            await self.recordRequestMetrics(req: req, startTime: startTime, status: response.status)
+            
+            return response
+        }
+        
         // Admin routes - always protected
         let adminRoutes = app.routes.grouped("admin").protected(using: authManager)
         
@@ -630,6 +742,228 @@ public actor HTTPServerManager {
         Task {
             await adminController.recordRequest(requestLog)
         }
+    }
+    
+    private func configureApp() async throws -> Application {
+        // Configure server
+        var serverConfig = HTTPServer.Configuration.default(
+            hostname: config.host,
+            port: config.port
+        )
+        
+        // Configure TLS if enabled
+        if config.enableTLS {
+            if let tlsConfig = config.tlsConfig {
+                // Use provided TLS configuration
+                serverConfig.tlsConfiguration = tlsConfig
+            } else if let certificatesDir = config.certificatesDirectory {
+                // Create configuration from certificate directory
+                let certificatePath = "\(certificatesDir)/cert.pem"
+                let keyPath = "\(certificatesDir)/key.pem"
+                
+                guard FileManager.default.fileExists(atPath: certificatePath),
+                      FileManager.default.fileExists(atPath: keyPath) else {
+                    logger.error("SSL certificates not found at \(certificatesDir)")
+                    throw HTTPServerError.sslConfigurationError
+                }
+                
+                serverConfig.tlsConfiguration = .makeServerConfiguration(
+                    certificateChain: [.certificate(.init(file: certificatePath, format: .pem))],
+                    privateKey: .file(keyPath)
+                )
+            } else {
+                logger.warning("TLS enabled but no certificates provided, generating self-signed certificate")
+                
+                // Generate self-signed certificate
+                serverConfig.tlsConfiguration = try .makeServerConfiguration(
+                    certificateChain: [.certificate(.generate(commonName: config.host))],
+                    privateKey: .generated
+                )
+            }
+        }
+        
+        // Create app with configuration
+        var app = Application(Environment.development)
+        app.http.server.configuration = serverConfig
+        app.http.server.configuration.supportVersions = [HTTPVersion(major: 1, minor: 1), HTTPVersion(major: 2, minor: 0)]
+        
+        // Configure metrics if enabled
+        if config.metrics.isEnabled {
+            configureMetrics(app: &app)
+        }
+        
+        return app
+    }
+    
+    // Set up metrics collection
+    private func configureMetrics(app: inout Application) {
+        // Register Prometheus client
+        let prometheusClient = PrometheusClient()
+        MetricsSystem.bootstrap(prometheusClient)
+        
+        // Create metrics
+        requestCounter = Counter(
+            label: "http_requests_total",
+            dimensions: [
+                ("method", ""),
+                ("path", ""),
+                ("status", "")
+            ]
+        )
+        
+        activeConnectionsGauge = Gauge(
+            label: "http_active_connections"
+        )
+        
+        requestDurationHistogram = Timer(
+            label: "http_request_duration_seconds",
+            dimensions: [
+                ("method", ""),
+                ("path", "")
+            ]
+        )
+        
+        segmentSizeHistogram = Histogram(
+            label: "video_segment_size_bytes",
+            dimensions: [
+                ("quality", "")
+            ],
+            buckets: [.exponential(start: 10_000, factor: 2, count: 10)]
+        )
+        
+        // Add Prometheus metrics endpoint if enabled
+        if config.metrics.exposePrometheusEndpoint {
+            app.get("metrics") { req -> Response in
+                var headers = HTTPHeaders()
+                headers.add(name: .contentType, value: "text/plain; version=0.0.4")
+                
+                return Response(
+                    status: .ok,
+                    headers: headers,
+                    body: .init(string: prometheusClient.collect())
+                )
+            }
+        }
+        
+        // Start metrics collection timer
+        startMetricsCollectionTimer()
+    }
+    
+    // Start periodic metrics collection
+    private func startMetricsCollectionTimer() {
+        guard config.metrics.isEnabled, config.metrics.collectInterval > 0 else { return }
+        
+        metricsTimer = Task {
+            while !Task.isCancelled {
+                try await Task.sleep(nanoseconds: UInt64(config.metrics.collectInterval * 1_000_000_000))
+                await collectMetrics()
+            }
+        }
+    }
+    
+    // Record metrics for a segment request
+    private func recordSegmentMetrics(quality: String, size: Int) {
+        guard config.metrics.isEnabled, let histogram = segmentSizeHistogram else { return }
+        
+        histogram.record(Double(size), dimensions: [("quality", quality)])
+    }
+    
+    // Collect current metrics
+    private func collectMetrics() async {
+        guard config.metrics.isEnabled else { return }
+        
+        lastMetricsCollection = Date()
+        
+        if let gauge = activeConnectionsGauge {
+            let connections = await streamManager.activeConnectionCount()
+            gauge.record(Double(connections))
+        }
+        
+        // Additional metrics collection can be added here
+    }
+    
+    // Record HTTP request metrics
+    private func recordRequestMetrics(req: Request, startTime: Date, status: HTTPStatus) {
+        guard config.metrics.isEnabled else { return }
+        
+        let pathString = req.url.path
+        let methodString = req.method.string
+        
+        // Record request count
+        requestCounter?.increment(
+            dimensions: [
+                ("method", methodString),
+                ("path", pathString),
+                ("status", String(status.code))
+            ]
+        )
+        
+        // Record request duration
+        let duration = Date().timeIntervalSince(startTime)
+        requestDurationHistogram?.record(
+            duration,
+            dimensions: [
+                ("method", methodString),
+                ("path", pathString)
+            ]
+        )
+    }
+    
+    // Update configureRoutes to include metrics
+    private func configureRoutes() throws {
+        // ... existing code ...
+        
+        // Update video segment route to collect metrics
+        app.get("stream", ":quality", "video", ":filename") { req -> Response in
+            let startTime = Date()
+            
+            guard let quality = req.parameters.get("quality"),
+                  let filename = req.parameters.get("filename") else {
+                throw Abort(.badRequest, reason: "Invalid segment request")
+            }
+            
+            // Check if this is a range request
+            var range: HTTPRange? = nil
+            if let rangeHeader = req.headers.first(name: "Range") {
+                range = HTTPRange.parse(from: rangeHeader)
+            }
+            
+            // Get segment data with possible range
+            let (data, headers) = try await self.videoSegmentHandler.getSegmentData(
+                quality: quality,
+                filename: filename,
+                range: range
+            )
+            
+            // Record metrics for this segment delivery
+            self.recordSegmentMetrics(quality: quality, size: data.count)
+            
+            var response = Response(status: range != nil ? .partialContent : .ok)
+            response.body = .init(data: data)
+            
+            // Add headers
+            for (key, value) in headers {
+                response.headers.add(name: key, value: value)
+            }
+            
+            // Record request metrics
+            await self.recordRequestMetrics(req: req, startTime: startTime, status: response.status)
+            
+            return response
+        }
+        
+        // ... existing code ...
+    }
+    
+    // Update shutdown to clean up metrics
+    public func shutdown() async throws {
+        // Cancel metrics collection timer
+        metricsTimer?.cancel()
+        metricsTimer = nil
+        
+        // Existing shutdown code
+        try await app?.shutdown()
+        app = nil
     }
 }
 
@@ -755,6 +1089,18 @@ struct RequestLoggerMiddleware: AsyncMiddleware {
             logger.debug("\(requestId) Response body: \(bodyString)")
         }
         
+        return response
+    }
+}
+
+// Middleware for metrics collection
+private struct MetricsMiddleware: AsyncMiddleware {
+    let recordMetrics: (Request, Response, Date) async -> Void
+    
+    func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
+        let startTime = Date()
+        let response = try await next.respond(to: request)
+        await recordMetrics(request, response, startTime)
         return response
     }
 } 

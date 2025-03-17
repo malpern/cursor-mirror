@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "cursor-window",
+    name: "CursorWindow",
     platforms: [
         .macOS(.v14)
     ],
@@ -19,8 +19,10 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
-        .package(url: "https://github.com/vapor/vapor.git", from: "4.76.0"),
-        .package(url: "https://github.com/vapor/leaf.git", from: "4.2.4")
+        .package(url: "https://github.com/vapor/vapor.git", from: "4.92.4"),
+        .package(url: "https://github.com/vapor/leaf.git", from: "4.2.4"),
+        .package(url: "https://github.com/apple/swift-metrics.git", from: "2.4.1"),
+        .package(url: "https://github.com/swift-server/swift-prometheus.git", from: "2.0.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -29,17 +31,16 @@ let package = Package(
             name: "CursorWindowCore",
             dependencies: [
                 .product(name: "Vapor", package: "vapor"),
-                .product(name: "Leaf", package: "leaf")
+                .product(name: "Leaf", package: "leaf"),
+                .product(name: "Metrics", package: "swift-metrics"),
+                .product(name: "SwiftPrometheus", package: "swift-prometheus"),
             ],
             swiftSettings: [
-                .unsafeFlags(["-cross-module-optimization"], .when(configuration: .release))
+                .enableUpcomingFeature("ExistentialAny")
             ]),
         .executableTarget(
             name: "CursorWindow",
-            dependencies: ["CursorWindowCore"],
-            swiftSettings: [
-                .unsafeFlags(["-cross-module-optimization"], .when(configuration: .release))
-            ]),
+            dependencies: ["CursorWindowCore"]),
         .testTarget(
             name: "CursorWindowCoreTests",
             dependencies: [

@@ -1,5 +1,6 @@
 import XCTest
 @testable import CursorWindowCore
+import NIO
 
 @available(macOS 14.0, *)
 final class VideoSegmentHandlerTests: XCTestCase {
@@ -25,6 +26,7 @@ final class VideoSegmentHandlerTests: XCTestCase {
         let config = VideoSegmentConfig(
             targetSegmentDuration: 2.0,
             maxSegments: 3,
+            maxCachedSegments: 5,
             segmentDirectory: tempDirectory
         )
         handler = VideoSegmentHandler(config: config, segmentWriter: mockSegmentWriter)
@@ -126,9 +128,12 @@ final class VideoSegmentHandlerTests: XCTestCase {
         // Verify data and headers
         XCTAssertFalse(data.isEmpty)
         XCTAssertEqual(headers["Content-Type"], "video/mp2t")
-        XCTAssertEqual(headers["Cache-Control"], "no-cache")
         XCTAssertEqual(headers["Access-Control-Allow-Origin"], "*")
         XCTAssertEqual(headers["Content-Length"], "\(data.count)")
+        XCTAssertEqual(headers["Accept-Ranges"], "bytes")
+        XCTAssertNotNil(headers["ETag"])
+        XCTAssertNotNil(headers["X-Content-Duration"])
+        XCTAssertNotNil(headers["Cache-Control"])
     }
     
     func testGetSegmentDataNotFound() async throws {
@@ -141,6 +146,140 @@ final class VideoSegmentHandlerTests: XCTestCase {
         } catch let error as HLSError {
             XCTAssertEqual(error.errorDescription, "File operation failed: Segment not found: nonexistent.ts")
         }
+    }
+    
+    // Test caching behavior
+    func testSegmentCaching() async throws {
+        let quality = "high"
+        let filename = "segment_0.ts"
+        
+        // Add a test segment
+        await mockSegmentWriter.setCurrentSegment(TSSegment(
+            id: "test_0",
+            path: filename,
+            duration: 2.0,
+            startTime: 0.0
+        ))
+        
+        try await handler.processVideoData(
+            "Test data".data(using: .utf8)!,
+            presentationTime: 0.0,
+            quality: quality
+        )
+        
+        // First request should read from disk
+        let start = Date()
+        let (data1, _) = try await handler.getSegmentData(quality: quality, filename: filename)
+        let firstRequestTime = Date().timeIntervalSince(start)
+        
+        // Second request should use cache
+        let start2 = Date()
+        let (data2, _) = try await handler.getSegmentData(quality: quality, filename: filename)
+        let secondRequestTime = Date().timeIntervalSince(start2)
+        
+        // Verify data is the same
+        XCTAssertEqual(data1, data2)
+        
+        // Note: This test may be flaky on different hardware, but the cached request
+        // should generally be faster. We're not asserting an exact time difference.
+        print("First request time: \(firstRequestTime), Second request time: \(secondRequestTime)")
+    }
+    
+    // Test range requests
+    func testRangeRequest() async throws {
+        let quality = "high"
+        let filename = "segment_range_test.ts"
+        
+        // Create a segment with known content for range testing
+        let testData = Data((0..<1000).map { UInt8($0 % 256) })
+        let testPath = (tempDirectory as NSString).appendingPathComponent(filename)
+        try testData.write(to: URL(fileURLWithPath: testPath))
+        
+        await mockSegmentWriter.setCurrentSegment(TSSegment(
+            id: "range_test",
+            path: filename,
+            duration: 2.0,
+            startTime: 0.0
+        ))
+        
+        try await handler.processVideoData(
+            testData.prefix(10), // Just need to trigger segment creation
+            presentationTime: 0.0,
+            quality: quality
+        )
+        
+        // Request a specific byte range
+        let range = HTTPRange(start: 100, end: 199)
+        let (rangeData, headers) = try await handler.getSegmentData(quality: quality, filename: filename, range: range)
+        
+        // Verify data is correct range
+        XCTAssertEqual(rangeData.count, 100)
+        XCTAssertEqual(rangeData[0], testData[100])
+        XCTAssertEqual(rangeData[99], testData[199])
+        
+        // Verify headers for partial response
+        XCTAssertEqual(headers["Content-Length"], "100")
+        XCTAssertEqual(headers["Content-Range"], "bytes 100-199/1000")
+        XCTAssertEqual(headers["Status"], "206 Partial Content")
+    }
+    
+    // Test invalid range handling
+    func testInvalidRangeRequest() async throws {
+        let quality = "high"
+        let filename = "segment_range_test.ts"
+        
+        // Create a segment with known content for range testing
+        let testData = Data((0..<100).map { UInt8($0 % 256) })
+        let testPath = (tempDirectory as NSString).appendingPathComponent(filename)
+        try testData.write(to: URL(fileURLWithPath: testPath))
+        
+        await mockSegmentWriter.setCurrentSegment(TSSegment(
+            id: "range_test",
+            path: filename,
+            duration: 2.0,
+            startTime: 0.0
+        ))
+        
+        try await handler.processVideoData(
+            testData.prefix(10), // Just need to trigger segment creation
+            presentationTime: 0.0,
+            quality: quality
+        )
+        
+        // Request an invalid range
+        let range = HTTPRange(start: 200, end: 300) // Beyond file size
+        
+        do {
+            _ = try await handler.getSegmentData(quality: quality, filename: filename, range: range)
+            XCTFail("Expected error for invalid range")
+        } catch let error as HLSError {
+            XCTAssertEqual(error.errorDescription, "Invalid byte range specified")
+        }
+    }
+    
+    // Test the HTTP range parser
+    func testHTTPRangeParsing() {
+        // Test valid range format
+        let validRange = HTTPRange.parse(from: "bytes=100-200")
+        XCTAssertNotNil(validRange)
+        XCTAssertEqual(validRange?.start, 100)
+        XCTAssertEqual(validRange?.end, 200)
+        
+        // Test range with only start
+        let startOnlyRange = HTTPRange.parse(from: "bytes=100-")
+        XCTAssertNotNil(startOnlyRange)
+        XCTAssertEqual(startOnlyRange?.start, 100)
+        XCTAssertNil(startOnlyRange?.end)
+        
+        // Test range with only end
+        let endOnlyRange = HTTPRange.parse(from: "bytes=-200")
+        XCTAssertNotNil(endOnlyRange)
+        XCTAssertNil(endOnlyRange?.start)
+        XCTAssertEqual(endOnlyRange?.end, 200)
+        
+        // Test invalid format
+        let invalidRange = HTTPRange.parse(from: "invalid-format")
+        XCTAssertNil(invalidRange)
     }
 }
 
