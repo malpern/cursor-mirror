@@ -7,84 +7,74 @@ import SwiftPrometheus
 
 /// Configuration options for the HTTP server
 public struct HTTPServerConfig: Equatable {
-    /// The hostname to bind to
-    public let host: String
+    /// The hostname or IP address to bind to
+    public let hostname: String
     
-    /// The port to listen on
+    /// The port to bind to
     public let port: Int
     
-    /// Whether to enable TLS/SSL
-    public let enableTLS: Bool
-    
-    /// TLS configuration options
-    public let tlsConfig: TLSConfiguration?
-    
-    /// SSL certificates directory
-    public let certificatesDirectory: String?
-    
-    /// Number of worker threads
-    public let workerCount: Int
-    
-    /// Authentication configuration
-    public let authentication: AuthenticationConfig
-    
-    /// CORS configuration
-    public let cors: CORSConfiguration
-    
-    /// Request logging configuration
-    public let logging: RequestLoggingConfiguration
-    
-    /// Rate limiting configuration
-    public let rateLimit: RateLimitConfiguration
-    
-    /// Metrics configuration
-    public let metrics: MetricsConfiguration
-    
-    /// Configuration for the admin dashboard
-    public struct AdminDashboard {
-        /// Whether the admin dashboard is enabled
-        public var enabled: Bool
-        
-        /// Whether to serve static assets for the admin dashboard
-        public var serveAssets: Bool
-        
-        /// Initialize admin dashboard configuration
-        public init(enabled: Bool = true, serveAssets: Bool = true) {
-            self.enabled = enabled
-            self.serveAssets = serveAssets
-        }
+    /// The address of the server
+    public var address: String {
+        return "http\(useSSL ? "s" : "")://\(hostname):\(port)"
     }
     
-    /// Admin dashboard configuration
-    public var admin: AdminDashboard
+    /// Whether to enable SSL/TLS
+    public let useSSL: Bool
     
-    /// Creates a new HTTP server configuration
+    /// Path to SSL certificate
+    public let sslCert: String?
+    
+    /// Path to SSL private key
+    public let sslKey: String?
+    
+    /// Enable admin dashboard
+    public let enableAdmin: Bool
+    
+    /// Admin username
+    public let adminUsername: String
+    
+    /// Admin password
+    public let adminPassword: String
+    
+    /// Maximum request log entries to keep
+    public let maxRequestLogs: Int
+    
+    /// Whether to enable CORS
+    public let enableCORS: Bool
+    
+    /// Security configuration
+    public let security: SecurityConfiguration
+    
+    /// Middleware configuration
+    public let middleware: MiddlewareConfig
+    
+    /// Create a new HTTP server configuration
     public init(
-        host: String = "127.0.0.1",
+        hostname: String = "127.0.0.1",
         port: Int = 8080,
-        enableTLS: Bool = false,
-        certificatesDirectory: String? = nil,
-        tlsConfig: TLSConfiguration? = nil,
-        workerCount: Int = System.coreCount,
-        authentication: AuthenticationConfig = .disabled,
-        cors: CORSConfiguration = .permissive,
-        logging: RequestLoggingConfiguration = .basic,
-        rateLimit: RateLimitConfiguration = .standard,
-        metrics: MetricsConfiguration = .standard,
-        admin: AdminDashboard = AdminDashboard()
+        useSSL: Bool = false,
+        sslCert: String? = nil,
+        sslKey: String? = nil,
+        enableAdmin: Bool = true,
+        adminUsername: String = "admin",
+        adminPassword: String = "password",
+        maxRequestLogs: Int = 100,
+        enableCORS: Bool = true,
+        security: SecurityConfiguration = .standard,
+        middleware: MiddlewareConfig = .standard
     ) {
-        self.host = host
+        self.hostname = hostname
         self.port = port
-        self.enableTLS = enableTLS
-        self.certificatesDirectory = certificatesDirectory
-        self.tlsConfig = tlsConfig
-        self.workerCount = workerCount
-        self.authentication = authentication
-        self.cors = cors
-        self.logging = logging
-        self.rateLimit = rateLimit
-        self.metrics = metrics
-        self.admin = admin
+        self.useSSL = useSSL
+        self.sslCert = sslCert
+        self.sslKey = sslKey
+        self.enableAdmin = enableAdmin
+        self.adminUsername = adminUsername
+        self.adminPassword = adminPassword
+        self.maxRequestLogs = maxRequestLogs
+        self.enableCORS = enableCORS
+        self.security = security
+        self.middleware = middleware
     }
 }
 
@@ -369,7 +359,28 @@ public actor HTTPServerManager {
     private func configureRoutes(_ app: Application) throws {
         // Configure middleware in proper order
         
-        // 1. First add request logging if enabled
+        // 0. Add HTTP to HTTPS redirect if enabled and TLS is enabled
+        if config.middleware.forceHTTPS && config.useSSL {
+            app.middleware.use(HTTPSRedirectMiddleware())
+        }
+        
+        // 1. Add secure headers middleware if enabled
+        if config.middleware.addSecureHeaders {
+            app.middleware.use(SecureHeadersMiddleware(config: config.security))
+        }
+        
+        // 2. Add DoS protection if enabled
+        if config.security.dosProtection.enabled {
+            app.middleware.use(DoSProtectionMiddleware(config: config.security.dosProtection))
+        }
+        
+        // 3. Add request validation middleware
+        app.middleware.use(RequestValidationMiddleware(
+            maxBodySize: config.middleware.maxBodySize,
+            maxMultipartSize: config.middleware.maxMultipartSize
+        ))
+        
+        // 4. Then add request logging if enabled
         if config.logging.isEnabled {
             app.middleware.use(RequestLoggerMiddleware(
                 configuration: config.logging,
@@ -377,31 +388,31 @@ public actor HTTPServerManager {
             ))
         }
         
-        // 2. Add rate limiting if enabled
+        // 5. Add rate limiting if enabled
         if config.rateLimit.isEnabled {
             self.rateLimiter = app.enableRateLimiting(config.rateLimit)
         }
         
-        // 3. Add CORS if enabled
-        if config.cors.isEnabled {
+        // 6. Add CORS if enabled
+        if config.enableCORS {
             let corsConfiguration = CORSMiddleware.Configuration(
-                allowedOrigin: .custom(config.cors.allowedOrigin),
-                allowedMethods: config.cors.allowedMethods,
-                allowedHeaders: config.cors.allowedHeaders,
-                allowCredentials: config.cors.allowCredentials,
-                cacheExpiration: config.cors.cacheExpiration
+                allowedOrigin: .custom(config.allowedOrigin),
+                allowedMethods: config.allowedMethods,
+                allowedHeaders: config.allowedHeaders,
+                allowCredentials: config.allowCredentials,
+                cacheExpiration: config.cacheExpiration
             )
             let corsMiddleware = CORSMiddleware(configuration: corsConfiguration)
             app.middleware.use(corsMiddleware)
         }
         
-        // 4. Add static file middleware
+        // 7. Add static file middleware
         app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
         
-        // 5. Add error middleware
+        // 8. Add error middleware
         app.middleware.use(ErrorMiddleware.default(environment: app.environment))
         
-        // 6. Add authentication middleware
+        // 9. Add authentication middleware
         app.middleware.use(AuthMiddleware(authManager: authManager))
         
         // Configure route handlers
@@ -673,7 +684,7 @@ public actor HTTPServerManager {
         ))
         
         // Set up CORS if enabled
-        if config.cors.isEnabled {
+        if config.enableCORS {
             app.middleware.use(CORSMiddleware(configuration: config.cors))
         }
         
@@ -707,7 +718,7 @@ public actor HTTPServerManager {
         configureStreamRoutes(app)
         
         // Setup admin dashboard if enabled
-        if config.admin.enabled {
+        if config.enableAdmin {
             let leafResolver = LeafRenderer(configuration: .init(viewsDirectory: "Resources/Views"), viewsDirectory: "Resources/Views", eventLoop: app.eventLoopGroup.next())
             
             app.views.use(.leaf)
@@ -718,7 +729,7 @@ public actor HTTPServerManager {
             self.adminController = adminController
             
             // Serve static assets if enabled
-            if config.admin.serveAssets {
+            if config.serveAssets {
                 app.middleware.use(FileMiddleware(publicDirectory: "Public"))
             }
         }
@@ -752,18 +763,21 @@ public actor HTTPServerManager {
         )
         
         // Configure TLS if enabled
-        if config.enableTLS {
-            if let tlsConfig = config.tlsConfig {
-                // Use provided TLS configuration
-                serverConfig.tlsConfiguration = tlsConfig
-            } else if let certificatesDir = config.certificatesDirectory {
-                // Create configuration from certificate directory
-                let certificatePath = "\(certificatesDir)/cert.pem"
-                let keyPath = "\(certificatesDir)/key.pem"
+        if config.useSSL {
+            if let sslCert = config.sslCert, let sslKey = config.sslKey {
+                // Use provided SSL certificate and key
+                serverConfig.tlsConfiguration = .makeServerConfiguration(
+                    certificateChain: [.certificate(.init(file: sslCert, format: .pem))],
+                    privateKey: .file(sslKey)
+                )
+            } else if let sslCert = config.sslCert {
+                // Create configuration from SSL certificate
+                let certificatePath = sslCert
+                let keyPath = config.sslKey ?? ""
                 
                 guard FileManager.default.fileExists(atPath: certificatePath),
                       FileManager.default.fileExists(atPath: keyPath) else {
-                    logger.error("SSL certificates not found at \(certificatesDir)")
+                    logger.error("SSL certificate not found at \(certificatePath) and key at \(keyPath)")
                     throw HTTPServerError.sslConfigurationError
                 }
                 
@@ -771,8 +785,21 @@ public actor HTTPServerManager {
                     certificateChain: [.certificate(.init(file: certificatePath, format: .pem))],
                     privateKey: .file(keyPath)
                 )
+            } else if let sslKey = config.sslKey {
+                // Create configuration from SSL key
+                let keyPath = sslKey
+                
+                guard FileManager.default.fileExists(atPath: keyPath) else {
+                    logger.error("SSL key not found at \(keyPath)")
+                    throw HTTPServerError.sslConfigurationError
+                }
+                
+                serverConfig.tlsConfiguration = .makeServerConfiguration(
+                    certificateChain: [.certificate(.generate(commonName: config.host))],
+                    privateKey: .file(keyPath)
+                )
             } else {
-                logger.warning("TLS enabled but no certificates provided, generating self-signed certificate")
+                logger.warning("SSL enabled but no certificates provided, generating self-signed certificate")
                 
                 // Generate self-signed certificate
                 serverConfig.tlsConfiguration = try .makeServerConfiguration(
@@ -1103,4 +1130,387 @@ private struct MetricsMiddleware: AsyncMiddleware {
         await recordMetrics(request, response, startTime)
         return response
     }
+}
+
+/// Middleware to redirect HTTP requests to HTTPS
+struct HTTPSRedirectMiddleware: Middleware {
+    func respond(to request: Request, chainingTo next: Responder) -> EventLoopFuture<Response> {
+        // Only redirect if the request is not secure
+        guard !request.application.http.server.configuration.tlsConfiguration?.certificateVerification.isEnabled ?? false else {
+            return next.respond(to: request)
+        }
+        
+        // Get the host from the request
+        guard let host = request.headers.first(name: .host) else {
+            return next.respond(to: request)
+        }
+        
+        // Create the redirect URL
+        let redirectURL = "https://\(host)\(request.url.path)"
+        
+        // Create and return a redirect response
+        let response = Response(status: .permanentRedirect)
+        response.headers.replaceOrAdd(name: .location, value: redirectURL)
+        return request.eventLoop.makeSucceededFuture(response)
+    }
+}
+
+/// Middleware to add security headers to responses
+struct SecureHeadersMiddleware: Middleware {
+    let config: SecurityConfiguration
+    
+    init(config: SecurityConfiguration) {
+        self.config = config
+    }
+    
+    func respond(to request: Request, chainingTo next: Responder) -> EventLoopFuture<Response> {
+        return next.respond(to: request).map { response in
+            // Add CSP header if enabled
+            if config.csp.enabled {
+                response.headers.replaceOrAdd(
+                    name: HTTPHeaders.Name(config.csp.headerName),
+                    value: config.csp.headerValue
+                )
+            }
+            
+            // Add HSTS header if enabled
+            if config.enableHSTS {
+                response.headers.replaceOrAdd(
+                    name: "Strict-Transport-Security",
+                    value: "max-age=31536000; includeSubDomains"
+                )
+            }
+            
+            // Add X-Frame-Options header if configured
+            if let xFrameOptions = config.xFrameOptions {
+                response.headers.replaceOrAdd(
+                    name: "X-Frame-Options",
+                    value: xFrameOptions
+                )
+            }
+            
+            // Add X-Content-Type-Options header if configured
+            if let xContentTypeOptions = config.xContentTypeOptions {
+                response.headers.replaceOrAdd(
+                    name: "X-Content-Type-Options", 
+                    value: xContentTypeOptions
+                )
+            }
+            
+            // Add Referrer-Policy header if configured
+            if let referrerPolicy = config.referrerPolicy {
+                response.headers.replaceOrAdd(
+                    name: "Referrer-Policy",
+                    value: referrerPolicy
+                )
+            }
+            
+            return response
+        }
+    }
+}
+
+/// Middleware to protect against DoS attacks
+struct DoSProtectionMiddleware: Middleware {
+    let config: SecurityConfiguration.DoSProtection
+    private var connectionCounter = AtomicInteger(value: 0)
+    private var activeConnections = [String: Date]()
+    private let lock = NSLock()
+    
+    init(config: SecurityConfiguration.DoSProtection) {
+        self.config = config
+    }
+    
+    func respond(to request: Request, chainingTo next: Responder) -> EventLoopFuture<Response> {
+        // Get client IP
+        let clientIP = request.remoteAddress?.ipAddress ?? "unknown"
+        
+        // Check if connection count exceeds limit
+        let currentConnections = connectionCounter.add(1)
+        if currentConnections > config.maxConnections {
+            connectionCounter.sub(1)
+            return request.eventLoop.makeFailedFuture(Abort(.tooManyRequests, reason: "Too many concurrent connections"))
+        }
+        
+        // Check for connection frequency from the same IP
+        let shouldBlock = checkRateLimit(for: clientIP)
+        if shouldBlock {
+            connectionCounter.sub(1)
+            return request.eventLoop.makeFailedFuture(Abort(.tooManyRequests, reason: "Rate limit exceeded"))
+        }
+        
+        // Process the request
+        return next.respond(to: request).always { _ in
+            // Release the connection count
+            connectionCounter.sub(1)
+        }
+    }
+    
+    private func checkRateLimit(for ip: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        
+        let now = Date()
+        
+        // Clean up expired records
+        activeConnections = activeConnections.filter { now.timeIntervalSince($0.value) < Double(config.resetTimeout) }
+        
+        // Check if this IP already has a connection
+        if let lastConnection = activeConnections[ip] {
+            // If the last connection was very recent, may be a DoS attempt
+            if now.timeIntervalSince(lastConnection) < 0.1 { // 100ms
+                return true
+            }
+        }
+        
+        // Update the last connection time
+        activeConnections[ip] = now
+        return false
+    }
+}
+
+/// Simple atomic integer for thread-safe counting
+class AtomicInteger {
+    private var value: Int
+    private let lock = NSLock()
+    
+    init(value: Int) {
+        self.value = value
+    }
+    
+    func add(_ delta: Int) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        value += delta
+        return value
+    }
+    
+    func sub(_ delta: Int) -> Int {
+        add(-delta)
+    }
+}
+
+/// Middleware to validate request data
+struct RequestValidationMiddleware: Middleware {
+    let maxBodySize: Int
+    let maxMultipartSize: Int
+    
+    init(maxBodySize: Int, maxMultipartSize: Int) {
+        self.maxBodySize = maxBodySize
+        self.maxMultipartSize = maxMultipartSize
+    }
+    
+    func respond(to request: Request, chainingTo next: Responder) -> EventLoopFuture<Response> {
+        // Check content length if available
+        if let contentLengthStr = request.headers.first(name: "Content-Length"),
+           let contentLength = Int(contentLengthStr),
+           contentLength > maxBodySize {
+            return request.eventLoop.makeFailedFuture(
+                Abort(.payloadTooLarge, reason: "Request body too large")
+            )
+        }
+        
+        // Check content type for multipart forms
+        if let contentType = request.headers.first(name: "Content-Type"),
+           contentType.contains("multipart/form-data"),
+           let contentLengthStr = request.headers.first(name: "Content-Length"),
+           let contentLength = Int(contentLengthStr),
+           contentLength > maxMultipartSize {
+            return request.eventLoop.makeFailedFuture(
+                Abort(.payloadTooLarge, reason: "Multipart form data too large")
+            )
+        }
+        
+        // Validate URL for path traversal attempts
+        if request.url.path.contains("..") || request.url.path.contains("//") {
+            return request.eventLoop.makeFailedFuture(
+                Abort(.badRequest, reason: "Invalid URL path")
+            )
+        }
+        
+        return next.respond(to: request)
+    }
+}
+
+/// Security configuration for the HTTP server
+public struct SecurityConfiguration: Equatable {
+    /// Content Security Policy configuration
+    public struct CSP: Equatable {
+        /// Whether CSP is enabled
+        public let enabled: Bool
+        
+        /// Policy directives for CSP
+        public let directives: [String: String]
+        
+        /// Whether to use the report-only mode
+        public let reportOnly: Bool
+        
+        /// Whether to allow inline scripts
+        public let allowInlineScripts: Bool
+        
+        /// Whether to allow inline styles
+        public let allowInlineStyles: Bool
+        
+        /// Create a new CSP configuration
+        public init(
+            enabled: Bool = true,
+            reportOnly: Bool = false,
+            allowInlineScripts: Bool = false,
+            allowInlineStyles: Bool = true,
+            directives: [String: String] = [:]
+        ) {
+            self.enabled = enabled
+            self.reportOnly = reportOnly
+            self.allowInlineScripts = allowInlineScripts
+            self.allowInlineStyles = allowInlineStyles
+            self.directives = directives
+        }
+        
+        /// Generate the CSP header value
+        public var headerValue: String {
+            var policy = [String]()
+            
+            // Add base directives
+            policy.append("default-src 'self'")
+            policy.append("img-src 'self' data:")
+            
+            // Add script directives
+            if allowInlineScripts {
+                policy.append("script-src 'self' 'unsafe-inline'")
+            } else {
+                policy.append("script-src 'self'")
+            }
+            
+            // Add style directives
+            if allowInlineStyles {
+                policy.append("style-src 'self' 'unsafe-inline'")
+            } else {
+                policy.append("style-src 'self'")
+            }
+            
+            // Add custom directives
+            for (key, value) in directives {
+                policy.append("\(key) \(value)")
+            }
+            
+            return policy.joined(separator: "; ")
+        }
+        
+        /// Name of the CSP header
+        public var headerName: String {
+            reportOnly ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy"
+        }
+    }
+    
+    /// DoS protection configuration
+    public struct DoSProtection: Equatable {
+        /// Whether DoS protection is enabled
+        public let enabled: Bool
+        
+        /// Maximum number of simultaneous connections
+        public let maxConnections: Int
+        
+        /// Connection reset timeout in seconds
+        public let resetTimeout: Int
+        
+        /// Create a new DoS protection configuration
+        public init(
+            enabled: Bool = true,
+            maxConnections: Int = 1000,
+            resetTimeout: Int = 60
+        ) {
+            self.enabled = enabled
+            self.maxConnections = maxConnections
+            self.resetTimeout = resetTimeout
+        }
+    }
+    
+    /// Content Security Policy
+    public let csp: CSP
+    
+    /// DoS protection
+    public let dosProtection: DoSProtection
+    
+    /// HSTS configuration
+    public let enableHSTS: Bool
+    
+    /// X-Frame-Options header value
+    public let xFrameOptions: String?
+    
+    /// X-Content-Type-Options header value
+    public let xContentTypeOptions: String?
+    
+    /// Referrer-Policy header value
+    public let referrerPolicy: String?
+    
+    /// Create a new security configuration
+    public init(
+        csp: CSP = CSP(),
+        dosProtection: DoSProtection = DoSProtection(),
+        enableHSTS: Bool = true,
+        xFrameOptions: String? = "SAMEORIGIN",
+        xContentTypeOptions: String? = "nosniff",
+        referrerPolicy: String? = "strict-origin-when-cross-origin"
+    ) {
+        self.csp = csp
+        self.dosProtection = dosProtection
+        self.enableHSTS = enableHSTS
+        self.xFrameOptions = xFrameOptions
+        self.xContentTypeOptions = xContentTypeOptions
+        self.referrerPolicy = referrerPolicy
+    }
+    
+    /// Standard security configuration with recommended settings
+    public static let standard = SecurityConfiguration()
+    
+    /// Strict security configuration with enhanced protection
+    public static let strict = SecurityConfiguration(
+        csp: CSP(allowInlineScripts: false, allowInlineStyles: false),
+        dosProtection: DoSProtection(maxConnections: 500),
+        enableHSTS: true,
+        xFrameOptions: "DENY"
+    )
+    
+    /// Disabled security configuration
+    public static let disabled = SecurityConfiguration(
+        csp: CSP(enabled: false),
+        dosProtection: DoSProtection(enabled: false),
+        enableHSTS: false,
+        xFrameOptions: nil,
+        xContentTypeOptions: nil,
+        referrerPolicy: nil
+    )
+}
+
+/// Middleware configuration for the HTTP server
+public struct MiddlewareConfig: Equatable {
+    /// Whether to force HTTPS
+    public let forceHTTPS: Bool
+    
+    /// Whether to add secure headers
+    public let secureHeaders: Bool
+    
+    /// Maximum size of request body in bytes
+    public let maxBodySize: Int?
+    
+    /// Create a new middleware configuration
+    public init(
+        forceHTTPS: Bool = true,
+        secureHeaders: Bool = true,
+        maxBodySize: Int? = 10_485_760 // 10MB
+    ) {
+        self.forceHTTPS = forceHTTPS
+        self.secureHeaders = secureHeaders
+        self.maxBodySize = maxBodySize
+    }
+    
+    /// Standard middleware configuration
+    public static let standard = MiddlewareConfig()
+    
+    /// Disabled middleware configuration
+    public static let disabled = MiddlewareConfig(
+        forceHTTPS: false,
+        secureHeaders: false,
+        maxBodySize: nil
+    )
 } 
