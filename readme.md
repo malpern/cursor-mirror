@@ -91,14 +91,18 @@ swift build
 Sources/
 ├── CursorWindow/         # Main application code
 └── CursorWindowCore/     # Core functionality
-    ├── HLS/             # HLS streaming implementation
-    │   ├── HLSManager   # Stream management and segment control
-    │   ├── TSSegmentWriter  # MPEG-TS segment handling
-    │   └── PlaylistGenerator # M3U8 playlist generation
-    ├── Capture/         # Screen capture components
-    ├── Encoding/        # Video encoding components
-    └── HTTP/            # HTTP server components
-        └── Vapor-based server for HLS delivery
+    ├── HLS/              # Core HLS implementation
+    │   ├── HLSManager    # HLS streaming management
+    │   ├── HLSTypes      # Common HLS data structures
+    │   ├── TSSegmentWriter # MPEG-TS segment creation
+    │   └── M3U8PlaylistGenerator # Core playlist generation
+    ├── HTTP/             # HTTP server components
+    │   ├── HTTPServerManager # Vapor server configuration
+    │   ├── HLSStreamManager # Stream access control
+    │   ├── HLSPlaylistGenerator # HTTP-specific playlist generation
+    │   └── VideoSegmentHandler # Segment delivery
+    ├── Capture/          # Screen capture components
+    └── Encoding/         # Video encoding components
 ```
 
 ## Development

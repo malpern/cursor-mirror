@@ -120,7 +120,7 @@ public actor HTTPServerManager {
                 return Response(status: .unauthorized)
             }
             
-            // TODO: Generate master playlist
+            // Generate a basic master playlist (placeholder implementation)
             let response = Response(status: .ok)
             response.headers.contentType = .init(type: "application", subType: "vnd.apple.mpegurl")
             response.headers.cacheControl = .init(noCache: true)
@@ -137,7 +137,7 @@ public actor HTTPServerManager {
                 return Response(status: .unauthorized)
             }
             
-            // TODO: Generate media playlist for quality
+            // Generate a basic media playlist (placeholder implementation)
             let response = Response(status: .ok)
             response.headers.contentType = .init(type: "application", subType: "vnd.apple.mpegurl")
             response.headers.cacheControl = .init(noCache: true)
@@ -154,7 +154,7 @@ public actor HTTPServerManager {
                 return Response(status: .unauthorized)
             }
             
-            // TODO: Deliver segment data
+            // Provide a basic response (placeholder implementation)
             let response = Response(status: .ok)
             response.headers.contentType = .init(type: "video", subType: "mp2t")
             response.headers.cacheControl = .init(noCache: true)

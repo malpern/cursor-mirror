@@ -26,7 +26,18 @@ public struct HLSQualityOption: Equatable {
     }
 }
 
-/// Generates HLS playlists for streaming
+/// Generates HLS playlists specifically for HTTP server delivery
+/// 
+/// This generator is designed for HTTP server use cases and differs from `M3U8PlaylistGenerator`
+/// in several ways:
+/// - It is optimized for quality-based streaming with multiple profiles
+/// - It includes codec information in the master playlist
+/// - It uses a different directory structure for segments (quality/segment.ts)
+/// - It works with explicit base URLs for server-based delivery
+/// - It handles segment path construction differently, normalizing URLs 
+///
+/// This generator is complementary to `M3U8PlaylistGenerator` which is used for
+/// more general HLS playlist generation in the core HLS implementation.
 @available(macOS 14.0, *)
 public struct HLSPlaylistGenerator {
     /// The base URL for the stream

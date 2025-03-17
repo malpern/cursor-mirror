@@ -3,6 +3,16 @@ import Foundation
 import AVFoundation
 
 /// Generates HLS playlists according to the M3U8 specification
+///
+/// This is the core playlist generator used internally by `HLSManager` for general
+/// HLS playlist generation. For HTTP server-specific playlist generation with
+/// quality profiles and codec information, see `HLSPlaylistGenerator`.
+///
+/// This generator focuses on:
+/// - Core M3U8 specification compliance
+/// - Supporting different playlist types (master, media, event, VOD)
+/// - Flexibility with optional base URLs
+/// - General-purpose segment path handling
 @available(macOS 14.0, *)
 public final class M3U8PlaylistGenerator: PlaylistGeneratorProtocol {
     public init() {}
