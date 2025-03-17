@@ -1,26 +1,14 @@
-import Foundation
 import Vapor
+import Foundation
 
 /// Configuration options for the HTTP server
-public struct HTTPServerConfig {
-    /// The host address to bind to
-    public let host: String
+public struct HTTPServerConfig: Equatable {
+    let host: String
+    let port: Int
+    let enableTLS: Bool
+    let workerCount: Int
     
-    /// The port to listen on
-    public let port: Int
-    
-    /// Whether to enable SSL/TLS
-    public let enableTLS: Bool
-    
-    /// The number of worker threads
-    public let workerCount: Int
-    
-    public init(
-        host: String = "127.0.0.1",
-        port: Int = 8080,
-        enableTLS: Bool = false,
-        workerCount: Int = System.coreCount
-    ) {
+    public init(host: String = "127.0.0.1", port: Int = 8080, enableTLS: Bool = false, workerCount: Int = System.coreCount) {
         self.host = host
         self.port = port
         self.enableTLS = enableTLS
@@ -30,117 +18,77 @@ public struct HTTPServerConfig {
 
 /// Errors that can occur during HTTP server operations
 public enum HTTPServerError: Error, Equatable {
-    /// The server is already running
     case serverAlreadyRunning
-    /// The server is not running
     case serverNotRunning
-    /// Invalid configuration
-    case invalidConfiguration(String)
-    /// Initialization error
-    case initializationError(String)
-    
-    public static func == (lhs: HTTPServerError, rhs: HTTPServerError) -> Bool {
-        switch (lhs, rhs) {
-        case (.serverAlreadyRunning, .serverAlreadyRunning):
-            return true
-        case (.serverNotRunning, .serverNotRunning):
-            return true
-        case (.invalidConfiguration(let lhsMsg), .invalidConfiguration(let rhsMsg)):
-            return lhsMsg == rhsMsg
-        case (.initializationError(let lhsMsg), .initializationError(let rhsMsg)):
-            return lhsMsg == rhsMsg
-        default:
-            return false
-        }
-    }
+    case invalidConfiguration
 }
 
 /// Manages an HTTP server for streaming HLS content
 public actor HTTPServerManager {
-    /// The current server configuration
     private let config: HTTPServerConfig
-    
-    /// The Vapor application instance
     private var app: Application?
+    internal private(set) var isRunning: Bool = false
     
-    /// Whether the server is currently running
-    private(set) var isRunning: Bool = false
-    
-    /// Initialize a new HTTP server manager
-    /// - Parameter config: The server configuration
-    public init(config: HTTPServerConfig) {
+    public init(config: HTTPServerConfig = HTTPServerConfig()) {
         self.config = config
     }
     
     deinit {
         if let app = app {
-            app.shutdown()
+            Task.detached {
+                try? await app.server.shutdown()
+            }
         }
     }
     
     /// Starts the HTTP server
     public func start() async throws {
-        if isRunning {
+        guard !isRunning else {
             throw HTTPServerError.serverAlreadyRunning
         }
         
-        // Create and configure the application
-        let app = await withCheckedContinuation { continuation in
-            let app = Application(.development)
-            continuation.resume(returning: app)
-        }
+        // Create the application
+        let app = try await Application.make(.development)
         
-        do {
-            // Configure server settings
-            app.http.server.configuration.hostname = config.host
-            app.http.server.configuration.port = config.port
-            
-            // Configure middleware
-            app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
-            app.middleware.use(ErrorMiddleware.default(environment: app.environment))
-            
-            // Configure routes
-            try configureRoutes(app)
-            
-            self.app = app
-            
-            // Start the server
-            try await app.server.start()
-            isRunning = true
-        } catch {
-            app.shutdown()
-            throw HTTPServerError.initializationError(error.localizedDescription)
-        }
+        // Configure server settings
+        app.http.server.configuration.hostname = config.host
+        app.http.server.configuration.port = config.port
+        
+        // Configure middleware
+        app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
+        app.middleware.use(ErrorMiddleware.default(environment: app.environment))
+        
+        // Configure routes
+        try configureRoutes(app)
+        
+        // Start the server
+        try await app.startup()
+        self.app = app
+        self.isRunning = true
     }
     
     /// Stops the HTTP server
     public func stop() async throws {
-        guard let app = self.app else {
+        guard let app = self.app, isRunning else {
             throw HTTPServerError.serverNotRunning
         }
         
-        // Shutdown the server first
+        // Use async shutdown
         try await app.server.shutdown()
         
-        // Then shutdown the application
-        await withCheckedContinuation { continuation in
-            app.shutdown()
-            continuation.resume()
-        }
-        
         self.app = nil
-        isRunning = false
+        self.isRunning = false
     }
     
-    /// Configures the server routes
+    /// Configure server routes
     private func configureRoutes(_ app: Application) throws {
         // Health check endpoint
-        app.get("health") { req async -> String in
+        app.get("health") { req -> String in
             "OK"
         }
         
         // Version endpoint
-        app.get("version") { req async -> String in
+        app.get("version") { req -> String in
             "1.0.0"
         }
         
