@@ -13,7 +13,7 @@ public struct ServerConfig: Codable, Equatable, Sendable {
     public let cors: CORSConfig?
     
     /// Authentication configuration
-    public let authentication: AuthenticationConfig
+    public let authentication: ServerAuthConfig
     
     /// TLS configuration
     public let tls: TLSConfig?
@@ -37,7 +37,7 @@ public struct ServerConfig: Codable, Equatable, Sendable {
         hostname: String = "localhost",
         port: Int = 8080,
         cors: CORSConfig? = .default,
-        authentication: AuthenticationConfig = .basic,
+        authentication: ServerAuthConfig = .basic,
         tls: TLSConfig? = nil,
         enableAdmin: Bool = true,
         enableCORS: Bool = true
@@ -97,7 +97,7 @@ public struct TLSConfig: Codable, Equatable, Sendable {
 }
 
 /// Authentication configuration
-public struct AuthenticationConfig: Codable, Equatable, Sendable {
+public struct ServerAuthConfig: Codable, Equatable, Sendable {
     /// Authentication methods
     public enum AuthenticationMethod: String, Codable, Equatable, Sendable {
         /// Basic authentication with username/password
@@ -135,21 +135,21 @@ public struct AuthenticationConfig: Codable, Equatable, Sendable {
     }
     
     /// Basic authentication config
-    public static let basic = AuthenticationConfig(
+    public static let basic = ServerAuthConfig(
         enabled: true,
         methods: [.basic],
         sessionDuration: 3600
     )
     
     /// Token authentication config
-    public static let token = AuthenticationConfig(
+    public static let token = ServerAuthConfig(
         enabled: true,
         methods: [.token],
         sessionDuration: 86400 // 24 hours
     )
     
     /// No authentication
-    public static let none = AuthenticationConfig(
+    public static let none = ServerAuthConfig(
         enabled: false,
         methods: [],
         sessionDuration: 0

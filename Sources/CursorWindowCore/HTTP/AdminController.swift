@@ -112,7 +112,7 @@ public actor AdminController {
                 // Authenticate with basic credentials
                 _ = try await authManager.authenticateBasic(username: auth.username, password: auth.password)
                 return try await next.respond(to: request)
-            } catch {
+        } catch {
                 return Response(status: .unauthorized)
             }
         }
