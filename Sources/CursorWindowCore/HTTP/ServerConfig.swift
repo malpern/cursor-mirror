@@ -63,19 +63,54 @@ public struct CORSConfig: Codable, Equatable, Sendable {
     /// Allowed headers
     public let allowedHeaders: [String]
     
-    /// Default CORS configuration that allows common headers and methods
-    public static let `default` = CORSConfig(
-        allowedOrigins: ["*"],
-        allowedMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-        allowedHeaders: ["Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"]
-    )
+    /// Whether to allow credentials
+    public let allowCredentials: Bool
     
-    /// CORS configuration that allows all origins, methods, and headers
-    public static let permissive = CORSConfig(
-        allowedOrigins: ["*"],
-        allowedMethods: ["*"],
-        allowedHeaders: ["*"]
-    )
+    /// Cache expiration in seconds
+    public let cacheExpiration: Int?
+    
+    /// Exposed headers
+    public let exposedHeaders: [String]?
+    
+    /// Default initializer
+    /// - Parameters:
+    ///   - allowedOrigins: Allowed origins (default: ["*"])
+    ///   - allowedMethods: Allowed methods (default: ["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+    ///   - allowedHeaders: Allowed headers (default: ["Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"])
+    ///   - allowCredentials: Whether to allow credentials (default: false)
+    ///   - cacheExpiration: Cache expiration in seconds (default: nil)
+    ///   - exposedHeaders: Exposed headers (default: nil)
+    public init(
+        allowedOrigins: [String] = ["*"],
+        allowedMethods: [String] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowedHeaders: [String] = ["Accept", "Authorization", "Content-Type", "Origin", "X-Requested-With"],
+        allowCredentials: Bool = false,
+        cacheExpiration: Int? = nil,
+        exposedHeaders: [String]? = nil
+    ) {
+        self.allowedOrigins = allowedOrigins
+        self.allowedMethods = allowedMethods
+        self.allowedHeaders = allowedHeaders
+        self.allowCredentials = allowCredentials
+        self.cacheExpiration = cacheExpiration
+        self.exposedHeaders = exposedHeaders
+    }
+    
+    /// Convert to Vapor's CORS configuration
+    /// - Returns: Vapor CORS configuration
+    public func toVaporConfig() -> Vapor.CORSMiddleware.Configuration {
+        return .init(
+            allowedOrigin: .custom(allowedOrigins.joined(separator: ", ")),
+            allowedMethods: allowedMethods.compactMap { Vapor.HTTPMethod(rawValue: $0) },
+            allowedHeaders: allowedHeaders.map { Vapor.HTTPHeaders.Name($0) },
+            allowCredentials: allowCredentials,
+            cacheExpiration: cacheExpiration,
+            exposedHeaders: exposedHeaders?.map { Vapor.HTTPHeaders.Name($0) }
+        )
+    }
+    
+    /// Default CORS configuration
+    public static let `default` = CORSConfig()
 }
 
 /// TLS configuration

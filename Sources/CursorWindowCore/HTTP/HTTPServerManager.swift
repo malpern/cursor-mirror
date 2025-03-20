@@ -142,7 +142,11 @@ public class HTTPServerManager {
             
             // Configure TLS if needed
             if let tlsConfig = config.tls {
-                try configureTLS(app, tlsConfig: tlsConfig)
+                do {
+                    try configureTLS(tlsConfig, for: app)
+                } catch {
+                    throw HTTPServerError.sslConfigurationError("TLS configuration failed: \(error.localizedDescription)")
+                }
             }
             
             // Configure routes
@@ -174,9 +178,14 @@ public class HTTPServerManager {
                 self.app = nil
             }
             
-            // Log and throw error
-            logger.error("Failed to start HTTP server: \(error)")
-            throw HTTPServerError.serverInitializationFailed(error.localizedDescription)
+            // Convert to our custom error type if needed
+            if let serverError = error as? HTTPServerError {
+                throw serverError
+            } else {
+                // Log and throw error
+                logger.error("Failed to start HTTP server: \(error)")
+                throw HTTPServerError.serverInitializationFailed(error.localizedDescription)
+            }
         }
     }
     
@@ -243,10 +252,10 @@ public class HTTPServerManager {
     
     /// Configure TLS (SSL)
     /// - Parameters:
-    ///   - app: The Vapor application
     ///   - tlsConfig: TLS configuration
+    ///   - app: The Vapor application
     /// - Throws: HTTPServerError if TLS configuration fails
-    private func configureTLS(_ app: Application, tlsConfig: TLSConfig) throws {
+    private func configureTLS(_ tlsConfig: TLSConfig, for app: Application) throws {
         // Check if certificate and key exist
         let certPath = tlsConfig.certificatePath
         let keyPath = tlsConfig.privateKeyPath
