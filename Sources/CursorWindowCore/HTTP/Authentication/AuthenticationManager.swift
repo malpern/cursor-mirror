@@ -1,8 +1,9 @@
 import Vapor
 import Foundation
+import Logging
 
 /// Authentication configuration for the HTTP server
-public struct AuthenticationConfig: Equatable {
+public struct AuthenticationConfig: Equatable, Sendable {
     /// Whether authentication is enabled
     public let enabled: Bool
     
@@ -67,7 +68,7 @@ public struct AuthenticationConfig: Equatable {
 }
 
 /// Authentication methods supported by the server
-public enum AuthenticationMethod: String, Hashable {
+public enum AuthenticationMethod: String, Hashable, Sendable {
     /// HTTP Basic authentication
     case basic
     
@@ -79,7 +80,7 @@ public enum AuthenticationMethod: String, Hashable {
 }
 
 /// Represents an authenticated user or client
-public struct AuthenticatedUser: Hashable {
+public struct AuthenticatedUser: Hashable, Sendable {
     /// Unique identifier for the user/client
     public let id: UUID
     
@@ -117,7 +118,7 @@ public struct AuthenticatedUser: Hashable {
 }
 
 /// Errors that can occur during authentication
-public enum AuthenticationError: Error, Equatable {
+public enum AuthenticationError: Error, Equatable, Sendable, CustomStringConvertible {
     /// Authentication is required but not provided
     case authenticationRequired
     
@@ -129,6 +130,43 @@ public enum AuthenticationError: Error, Equatable {
     
     /// The requested authentication method is not supported
     case unsupportedMethod
+    
+    /// Human-readable description of the error
+    public var description: String {
+        switch self {
+        case .authenticationRequired:
+            return "Authentication is required to access this resource"
+        case .invalidCredentials:
+            return "The provided authentication credentials are invalid"
+        case .expiredCredentials:
+            return "The authentication credentials have expired"
+        case .unsupportedMethod:
+            return "The requested authentication method is not supported"
+        }
+    }
+    
+    /// Convert to Vapor's Abort error
+    public var asAbort: Abort {
+        switch self {
+        case .authenticationRequired:
+            return Abort(.unauthorized, reason: self.description)
+        case .invalidCredentials:
+            return Abort(.unauthorized, reason: self.description)
+        case .expiredCredentials:
+            return Abort(.unauthorized, reason: self.description)
+        case .unsupportedMethod:
+            return Abort(.badRequest, reason: self.description)
+        }
+    }
+    
+    /// Create a generic conversion function
+    public static func asAbort(_ error: Error) -> Abort {
+        if let authError = error as? AuthenticationError {
+            return authError.asAbort
+        } else {
+            return Abort(.internalServerError, reason: "Authentication error: \(error.localizedDescription)")
+        }
+    }
 }
 
 /// Manages authentication for the HTTP server
@@ -256,9 +294,11 @@ private struct AuthenticatedUserKey: StorageKey {
 /// Middleware for handling authentication in Vapor
 public struct AuthMiddleware: AsyncMiddleware {
     private let authManager: AuthenticationManager
+    private let logger: Logger
     
-    public init(authManager: AuthenticationManager) {
+    public init(authManager: AuthenticationManager, logger: Logger = Logger(label: "auth.middleware")) {
         self.authManager = authManager
+        self.logger = logger
     }
     
     public func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
@@ -270,7 +310,12 @@ public struct AuthMiddleware: AsyncMiddleware {
                     password: basicAuth.password
                 )
                 request.authenticatedUser = user
+                logger.debug("User authenticated with basic auth: \(user.username)")
+            } catch let error as AuthenticationError {
+                logger.warning("Basic auth failed: \(error.description)")
+                // Continue without setting authenticated user
             } catch {
+                logger.error("Unexpected error during basic auth: \(error)")
                 // Continue without setting authenticated user
             }
         }
@@ -280,7 +325,12 @@ public struct AuthMiddleware: AsyncMiddleware {
             do {
                 let user = try await authManager.authenticateApiKey(apiKey)
                 request.authenticatedUser = user
+                logger.debug("User authenticated with API key: \(user.username)")
+            } catch let error as AuthenticationError {
+                logger.warning("API key auth failed: \(error.description)")
+                // Continue without setting authenticated user
             } catch {
+                logger.error("Unexpected error during API key auth: \(error)")
                 // Continue without setting authenticated user
             }
         }
@@ -293,4 +343,43 @@ public struct AuthMiddleware: AsyncMiddleware {
 extension HTTPHeaders.Name {
     /// Header for API key authentication
     public static let apiKey = HTTPHeaders.Name("X-API-Key")
+}
+
+/// Extension for Vapor's RouteBuilder to add protected routes
+extension RoutesBuilder {
+    /// Create a route group that requires authentication
+    public func protected(using authManager: AuthenticationManager) -> RoutesBuilder {
+        self.grouped(AuthProtectedRouteMiddleware(authManager: authManager))
+    }
+}
+
+/// Middleware that ensures a route is protected with authentication
+public struct AuthProtectedRouteMiddleware: AsyncMiddleware {
+    private let authManager: AuthenticationManager
+    private let logger: Logger
+    
+    public init(authManager: AuthenticationManager, logger: Logger = Logger(label: "auth.protected")) {
+        self.authManager = authManager
+        self.logger = logger
+    }
+    
+    public func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
+        // Check if user is already authenticated
+        if let user = request.authenticatedUser, user.isValid {
+            return try await next.respond(to: request)
+        }
+        
+        // Check for token in query string
+        if let tokenString = request.query[String.self, at: "token"],
+           let token = UUID(uuidString: tokenString),
+           await authManager.validateSession(token) {
+            // Session is valid
+            logger.debug("Request authenticated via token")
+            return try await next.respond(to: request)
+        }
+        
+        // Authentication failed
+        logger.warning("Authentication required but not provided")
+        throw AuthenticationError.authenticationRequired.asAbort
+    }
 } 
