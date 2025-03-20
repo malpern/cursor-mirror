@@ -1,5 +1,5 @@
 import XCTest
-// import XCTVapor - Temporarily commented out due to missing module
+import XCTVapor
 @preconcurrency @testable import CursorWindowCore
 import NIOHTTP1
 import Logging

@@ -58,7 +58,7 @@ public class VaporTestHelper {
         await app.server.shutdown()
         
         // Wait for server to fully shut down
-        try await Task.sleep(for: .seconds(1))
+        try await Task.sleep(for: .seconds(2))
         
         // Shutdown application on main thread
         logger.debug("Shutting down application...")
@@ -67,7 +67,7 @@ public class VaporTestHelper {
         }
         
         // Give time for resources to be freed
-        try await Task.sleep(for: .milliseconds(500))
+        try await Task.sleep(for: .seconds(1))
         
         // Clear strong references
         strongReferences.removeAll()
