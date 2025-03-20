@@ -68,10 +68,11 @@ public actor HTTPServerManager {
             throw HTTPServerError.serverAlreadyRunning
         }
         
-        // Set up server
+        logger.info("Starting HTTP server on \(config.hostname):\(config.port)")
+        
         do {
-            // Create a new application
-            let app = Application(.development)
+            // Create a new application using async-compatible approach
+            let app = try await Application.make(.development)
             
             // Configure HTTP settings
             app.http.server.configuration.hostname = config.hostname
@@ -97,7 +98,7 @@ public actor HTTPServerManager {
             self.app = app
             
             // Start the application
-            try app.start()
+            try await app.startup()
             
             // Record startup
             isRunning = true
@@ -106,8 +107,13 @@ public actor HTTPServerManager {
             logger.info("HTTP server started on \(config.hostname):\(config.port)")
         } catch {
             // Clean up application
-            app?.shutdown()
-            app = nil
+            if let app = app {
+                // Use Task to handle shutdown separately since it's not async
+                Task.detached { 
+                    app.shutdown() 
+                }
+                self.app = nil
+            }
             
             // Log and throw error
             logger.error("Failed to start HTTP server: \(error)")
@@ -118,13 +124,16 @@ public actor HTTPServerManager {
     /// Stop the HTTP server
     /// - Throws: HTTPServerError if the server fails to stop
     public func stop() async throws {
-        // Check if server is running
-        guard isRunning, let app = app else {
+        guard let app = app, isRunning else {
             throw HTTPServerError.serverNotRunning
         }
         
-        // Shutdown the application
-        app.shutdown()
+        logger.info("Stopping HTTP server")
+        
+        // Shutdown the application in a detached task
+        Task.detached {
+            app.shutdown()
+        }
         
         // Update state
         self.app = nil
@@ -204,21 +213,41 @@ public actor HTTPServerManager {
             "OK"
         }
         
-        // Status route
+        // Status route with better actor isolation
         app.get("status") { [weak self] req -> Response in
             guard let self = self else {
                 return Response(status: .internalServerError)
             }
             
+            // Capture necessary data from actor in a non-Sendable context
+            let isRunning = self.isRunning
+            
+            // Get status information in a task
+            let streamActive = Task { 
+                return await self.streamManager.isStreaming 
+            }
+            
+            let authEnabled = self.config.authentication.enabled
+            let hostname = self.config.hostname
+            let port = self.config.port
+            
+            // Get time info safely
+            let (startTimeValue, uptimeValue): (TimeInterval, TimeInterval) = {
+                guard let startTime = self.startTime else {
+                    return (0, 0)
+                }
+                return (startTime.timeIntervalSince1970, Date().timeIntervalSince(startTime))
+            }()
+            
             // Create status response
             let status = ServerStatus(
-                serverRunning: true,
-                streamActive: self.streamManager.isStreaming,
-                authEnabled: self.config.authentication.enabled,
-                hostname: self.config.hostname,
-                port: self.config.port,
-                startTime: self.startTime?.timeIntervalSince1970 ?? 0,
-                uptime: self.startTime != nil ? Date().timeIntervalSince(self.startTime!) : 0
+                serverRunning: isRunning,
+                streamActive: await streamActive.value,
+                authEnabled: authEnabled,
+                hostname: hostname,
+                port: port,
+                startTime: startTimeValue,
+                uptime: uptimeValue
             )
             
             return try! JSONEncoder().encode(status).encodeResponse(for: req)

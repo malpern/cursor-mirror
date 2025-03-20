@@ -8,16 +8,16 @@ final class DraggableViewportUITests: XCTestCase {
     
     override func setUp() async throws {
         continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
+        app = await XCUIApplication()
+        await app.launch()
     }
     
     override func tearDown() async throws {
-        app.terminate()
+        await app.terminate()
         app = nil
     }
     
-    func testViewportInitialState() throws {
+    func testViewportInitialState() async throws {
         // Verify the viewport window exists
         let viewportWindow = app.windows["CursorWindow"]
         XCTAssertTrue(viewportWindow.exists)
@@ -32,7 +32,7 @@ final class DraggableViewportUITests: XCTestCase {
         XCTAssertEqual(Int(frame.height), 852)
     }
     
-    func testViewportDragging() throws {
+    func testViewportDragging() async throws {
         let viewportWindow = app.windows["CursorWindow"]
         let viewport = viewportWindow.groups["DraggableViewport"]
         
@@ -56,7 +56,7 @@ final class DraggableViewportUITests: XCTestCase {
         XCTAssertEqual(Int(newFrame.height), 852)
     }
     
-    func testViewportStaysOnScreen() throws {
+    func testViewportStaysOnScreen() async throws {
         let viewportWindow = app.windows["CursorWindow"]
         let viewport = viewportWindow.groups["DraggableViewport"]
         
@@ -78,7 +78,7 @@ final class DraggableViewportUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(viewport.frame.origin.y, 0)
     }
     
-    func testViewportKeyboardShortcuts() throws {
+    func testViewportKeyboardShortcuts() async throws {
         let viewportWindow = app.windows["CursorWindow"]
         let viewport = viewportWindow.groups["DraggableViewport"]
         
@@ -104,7 +104,7 @@ final class DraggableViewportUITests: XCTestCase {
         XCTAssertEqual(newFrame.origin.x, initialFrame.origin.x)
     }
     
-    func testViewportMenuBarInteractions() throws {
+    func testViewportMenuBarInteractions() async throws {
         // Click the menu bar item
         let menuBarsQuery = app.menuBars
         menuBarsQuery.menuBarItems["View"].click()

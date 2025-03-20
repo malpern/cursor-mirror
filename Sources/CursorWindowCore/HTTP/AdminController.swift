@@ -159,7 +159,7 @@ public actor AdminController {
             let filter = LogFilter(method: method, path: path, status: status)
             
             // Get filtered logs
-            let logs = self.getLogs(filter: filter)
+            let logs = await self.getLogs(filter: filter)
             
             // Render logs template
             return try await req.view.render("admin/logs", LogsContext(

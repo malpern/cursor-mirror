@@ -8,16 +8,16 @@ final class MainViewUITests: XCTestCase {
     
     override func setUp() async throws {
         continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
+        app = await XCUIApplication()
+        await app.launch()
     }
     
     override func tearDown() async throws {
-        app.terminate()
+        await app.terminate()
         app = nil
     }
     
-    func testMainViewInitialState() throws {
+    func testMainViewInitialState() async throws {
         // Verify the main window exists
         let mainWindow = app.windows["CursorWindow"]
         XCTAssertTrue(mainWindow.exists)
@@ -36,7 +36,7 @@ final class MainViewUITests: XCTestCase {
         XCTAssertTrue(previewTab.isSelected)
     }
     
-    func testTabSwitching() throws {
+    func testTabSwitching() async throws {
         let mainWindow = app.windows["CursorWindow"]
         
         // Switch to encoding tab
@@ -54,7 +54,7 @@ final class MainViewUITests: XCTestCase {
         XCTAssertFalse(mainWindow.tabs["Encoding"].isSelected)
     }
     
-    func testEncodingControls() throws {
+    func testEncodingControls() async throws {
         let mainWindow = app.windows["CursorWindow"]
         
         // Switch to encoding tab
@@ -78,7 +78,7 @@ final class MainViewUITests: XCTestCase {
         XCTAssertEqual(startButton.title, "Start Encoding")
     }
     
-    func testEncodingSettings() throws {
+    func testEncodingSettings() async throws {
         let mainWindow = app.windows["CursorWindow"]
         
         // Switch to encoding tab
@@ -100,7 +100,7 @@ final class MainViewUITests: XCTestCase {
         XCTAssertNotEqual(frameRateValue.label, "30 fps") // Default value should have changed
     }
     
-    func testPermissionPrompt() throws {
+    func testPermissionPrompt() async throws {
         let mainWindow = app.windows["CursorWindow"]
         
         // Switch to preview tab
@@ -116,7 +116,7 @@ final class MainViewUITests: XCTestCase {
         }
     }
     
-    func testPreviewControls() throws {
+    func testPreviewControls() async throws {
         let mainWindow = app.windows["CursorWindow"]
         
         // Switch to preview tab
