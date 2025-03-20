@@ -2,6 +2,64 @@ import Foundation
 import Vapor
 import os.log
 
+/// Errors that can occur in the HLS streaming controller
+public enum HLSStreamError: AbortError, CustomStringConvertible {
+    /// Streaming is not active
+    case streamingNotActive
+    
+    /// Invalid quality parameter
+    case invalidQuality(String)
+    
+    /// No segments available for quality
+    case noSegmentsAvailable(StreamQuality)
+    
+    /// Segment not found
+    case segmentNotFound(String, StreamQuality)
+    
+    /// Missing required parameter
+    case missingParameter(String)
+    
+    /// Controller has been deallocated
+    case controllerDeallocated
+    
+    /// The HTTP status code
+    public var status: HTTPResponseStatus {
+        switch self {
+        case .streamingNotActive:
+            return .serviceUnavailable
+        case .invalidQuality, .missingParameter:
+            return .badRequest
+        case .noSegmentsAvailable, .segmentNotFound:
+            return .notFound
+        case .controllerDeallocated:
+            return .internalServerError
+        }
+    }
+    
+    /// Human-readable description of the error
+    public var description: String {
+        switch self {
+        case .streamingNotActive:
+            return "Streaming is not currently active"
+        case .invalidQuality(let quality):
+            return "Invalid quality parameter: \(quality)"
+        case .noSegmentsAvailable(let quality):
+            return "No segments available for quality: \(quality.rawValue)"
+        case .segmentNotFound(let segment, let quality):
+            return "Segment not found: \(segment) for quality \(quality.rawValue)"
+        case .missingParameter(let param):
+            return "Missing required parameter: \(param)"
+        case .controllerDeallocated:
+            return "HLS stream controller has been deallocated"
+        }
+    }
+    
+    /// Error reason shown to the client
+    public var reason: String {
+        return description
+    }
+}
+
 /// Controller for HLS streaming endpoints
 public actor HLSStreamController {
     /// Playlist generator
@@ -37,12 +95,12 @@ public actor HLSStreamController {
         // Master playlist route
         routes.get("stream", "master.m3u8") { [weak self] req async throws -> Response in
             guard let self = self else {
-                throw Abort(.internalServerError)
+                throw HLSStreamError.controllerDeallocated
             }
             
             // Check if streaming is enabled
             guard await self.streamManager.isStreaming else {
-                throw Abort(.serviceUnavailable, reason: "Streaming is not currently active")
+                throw HLSStreamError.streamingNotActive
             }
             
             // Generate master playlist
@@ -59,29 +117,29 @@ public actor HLSStreamController {
         // Media playlist route
         routes.get("stream", ":quality", "index.m3u8") { [weak self] req async throws -> Response in
             guard let self = self else {
-                throw Abort(.internalServerError)
+                throw HLSStreamError.controllerDeallocated
             }
             
             // Check if streaming is enabled
             guard await self.streamManager.isStreaming else {
-                throw Abort(.serviceUnavailable, reason: "Streaming is not currently active")
+                throw HLSStreamError.streamingNotActive
             }
             
             // Get quality from parameters
             guard let qualityName = req.parameters.get("quality") else {
-                throw Abort(.badRequest, reason: "Missing quality parameter")
+                throw HLSStreamError.missingParameter("quality")
             }
             
             // Find matching quality
             guard let quality = StreamQuality(rawValue: qualityName) else {
-                throw Abort(.badRequest, reason: "Invalid quality: \(qualityName)")
+                throw HLSStreamError.invalidQuality(qualityName)
             }
             
             // Get segments
             let segments = await self.segmentManager.getSegments(for: quality)
             
             if segments.isEmpty {
-                throw Abort(.notFound, reason: "No segments available for quality: \(qualityName)")
+                throw HLSStreamError.noSegmentsAvailable(quality)
             }
             
             // Generate media playlist
@@ -101,23 +159,26 @@ public actor HLSStreamController {
         // Segment route
         routes.get("stream", ":quality", ":segment") { [weak self] req async throws -> Response in
             guard let self = self else {
-                throw Abort(.internalServerError)
+                throw HLSStreamError.controllerDeallocated
             }
             
             // Check if streaming is enabled
             guard await self.streamManager.isStreaming else {
-                throw Abort(.serviceUnavailable, reason: "Streaming is not currently active")
+                throw HLSStreamError.streamingNotActive
             }
             
             // Get quality and segment from parameters
-            guard let qualityName = req.parameters.get("quality"),
-                  let segmentName = req.parameters.get("segment") else {
-                throw Abort(.badRequest, reason: "Missing parameters")
+            guard let qualityName = req.parameters.get("quality") else {
+                throw HLSStreamError.missingParameter("quality")
+            }
+            
+            guard let segmentName = req.parameters.get("segment") else {
+                throw HLSStreamError.missingParameter("segment")
             }
             
             // Convert string to quality enum
             guard let quality = StreamQuality(rawValue: qualityName) else {
-                throw Abort(.badRequest, reason: "Invalid quality: \(qualityName)")
+                throw HLSStreamError.invalidQuality(qualityName)
             }
             
             // Update stream manager to prevent timeout
@@ -134,7 +195,8 @@ public actor HLSStreamController {
                 
                 return response
             } catch {
-                throw Abort(.notFound, reason: "Segment not found: \(segmentName)")
+                logger.error("Failed to get segment data: \(error.localizedDescription)")
+                throw HLSStreamError.segmentNotFound(segmentName, quality)
             }
         }
     }

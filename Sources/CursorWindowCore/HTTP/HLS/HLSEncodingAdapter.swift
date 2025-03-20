@@ -3,6 +3,50 @@ import AVFoundation
 import CoreMedia
 import os.log
 
+/// Errors that can occur during HLS encoding
+public enum HLSEncodingError: Error, CustomStringConvertible {
+    /// Format description not available
+    case formatDescriptionMissing
+    
+    /// Encoding not active
+    case encodingNotActive
+    
+    /// Failed to create sample buffer
+    case sampleBufferCreationFailed(status: OSStatus)
+    
+    /// Failed to append sample buffer
+    case appendSampleBufferFailed(reason: String)
+    
+    /// Failed to start segment
+    case segmentStartFailed(reason: String)
+    
+    /// Invalid stream quality
+    case invalidStreamQuality
+    
+    /// Encoding session already active
+    case encodingAlreadyActive
+    
+    /// Human-readable description of the error
+    public var description: String {
+        switch self {
+        case .formatDescriptionMissing:
+            return "Video format description is missing"
+        case .encodingNotActive:
+            return "HLS encoding is not active"
+        case .sampleBufferCreationFailed(let status):
+            return "Failed to create sample buffer (status: \(status))"
+        case .appendSampleBufferFailed(let reason):
+            return "Failed to append sample buffer: \(reason)"
+        case .segmentStartFailed(let reason):
+            return "Failed to start new segment: \(reason)"
+        case .invalidStreamQuality:
+            return "Invalid stream quality configuration"
+        case .encodingAlreadyActive:
+            return "HLS encoding session is already active"
+        }
+    }
+}
+
 /// Adapter to connect H264 video encoder with HLS segmenting system
 public actor HLSEncodingAdapter {
     /// Video encoder that provides H264 encoded frames
@@ -90,7 +134,7 @@ public actor HLSEncodingAdapter {
             guard let self = self else { return }
             
             Task {
-                try await self.handleEncodedData(
+                try await self.processEncodedData(
                     data: encodedData,
                     presentationTimeStamp: presentationTimeStamp,
                     isKeyFrame: isKeyFrame
@@ -126,41 +170,40 @@ public actor HLSEncodingAdapter {
         logger.info("Stopped encoding for HLS streaming")
     }
     
-    /// Handle encoded data from the video encoder
+    /// Process encoded data from the video encoder
     /// - Parameters:
-    ///   - data: Encoded video frame data
-    ///   - presentationTimeStamp: PTS of the frame
-    ///   - isKeyFrame: Whether this is a keyframe
-    private func handleEncodedData(
+    ///   - data: H264 encoded frame data
+    ///   - presentationTimeStamp: Presentation timestamp for the frame
+    ///   - isKeyFrame: Whether this is a key frame
+    private func processEncodedData(
         data: Data,
         presentationTimeStamp: CMTime,
         isKeyFrame: Bool
     ) async throws {
-        guard isEncoding, let formatDescription = formatDescription else {
-            return
+        guard isEncoding else {
+            throw HLSEncodingError.encodingNotActive
         }
         
-        // Create a CMBlockBuffer from the encoded data
-        var blockBuffer: CMBlockBuffer?
-        let dataLength = data.count
-        let result = data.withUnsafeBytes { (bufferPtr: UnsafeRawBufferPointer) -> OSStatus in
-            return CMBlockBufferCreateWithMemoryBlock(
-                allocator: kCFAllocatorDefault,
-                memoryBlock: nil,
-                blockLength: dataLength,
-                blockAllocator: kCFAllocatorDefault,
-                customBlockSource: nil,
-                offsetToData: 0,
-                dataLength: dataLength,
-                flags: 0,
-                blockBufferOut: &blockBuffer
-            )
+        guard let formatDescription = self.formatDescription else {
+            throw HLSEncodingError.formatDescriptionMissing
         }
+        
+        // Create a data buffer
+        var blockBuffer: CMBlockBuffer?
+        let result = CMBlockBufferCreateWithMemoryBlock(
+            allocator: kCFAllocatorDefault,
+            memoryBlock: nil,
+            blockLength: data.count,
+            blockAllocator: kCFAllocatorDefault,
+            customBlockSource: nil,
+            offsetToData: 0,
+            dataLength: data.count,
+            flags: 0,
+            blockBufferOut: &blockBuffer
+        )
         
         guard result == kCMBlockBufferNoErr, let buffer = blockBuffer else {
-            throw NSError(domain: "HLSEncodingAdapter", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "Failed to create block buffer"
-            ])
+            throw HLSEncodingError.sampleBufferCreationFailed(status: result)
         }
         
         // Copy data into block buffer
@@ -169,14 +212,12 @@ public actor HLSEncodingAdapter {
                 with: bufferPtr.baseAddress!,
                 blockBuffer: buffer,
                 offsetIntoDestination: 0,
-                dataLength: dataLength
+                dataLength: data.count
             )
         }
         
         guard copyResult == kCMBlockBufferNoErr else {
-            throw NSError(domain: "HLSEncodingAdapter", code: 3, userInfo: [
-                NSLocalizedDescriptionKey: "Failed to copy data to block buffer"
-            ])
+            throw HLSEncodingError.sampleBufferCreationFailed(status: copyResult)
         }
         
         // Create a sample buffer
@@ -200,9 +241,7 @@ public actor HLSEncodingAdapter {
         )
         
         guard createResult == noErr, let sampleBuffer = sampleBuffer else {
-            throw NSError(domain: "HLSEncodingAdapter", code: 4, userInfo: [
-                NSLocalizedDescriptionKey: "Failed to create sample buffer"
-            ])
+            throw HLSEncodingError.sampleBufferCreationFailed(status: createResult)
         }
         
         // Attach key frame attachment if needed
@@ -213,11 +252,19 @@ public actor HLSEncodingAdapter {
         
         // Append to segment manager
         let sendableBuffer = SendableSampleBuffer(sampleBuffer)
-        let startedNewSegment = try await segmentManager.appendSampleBuffer(sendableBuffer, quality: streamQuality)
-        
-        // If we started a new segment and have a format description, initialize it
-        if startedNewSegment {
-            _ = try await segmentManager.startNewSegment(quality: streamQuality, formatDescription: formatDescription)
+        do {
+            let startedNewSegment = try await segmentManager.appendSampleBuffer(sendableBuffer, quality: streamQuality)
+            
+            // If we started a new segment and have a format description, initialize it
+            if startedNewSegment {
+                do {
+                    _ = try await segmentManager.startNewSegment(quality: streamQuality, formatDescription: formatDescription)
+                } catch {
+                    throw HLSEncodingError.segmentStartFailed(reason: error.localizedDescription)
+                }
+            }
+        } catch {
+            throw HLSEncodingError.appendSampleBufferFailed(reason: error.localizedDescription)
         }
     }
 } 
