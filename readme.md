@@ -25,11 +25,33 @@ A macOS application that captures and streams a portion of your screen matching 
   - ✅ Video file writing with proper error handling
   - ✅ Comprehensive test coverage
   - ✅ Memory-safe frame processing
+- [🚧] HTTP server for stream distribution
+  - ✅ Basic server implementation
+  - ✅ Authentication management implementation
+  - ✅ Request logging middleware
+  - ✅ Admin dashboard controller
+  - ✅ HTTP server error handling
+  - 🚧 Integration with video processing pipeline
+  - 🚧 Stream endpoint implementation
 - [ ] HLS stream generation with segmented .ts files
-- [ ] Local HTTP server for stream distribution
 - [ ] iOS client app for stream playback
 
 ## Recent Improvements
+
+### HTTP Server Implementation (🚧 In Progress)
+- [x] Core HTTP server architecture
+  - Server configuration with customizable settings
+  - Authentication middleware with session management
+  - Logging middleware for request/response tracking
+  - Error handling with descriptive status codes
+- [x] Swift 6 compatibility improvements
+  - Fixed actor isolation warnings
+  - Properly implemented async/await patterns
+  - Ensured Sendable conformance where needed
+- [ ] Stream delivery endpoints
+  - HLS manifest generation
+  - Video segment serving
+  - Real-time stream initiation
 
 ### BasicFrameProcessor Enhancements (✅ Complete)
 - [x] Frame rate monitoring
@@ -124,7 +146,15 @@ Sources/
 │   ├── SharedTypes.swift       # Shared protocols and types
 │   ├── ScreenCaptureManager.swift
 │   ├── BasicFrameProcessor.swift
-│   └── H264VideoEncoder.swift  # Thread-safe video encoding
+│   ├── H264VideoEncoder.swift  # Thread-safe video encoding
+│   └── HTTP/                   # HTTP server components
+│       ├── HTTPServerManager.swift
+│       ├── AuthenticationManager.swift
+│       ├── RequestLog.swift
+│       ├── ServerConfig.swift
+│       └── Middleware/
+│           ├── LoggingMiddleware.swift
+│           └── AuthMiddleware.swift
 └── CursorWindow/              # Main app module
     ├── CursorWindowApp.swift
     ├── AppDelegate.swift
@@ -141,9 +171,17 @@ Sources/
 4. Switch between Preview and Encoding tabs to control capture settings
 5. Start/stop recording or streaming as needed
 
+## Known Issues and Limitations
+
+1. UI Tests temporarily disabled due to Swift 6 compatibility issues with XCUITest
+2. HTTP server implementation not yet integrated with video processing pipeline
+3. HLS stream generation not yet implemented
+4. iOS client app not yet available
+
 ## Coming Soon
-1. Local network streaming
+1. Local network streaming via HLS
 2. iOS client app for viewing the stream
+3. Fixed UI tests with full Swift 6 compatibility
 
 ## Contributing
 
@@ -234,7 +272,9 @@ class VideoEncoderTests: XCTestCase {
     func testEncodeMultipleFrames()
     func testEndSession()
 }
+```
 
+```swift
 class EncodingFrameProcessorTests: XCTestCase {
     func testInitialState()
     func testStartEncoding()
@@ -242,7 +282,9 @@ class EncodingFrameProcessorTests: XCTestCase {
     func testStopEncoding()
     func testHandleError()
 }
+```
 
+```swift
 class VideoFileWriterTests: XCTestCase {
     func testCreateFile()
     func testAppendEncodedData()
@@ -250,15 +292,27 @@ class VideoFileWriterTests: XCTestCase {
     func testFinishWriting()
     func testCancelWriting()
 }
+```
 
-### UI Tests (✅ Complete)
-- [x] DraggableViewport UI Tests
+### HTTP Server Tests (🚧 In Progress)
+```swift
+class HTTPServerManagerTests: XCTestCase {
+    func testServerConfiguration()
+    func testStartServer()
+    func testStopServer()
+    func testRequestLogging()
+    func testAuthenticationFlow()
+}
+```
+
+### UI Tests (❌ Temporarily Disabled)
+- [ ] DraggableViewport UI Tests
   - Initial state verification
   - Dragging behavior
   - Screen boundary constraints
   - Keyboard shortcuts
   - Menu bar interactions
-- [x] MainView UI Tests
+- [ ] MainView UI Tests
   - Tab view functionality
   - Encoding controls
   - Settings adjustments
@@ -324,21 +378,35 @@ class VideoFileWriterTests: XCTestCase {
   - [x] Integration tests for the encoding pipeline
   - [x] Performance testing with various frame rates
 
-### 4. HLS Implementation (📅 Planned)
-- [ ] 4.1. Implement video segmentation
-- [ ] 4.2. Generate M3U8 playlists
-- [ ] 4.3. Test segment generation
+### 4. HTTP Server (🚧 In Progress)
+- [x] 4.1. Setup HTTP server foundation
+  - [x] Implement HTTPServerManager
+  - [x] Create ServerConfig with customizable options
+  - [x] Add error handling with HTTPServerError
+- [x] 4.2. Implement authentication
+  - [x] Create AuthenticationManager
+  - [x] Implement session management
+  - [x] Add authentication middleware
+- [x] 4.3. Add request logging
+  - [x] Implement RequestLog model
+  - [x] Create LoggingMiddleware
+  - [x] Add admin dashboard for logs viewing
+- [ ] 4.4. Implement HLS streaming
+  - [ ] Create HLS segment generator
+  - [ ] Add M3U8 playlist generation
+  - [ ] Implement stream endpoint
 
-### 5. HTTP Server (📅 Planned)
-- [ ] 5.1. Setup lightweight HTTP server
-- [ ] 5.2. Configure static file serving
-- [ ] 5.3. Test network accessibility
+### 5. HLS Implementation (📅 Planned)
+- [ ] 5.1. Implement video segmentation
+- [ ] 5.2. Generate M3U8 playlists
+- [ ] 5.3. Test segment generation
 
-### 6. Integration & Testing (📅 Planned)
-- [ ] 6.1. End-to-end testing
+### 6. Integration & Testing (🚧 In Progress)
+- [x] 6.1. Core functionality testing
 - [ ] 6.2. Performance optimization
-- [ ] 6.3. Error handling
-- [ ] 6.4. iOS client testing
+- [x] 6.3. Swift 6 compatibility improvements
+- [ ] 6.4. Fix UI tests
+- [ ] 6.5. iOS client testing
 
 ## Development Process
 
@@ -360,3 +428,4 @@ class VideoFileWriterTests: XCTestCase {
 - **Metal Rendering**: Using Metal-accelerated rendering for captured frames display
 - **Debounced Controls**: UI controls use debouncing to prevent excessive processing
 - **Task Management**: Proper cancellation of ongoing tasks when starting new operations
+- **Async/Await**: Modern concurrency patterns for improved performance and safety
