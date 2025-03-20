@@ -315,23 +315,48 @@ public class HTTPServerManager {
     
     /// Start HLS streaming
     /// - Parameter encoderSettings: Optional encoding settings
-    /// - Throws: Error if starting streaming fails
+    /// - Throws: ServerError if streaming fails to start
     public func startStreaming(encoderSettings: H264EncoderSettings? = nil) async throws {
         guard let encodingAdapter = encodingAdapter else {
             throw ServerError.encoderNotConnected
         }
         
-        try await encodingAdapter.start(settings: encoderSettings)
+        do {
+            try await encodingAdapter.start(settings: encoderSettings)
+            logger.info("Started HLS streaming with encoder settings: \(String(describing: encoderSettings))")
+        } catch {
+            logger.error("Failed to start streaming: \(error.localizedDescription)")
+            
+            if let hlsError = error as? HLSEncodingError {
+                switch hlsError {
+                case .encodingAlreadyActive:
+                    throw ServerError.serverAlreadyRunning
+                case .invalidStreamQuality:
+                    throw ServerError.invalidConfiguration("Invalid stream quality")
+                default:
+                    throw ServerError.internalError("Encoding error: \(hlsError.description)")
+                }
+            } else {
+                throw ServerError.from(error)
+            }
+        }
     }
     
     /// Stop HLS streaming
-    /// - Throws: Error if stopping streaming fails
+    /// - Throws: ServerError if stopping streaming fails
     public func stopStreaming() async throws {
         guard let encodingAdapter = encodingAdapter else {
+            logger.warning("Stop streaming called with no encoder connected")
             return
         }
         
-        try await encodingAdapter.stop()
+        do {
+            try await encodingAdapter.stop()
+            logger.info("Stopped HLS streaming")
+        } catch {
+            logger.error("Failed to stop streaming: \(error.localizedDescription)")
+            throw ServerError.from(error)
+        }
     }
 }
 
