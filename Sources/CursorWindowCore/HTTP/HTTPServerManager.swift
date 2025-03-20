@@ -50,11 +50,11 @@ public actor HTTPServerManager {
     
     // MARK: - Lifecycle
     
-    /// Initialize a new HTTP server manager
+    /// Initialize with configuration
     /// - Parameters:
     ///   - config: Server configuration
-    ///   - logger: Logger for server operations
-    ///   - streamManager: HLS Stream manager
+    ///   - logger: Logger
+    ///   - streamManager: HLS stream manager
     ///   - authManager: Authentication manager
     public init(
         config: ServerConfig,
@@ -66,35 +66,40 @@ public actor HTTPServerManager {
         self.logger = logger
         self.streamManager = streamManager
         self.authManager = authManager
-        self.adminController = AdminController(
-            serverManager: self,
-            streamManager: streamManager,
-            authManager: authManager,
-            logger: logger
-        )
         
         // Initialize HLS components
         let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         let segmentsDirectory = documentsDirectory.appendingPathComponent("HLSSegments")
         
-        self.segmentManager = CursorWindowCore.HLSSegmentManager(
+        let segmentManager = CursorWindowCore.HLSSegmentManager(
             segmentDirectory: segmentsDirectory,
             targetSegmentDuration: 4.0,
             maxSegmentCount: 5
         )
+        self.segmentManager = segmentManager
         
         let baseURL = "http://\(config.hostname):\(config.port)"
-        self.playlistGenerator = CursorWindowCore.HLSPlaylistGenerator(
+        let playlistGenerator = CursorWindowCore.HLSPlaylistGenerator(
             baseURL: baseURL,
             qualities: [.hd, .sd],
             playlistLength: 5,
             targetSegmentDuration: 4.0
         )
+        self.playlistGenerator = playlistGenerator
         
-        self.streamController = CursorWindowCore.HLSStreamController(
+        let streamController = CursorWindowCore.HLSStreamController(
             playlistGenerator: playlistGenerator,
             segmentManager: segmentManager,
             streamManager: streamManager
+        )
+        self.streamController = streamController
+        
+        // Now that required properties are initialized, we can create the admin controller
+        self.adminController = AdminController(
+            serverManager: self,
+            streamManager: streamManager,
+            authManager: authManager,
+            logger: logger
         )
     }
     

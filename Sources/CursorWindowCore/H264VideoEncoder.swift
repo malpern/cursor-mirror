@@ -20,6 +20,12 @@ public actor H264VideoEncoder: VideoEncoder {
     /// A serial queue for frame processing
     private let processingQueue = DispatchQueue(label: "com.cursorwindow.encoder.processing")
     
+    /// Encoded data callback
+    nonisolated(unsafe) private var encodedDataCallback: ((_ data: Data, _ pts: CMTime, _ isKeyFrame: Bool) -> Void)?
+    
+    /// Error domain for H264VideoEncoder
+    private static let errorDomain = "com.cursor-window.H264VideoEncoder"
+    
     /// Initialize a new H264 video encoder
     public init() {}
 }
@@ -266,6 +272,67 @@ extension H264VideoEncoder: EncodingFrameProcessorProtocol {
     private func cleanupEncoding() {
         videoWriter = nil
         videoWriterInput = nil
+    }
+    
+    /// Start encoding with callback for encoded data
+    /// - Parameters:
+    ///   - settings: The encoder settings to use
+    ///   - callback: Callback that receives encoded data
+    /// - Throws: An error if encoding initialization fails
+    public func startEncoding(
+        settings: H264EncoderSettings,
+        callback: @escaping (_ data: Data, _ pts: CMTime, _ isKeyFrame: Bool) -> Void
+    ) throws {
+        // Create a temporary URL for the encoder setup
+        let tempDir = FileManager.default.temporaryDirectory
+        let tempURL = tempDir.appendingPathComponent("temp_\(UUID().uuidString).mp4")
+        
+        try nonisolated_startEncoding(to: tempURL, width: Int(settings.resolution.width), height: Int(settings.resolution.height))
+        
+        // Store the callback
+        self.encodedDataCallback = callback
+    }
+    
+    /// Nonisolated version of startEncoding
+    /// - Parameters:
+    ///   - outputURL: The destination URL for the encoded video file
+    ///   - width: The width of the video in pixels
+    ///   - height: The height of the video in pixels
+    /// - Throws: An error if encoding initialization fails
+    nonisolated private func nonisolated_startEncoding(to outputURL: URL, width: Int, height: Int) throws {
+        guard width > 0 else { throw EncodingError.invalidWidth }
+        guard height > 0 else { throw EncodingError.invalidHeight }
+        
+        // Check if the output directory exists and is writable
+        let outputDirectory = outputURL.deletingLastPathComponent()
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: outputDirectory.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            throw EncodingError.outputPathError
+        }
+        
+        // Check if we can write to the output directory
+        guard FileManager.default.isWritableFile(atPath: outputDirectory.path) else {
+            throw EncodingError.outputPathError
+        }
+        
+        // Start the encoding session synchronously
+        let semaphore = DispatchSemaphore(value: 0)
+        var setupError: Error?
+        
+        Task { @MainActor [weak self] in
+            do {
+                try await self?.startEncodingInternal(to: outputURL, width: width, height: height)
+            } catch {
+                setupError = error
+            }
+            semaphore.signal()
+        }
+        
+        semaphore.wait()
+        if let error = setupError {
+            throw error
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import VideoToolbox
 
 /// Settings for H264 video encoding
 public struct H264EncoderSettings {
@@ -41,7 +42,7 @@ public struct H264EncoderSettings {
         bitrate: 1_000_000,
         keyframeInterval: 30,
         maxFrameDelay: 3,
-        profileLevel: kVTProfileLevel_H264_Main_AutoLevel as String
+        profileLevel: "H264_Main_AutoLevel"
     )
     
     /// High definition preset (720p)
@@ -51,7 +52,7 @@ public struct H264EncoderSettings {
         bitrate: 2_500_000,
         keyframeInterval: 30,
         maxFrameDelay: 3,
-        profileLevel: kVTProfileLevel_H264_Main_AutoLevel as String
+        profileLevel: "H264_Main_AutoLevel"
     )
     
     /// Ultra high definition preset (1080p)
@@ -61,6 +62,6 @@ public struct H264EncoderSettings {
         bitrate: 5_000_000,
         keyframeInterval: 30,
         maxFrameDelay: 3,
-        profileLevel: kVTProfileLevel_H264_Main_AutoLevel as String
+        profileLevel: "H264_Main_AutoLevel"
     )
 } 

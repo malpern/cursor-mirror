@@ -63,7 +63,9 @@ public class HLSPlaylistGenerator {
         
         // Add each quality variant
         for quality in qualities {
-            playlist += "#EXT-X-STREAM-INF:BANDWIDTH=\(quality.bandwidth),RESOLUTION=\(Int(quality.encoderSettings.resolution.width))x\(Int(quality.encoderSettings.resolution.height))\n"
+            // Use resolution and bandwidth from the existing enum
+            let resolution = "\(Int(quality.encoderSettings.resolution.width))x\(Int(quality.encoderSettings.resolution.height))"
+            playlist += "#EXT-X-STREAM-INF:BANDWIDTH=\(quality.bandwidth),RESOLUTION=\(resolution)\n"
             playlist += "stream/\(quality.rawValue)/index.m3u8\n"
         }
         
@@ -98,52 +100,4 @@ public class HLSPlaylistGenerator {
         
         return playlist
     }
-}
-
-/// Represents a stream quality option
-public struct StreamQuality: Equatable, Sendable {
-    /// Quality name (HD, SD, etc.)
-    public let name: String
-    
-    /// Video resolution (e.g., 1280x720)
-    public let resolution: String
-    
-    /// Target bandwidth in bits per second
-    public let bandwidth: Int
-    
-    /// Initialize with quality settings
-    /// - Parameters:
-    ///   - name: Quality name
-    ///   - resolution: Video resolution
-    ///   - bandwidth: Target bandwidth
-    public init(
-        name: String,
-        resolution: String,
-        bandwidth: Int
-    ) {
-        self.name = name
-        self.resolution = resolution
-        self.bandwidth = bandwidth
-    }
-    
-    /// HD quality (1280x720, 2.5Mbps)
-    public static let hd = StreamQuality(
-        name: "HD",
-        resolution: "1280x720",
-        bandwidth: 2_500_000
-    )
-    
-    /// SD quality (854x480, 1Mbps)
-    public static let sd = StreamQuality(
-        name: "SD",
-        resolution: "854x480",
-        bandwidth: 1_000_000
-    )
-    
-    /// Low quality (640x360, 500Kbps)
-    public static let low = StreamQuality(
-        name: "Low",
-        resolution: "640x360",
-        bandwidth: 500_000
-    )
 } 

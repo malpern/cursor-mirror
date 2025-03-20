@@ -14,6 +14,9 @@ public actor HLSStreamManager {
         /// Stream has timed out
         case streamTimeout
         
+        /// Invalid token
+        case invalidToken
+        
         /// Error description
         public var errorDescription: String? {
             switch self {
@@ -23,6 +26,8 @@ public actor HLSStreamManager {
                 return "Stream is not available"
             case .streamTimeout:
                 return "Stream has timed out due to inactivity"
+            case .invalidToken:
+                return "Invalid token"
             }
         }
     }
@@ -49,7 +54,6 @@ public actor HLSStreamManager {
     }
     
     /// Start streaming with a unique token
-    /// - Parameter token: Stream access token
     /// - Returns: Token for stream access
     /// - Throws: StreamError if stream is already in use
     public func startStreaming() throws -> String {
@@ -89,10 +93,16 @@ public actor HLSStreamManager {
         
         // Validate token
         guard isStreaming, let streamToken = streamToken, token == streamToken else {
-            throw StreamError.streamNotAvailable
+            throw StreamError.invalidToken
         }
         
         // Update activity timestamp
+        lastActivity = Date()
+    }
+    
+    /// Update activity timestamp without requiring a token
+    /// This is useful for internal components that don't use token-based authentication
+    public func updateActivity() {
         lastActivity = Date()
     }
     
@@ -111,7 +121,7 @@ public actor HLSStreamManager {
     /// - Returns: Whether the stream was timed out and stopped
     public func checkTimeout() -> Bool {
         if hasTimedOut() {
-            logger.warning("Stream timed out after \(timeoutInterval) seconds of inactivity")
+            logger.warning("Stream timed out after \(self.timeoutInterval) seconds of inactivity")
             stopStreaming()
             return true
         }
@@ -132,5 +142,13 @@ public actor HLSStreamManager {
         }
         
         return status
+    }
+    
+    /// Invalidate all active streams
+    public func invalidateAllStreams() {
+        logger.info("Invalidating all active streams")
+        streamToken = nil
+        lastActivity = nil
+        stopStreaming()
     }
 } 

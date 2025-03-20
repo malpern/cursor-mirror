@@ -237,7 +237,7 @@ private class HLSSegmentWriter {
         self.outputURL = outputURL
         
         // Create asset writer
-        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mpegTS)
+        let writer = try AVAssetWriter(outputURL: outputURL, fileType: AVFileType(rawValue: "org.mpegts.mpeg-ts"))
         self.writer = writer
         
         // Configure video settings

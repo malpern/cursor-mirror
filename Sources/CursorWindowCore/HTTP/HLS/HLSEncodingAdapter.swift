@@ -54,7 +54,8 @@ public actor HLSEncodingAdapter {
         }
         
         // Start streaming session
-        try await streamManager.startStreaming()
+        let streamToken = try await streamManager.startStreaming()
+        logger.info("Received stream token: \(streamToken)")
         
         // Use provided settings or default for the quality
         let encoderSettings = settings ?? streamQuality.encoderSettings
@@ -81,7 +82,8 @@ public actor HLSEncodingAdapter {
         self.formatDescription = formatDescription
         
         // Start a new segment
-        try await segmentManager.startNewSegment(quality: streamQuality, formatDescription: formatDescription)
+        let segmentInfo = try await segmentManager.startNewSegment(quality: streamQuality, formatDescription: formatDescription)
+        logger.info("Started new segment with index: \(segmentInfo)")
         
         // Start encoder with callback
         try await videoEncoder.startEncoding(settings: encoderSettings) { [weak self] encodedData, presentationTimeStamp, isKeyFrame in
@@ -97,7 +99,7 @@ public actor HLSEncodingAdapter {
         }
         
         isEncoding = true
-        logger.info("Started encoding for HLS streaming at quality \(streamQuality.rawValue)")
+        logger.info("Started encoding for HLS streaming at quality \(self.streamQuality.rawValue)")
     }
     
     /// Stop encoding and streaming
@@ -107,10 +109,13 @@ public actor HLSEncodingAdapter {
         }
         
         // Stop encoder
-        try await videoEncoder.stopEncoding()
+        videoEncoder.stopEncoding()
         
         // End current segment
-        try await segmentManager.endSegment(quality: streamQuality)
+        let segmentInfo = try await segmentManager.endSegment(quality: streamQuality)
+        if let info = segmentInfo {
+            logger.info("Ended segment with duration: \(info.duration)s")
+        }
         
         // Stop streaming
         await streamManager.stopStreaming()
@@ -203,7 +208,7 @@ public actor HLSEncodingAdapter {
         // Attach key frame attachment if needed
         if isKeyFrame {
             let keyFrameDict = [kCMSampleAttachmentKey_NotSync: false] as CFDictionary
-            CMSetAttachment(sampleBuffer, key: kCMSampleBufferAttachmentKey_NotSync, value: keyFrameDict)
+            CMSetAttachment(sampleBuffer, key: kCMSampleAttachmentKey_NotSync as CFString, value: keyFrameDict, attachmentMode: kCMAttachmentMode_ShouldPropagate)
         }
         
         // Append to segment manager

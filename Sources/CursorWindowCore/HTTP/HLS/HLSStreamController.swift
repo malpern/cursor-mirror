@@ -49,7 +49,7 @@ public actor HLSStreamController {
             let playlist = await self.playlistGenerator.generateMasterPlaylist()
             
             // Create response
-            var response = Response(status: .ok)
+            let response = Response(status: .ok)
             response.headers.contentType = HTTPMediaType(type: "application", subType: "vnd.apple.mpegurl")
             response.body = Response.Body(string: playlist)
             
@@ -73,20 +73,12 @@ public actor HLSStreamController {
             }
             
             // Find matching quality
-            let quality: StreamQuality
-            switch qualityName.lowercased() {
-            case "hd":
-                quality = .hd
-            case "sd":
-                quality = .sd
-            case "low":
-                quality = .low
-            default:
+            guard let quality = StreamQuality(rawValue: qualityName) else {
                 throw Abort(.badRequest, reason: "Invalid quality: \(qualityName)")
             }
             
             // Get segments
-            let segments = await self.segmentManager.getSegments(quality: quality)
+            let segments = await self.segmentManager.getSegments(for: quality)
             
             if segments.isEmpty {
                 throw Abort(.notFound, reason: "No segments available for quality: \(qualityName)")
@@ -99,7 +91,7 @@ public actor HLSStreamController {
             )
             
             // Create response
-            var response = Response(status: .ok)
+            let response = Response(status: .ok)
             response.headers.contentType = HTTPMediaType(type: "application", subType: "vnd.apple.mpegurl")
             response.body = Response.Body(string: playlist)
             
@@ -123,30 +115,27 @@ public actor HLSStreamController {
                 throw Abort(.badRequest, reason: "Missing parameters")
             }
             
+            // Convert string to quality enum
+            guard let quality = StreamQuality(rawValue: qualityName) else {
+                throw Abort(.badRequest, reason: "Invalid quality: \(qualityName)")
+            }
+            
             // Update stream manager to prevent timeout
             await self.streamManager.updateActivity()
             
-            // Construct segment path
-            let segmentPath = await self.segmentManager.segmentDirectory
-                .appendingPathComponent(qualityName)
-                .appendingPathComponent(segmentName)
-            
-            // Check if segment exists
-            guard FileManager.default.fileExists(atPath: segmentPath.path) else {
+            // Get segment data
+            do {
+                let segmentData = try await self.segmentManager.getSegmentData(fileName: segmentName, quality: quality)
+                
+                // Create response
+                let response = Response(status: .ok)
+                response.headers.contentType = HTTPMediaType(type: "video", subType: "MP2T")
+                response.body = Response.Body(data: segmentData)
+                
+                return response
+            } catch {
                 throw Abort(.notFound, reason: "Segment not found: \(segmentName)")
             }
-            
-            // Read segment data
-            guard let segmentData = try? Data(contentsOf: segmentPath) else {
-                throw Abort(.internalServerError, reason: "Failed to read segment data")
-            }
-            
-            // Create response
-            var response = Response(status: .ok)
-            response.headers.contentType = HTTPMediaType(type: "video", subType: "MP2T")
-            response.body = Response.Body(data: segmentData)
-            
-            return response
         }
     }
 } 
