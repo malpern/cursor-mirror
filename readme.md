@@ -39,21 +39,22 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ## Recent Improvements
 
-- Added Swift 6 compatibility
-- Fixed duplicate module declarations
-- Integrated HTTP server with authentication
-- Implemented request logging middleware
-- Added admin dashboard controller
-- Added HLS streaming support with segmented video delivery
-- Implemented adaptive bitrate streaming with multiple quality options
-- Added integration between video encoder and HLS segment generator
-- Completed full end-to-end screen capture and streaming pipeline
+- Added Swift 6 compatibility with proper `Sendable` conformance across the codebase
+- Improved actor isolation safety for thread-sensitive components
+- Enhanced authentication system with better error handling and route protection
+- Fixed unnecessary imports and module references in HTTP components
+- Cleaned up unused code in HLS segment management
+- Improved error handling in video segment generation and management
+- Implemented better shutdown protocols for asynchronous operations
+- Streamlined module structure to avoid circular dependencies
+- Integrated HTTP server with authentication and improved middleware
+- Added HLS streaming support with adaptive bitrate and multiple quality options
 
 ## Requirements
 
 - macOS 14.0 or later
 - Xcode 15.0 or later
-- Swift 5.9 or later
+- Swift 6.0.3 or later
 
 ## Quick Start
 
@@ -153,14 +154,14 @@ The final phase will integrate the HTTP server with the main application UI:
 ## Known Issues and Limitations
 
 1. UI Tests temporarily disabled due to Swift 6 compatibility issues with XCUITest
-2. HTTP server implementation not yet integrated with video processing pipeline
-3. HLS stream generation not yet implemented
-4. iOS client app not yet available
+2. Some test suites dependent on XCTVapor module require fixes
+3. Performance optimizations needed for low-latency streaming
 
 ## Coming Soon
-1. Local network streaming via HLS
+1. Performance optimizations for HLS segment delivery
 2. iOS client app for viewing the stream
 3. Fixed UI tests with full Swift 6 compatibility
+4. Integration of real-time metrics dashboard
 
 ## Contributing
 
@@ -357,7 +358,7 @@ class HTTPServerManagerTests: XCTestCase {
   - [x] Integration tests for the encoding pipeline
   - [x] Performance testing with various frame rates
 
-### 4. HTTP Server (🚧 In Progress)
+### 4. HTTP Server (✅ Complete)
 - [x] 4.1. Setup HTTP server foundation
   - [x] Implement HTTPServerManager
   - [x] Create ServerConfig with customizable options
@@ -366,24 +367,40 @@ class HTTPServerManagerTests: XCTestCase {
   - [x] Create AuthenticationManager
   - [x] Implement session management
   - [x] Add authentication middleware
+  - [x] Implement protected routes functionality
 - [x] 4.3. Add request logging
   - [x] Implement RequestLog model
   - [x] Create LoggingMiddleware
   - [x] Add admin dashboard for logs viewing
-- [ ] 4.4. Implement HLS streaming
-  - [ ] Create HLS segment generator
-  - [ ] Add M3U8 playlist generation
-  - [ ] Implement stream endpoint
+- [x] 4.4. Implement HLS streaming
+  - [x] Create HLS segment generator
+  - [x] Add M3U8 playlist generation
+  - [x] Implement stream endpoint
 
-### 5. HLS Implementation (📅 Planned)
-- [ ] 5.1. Implement video segmentation
-- [ ] 5.2. Generate M3U8 playlists
-- [ ] 5.3. Test segment generation
+### 5. HLS Implementation (✅ Complete)
+- [x] 5.1. Implement video segmentation
+  - [x] Create HLSSegmentManager for MPEG-TS segment creation
+  - [x] Add segment rotation and cleanup
+  - [x] Implement multiple quality support
+- [x] 5.2. Generate M3U8 playlists
+  - [x] Create HLSPlaylistGenerator for master and variant playlists
+  - [x] Implement playlist updating with new segments
+  - [x] Add support for different playlist types (VOD/Live)
+- [x] 5.3. Test segment generation
+  - [x] Verify segment duration and content
+  - [x] Test segment delivery and rotation
+  - [x] Validate playlist generation
 
 ### 6. Integration & Testing (🚧 In Progress)
 - [x] 6.1. Core functionality testing
-- [ ] 6.2. Performance optimization
-- [x] 6.3. Swift 6 compatibility improvements
+- [x] 6.2. Swift 6 compatibility improvements
+  - [x] Add proper actor isolation and Sendable conformance
+  - [x] Fix unsafe async code patterns
+  - [x] Update thread-safety mechanisms
+- [ ] 6.3. Performance optimization
+  - [ ] Optimize segment generation for lower latency
+  - [ ] Improve memory management during encoding
+  - [ ] Enhance error recovery mechanisms
 - [ ] 6.4. Fix UI tests
 - [ ] 6.5. iOS client testing
 
