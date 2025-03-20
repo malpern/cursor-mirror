@@ -1,8 +1,8 @@
 import XCTest
-// import XCTVapor - Temporarily commented out due to missing module
+import XCTVapor
 @testable import CursorWindowCore
 
-/* Temporarily disabled due to XCTVapor dependency issues
+@MainActor
 final class HTTPServerManagerTests: XCTestCase {
     private var vaporHelper: VaporTestHelper!
     
@@ -21,7 +21,7 @@ final class HTTPServerManagerTests: XCTestCase {
 
     func testBasicServerConfiguration() async throws {
         // Set up basic routes
-        vaporHelper.app.get("test") { req -> String in
+        await vaporHelper.app.get("test") { req -> String in
             return "Hello, world!"
         }
         
@@ -34,8 +34,9 @@ final class HTTPServerManagerTests: XCTestCase {
         XCTAssertEqual(try response.content.decode(String.self), "Hello, world!")
         
         // Verify default settings
-        XCTAssertEqual(vaporHelper.app.http.server.configuration.hostname, "127.0.0.1")
-        XCTAssertEqual(vaporHelper.app.http.server.configuration.port, 8080)
+        let app = vaporHelper.app
+        XCTAssertEqual(app.http.server.configuration.hostname, "127.0.0.1")
+        XCTAssertEqual(app.http.server.configuration.port, 8080)
     }
     
     func testCustomPortConfiguration() async throws {
@@ -47,7 +48,7 @@ final class HTTPServerManagerTests: XCTestCase {
         )
         
         // Set up a test route
-        customHelper.app.get("test") { req -> String in
+        await customHelper.app.get("test") { req -> String in
             return "Custom port test"
         }
         
@@ -60,11 +61,11 @@ final class HTTPServerManagerTests: XCTestCase {
         XCTAssertEqual(try response.content.decode(String.self), "Custom port test")
         
         // Verify custom settings
-        XCTAssertEqual(customHelper.app.http.server.configuration.hostname, "127.0.0.1")
-        XCTAssertEqual(customHelper.app.http.server.configuration.port, 9000)
+        let app = customHelper.app
+        XCTAssertEqual(app.http.server.configuration.hostname, "127.0.0.1")
+        XCTAssertEqual(app.http.server.configuration.port, 9000)
         
         // Explicitly shutdown
         try await customHelper.shutdown()
     }
-}
-*/ 
+} 
