@@ -20,7 +20,7 @@ public struct H264EncoderSettings {
     public let maxFrameDelay: Int
     
     /// Profile level
-    public let profileLevel: String
+    public let profileLevel: CFString
     
     /// Initialize with default settings for given resolution
     /// - Parameter resolution: Target resolution
@@ -42,7 +42,7 @@ public struct H264EncoderSettings {
         bitrate: 1_000_000,
         keyframeInterval: 30,
         maxFrameDelay: 3,
-        profileLevel: "H264_Main_AutoLevel"
+        profileLevel: kVTProfileLevel_H264_Main_AutoLevel
     )
     
     /// High definition preset (720p)
@@ -52,7 +52,7 @@ public struct H264EncoderSettings {
         bitrate: 2_500_000,
         keyframeInterval: 30,
         maxFrameDelay: 3,
-        profileLevel: "H264_Main_AutoLevel"
+        profileLevel: kVTProfileLevel_H264_Main_AutoLevel
     )
     
     /// Ultra high definition preset (1080p)
@@ -62,6 +62,6 @@ public struct H264EncoderSettings {
         bitrate: 5_000_000,
         keyframeInterval: 30,
         maxFrameDelay: 3,
-        profileLevel: "H264_Main_AutoLevel"
+        profileLevel: kVTProfileLevel_H264_Main_AutoLevel
     )
 } 

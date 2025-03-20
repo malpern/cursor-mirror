@@ -9,7 +9,7 @@ import class CursorWindowCore.H264VideoEncoder
 import CursorWindowCore
 
 /// HTTP server manager for handling web requests
-public actor HTTPServerManager {
+public class HTTPServerManager {
     // MARK: - Properties
     
     /// Server configuration
@@ -27,8 +27,8 @@ public actor HTTPServerManager {
     /// Authentication manager
     public let authManager: AuthenticationManager
     
-    /// Admin controller for web interface
-    private var adminController: AdminController?
+    /// Admin controller for server dashboard
+    private var adminController: AdminController!
     
     /// Whether the server is currently running
     public private(set) var isRunning: Bool = false
@@ -94,12 +94,19 @@ public actor HTTPServerManager {
         )
         self.streamController = streamController
         
+        // Create the adapter for encoding
+        self.encodingAdapter = CursorWindowCore.HLSEncodingAdapter(
+            videoEncoder: H264VideoEncoder(),
+            segmentManager: segmentManager,
+            streamManager: streamManager
+        )
+        
+        // Complete initialization before creating AdminController
         // Now that required properties are initialized, we can create the admin controller
-        self.adminController = AdminController(
+        adminController = AdminController(
             serverManager: self,
             streamManager: streamManager,
-            authManager: authManager,
-            logger: logger
+            authManager: authManager
         )
     }
     
@@ -160,9 +167,9 @@ public actor HTTPServerManager {
         } catch {
             // Clean up application
             if let app = app {
-                // Use Task to handle shutdown separately since it's not async
-                Task.detached { 
-                    app.shutdown() 
+                // Use DispatchQueue instead of Task to handle shutdown
+                DispatchQueue.global(qos: .background).async {
+                    app.shutdown()
                 }
                 self.app = nil
             }
@@ -182,8 +189,8 @@ public actor HTTPServerManager {
         
         logger.info("Stopping HTTP server")
         
-        // Shutdown the application in a detached task
-        Task.detached {
+        // Shutdown the application on a background thread
+        DispatchQueue.global(qos: .background).async {
             app.shutdown()
         }
         
@@ -280,15 +287,6 @@ public actor HTTPServerManager {
     /// Configure the admin interface
     /// - Parameter app: The Vapor application
     private func configureAdmin(_ app: Application) {
-        // Create admin controller
-        let adminController = AdminController(
-            serverManager: self,
-            streamManager: streamManager,
-            authManager: authManager,
-            logger: logger
-        )
-        self.adminController = adminController
-        
         // Setup admin routes
         Task {
             await adminController.setupRoutes(app)

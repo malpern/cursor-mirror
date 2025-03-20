@@ -82,8 +82,8 @@ public actor HLSEncodingAdapter {
         self.formatDescription = formatDescription
         
         // Start a new segment
-        let segmentInfo = try await segmentManager.startNewSegment(quality: streamQuality, formatDescription: formatDescription)
-        logger.info("Started new segment with index: \(segmentInfo)")
+        _ = try await segmentManager.startNewSegment(quality: streamQuality, formatDescription: formatDescription)
+        logger.info("Started new segment")
         
         // Start encoder with callback
         try await videoEncoder.startEncoding(settings: encoderSettings) { [weak self] encodedData, presentationTimeStamp, isKeyFrame in
@@ -207,8 +207,8 @@ public actor HLSEncodingAdapter {
         
         // Attach key frame attachment if needed
         if isKeyFrame {
-            let keyFrameDict = [kCMSampleAttachmentKey_NotSync: false] as CFDictionary
-            CMSetAttachment(sampleBuffer, key: kCMSampleAttachmentKey_NotSync as CFString, value: keyFrameDict, attachmentMode: kCMAttachmentMode_ShouldPropagate)
+            let keyFrameDict = [kCMSampleAttachmentKey_NotSync: false] as [CFString: Any]
+            CMSetAttachment(sampleBuffer, key: kCMSampleAttachmentKey_NotSync, value: keyFrameDict as CFTypeRef, attachmentMode: kCMAttachmentMode_ShouldPropagate)
         }
         
         // Append to segment manager

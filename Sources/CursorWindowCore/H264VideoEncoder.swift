@@ -274,23 +274,20 @@ extension H264VideoEncoder: EncodingFrameProcessorProtocol {
         videoWriterInput = nil
     }
     
-    /// Start encoding with callback for encoded data
+    /// Start encoding with specific settings and a callback for encoded data
     /// - Parameters:
     ///   - settings: The encoder settings to use
-    ///   - callback: Callback that receives encoded data
-    /// - Throws: An error if encoding initialization fails
-    public func startEncoding(
-        settings: H264EncoderSettings,
-        callback: @escaping (_ data: Data, _ pts: CMTime, _ isKeyFrame: Bool) -> Void
-    ) throws {
-        // Create a temporary URL for the encoder setup
-        let tempDir = FileManager.default.temporaryDirectory
-        let tempURL = tempDir.appendingPathComponent("temp_\(UUID().uuidString).mp4")
-        
-        try nonisolated_startEncoding(to: tempURL, width: Int(settings.resolution.width), height: Int(settings.resolution.height))
-        
-        // Store the callback
+    ///   - callback: Callback to receive encoded frame data
+    public func startEncoding(settings: H264EncoderSettings, callback: @escaping (_ data: Data, _ pts: CMTime, _ isKeyFrame: Bool) -> Void) async throws {
+        // Set the callback
         self.encodedDataCallback = callback
+        
+        // Initialize encoding with settings
+        try startEncodingInternal(
+            to: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("temp_video.mp4"),
+            width: Int(settings.resolution.width),
+            height: Int(settings.resolution.height)
+        )
     }
     
     /// Nonisolated version of startEncoding
