@@ -71,7 +71,7 @@ public actor HLSSegmentManager {
     public func startNewSegment(quality: StreamQuality, formatDescription: CMFormatDescription) throws -> Int {
         // End any existing segment
         if segmentWriters[quality] != nil {
-            try endSegment(quality: quality)
+            _ = try endSegment(quality: quality)
         }
         
         // Create a new segment writer
@@ -121,7 +121,7 @@ public actor HLSSegmentManager {
         
         // Check if we've reached the target duration
         if duration >= targetSegmentDuration {
-            try endSegment(quality: quality)
+            _ = try endSegment(quality: quality)
             return true
         }
         
@@ -139,7 +139,7 @@ public actor HLSSegmentManager {
         // Get segment number and duration
         let segmentNumber = currentSegmentNumbers[quality, default: 1] - 1
         let fileName = "segment\(segmentNumber).ts"
-        let startTime = segmentStartTimes[quality, default: CMTime.zero]
+        let _ = segmentStartTimes[quality, default: CMTime.zero]
         let duration = writer.duration
         
         // Close the writer
@@ -200,7 +200,7 @@ public actor HLSSegmentManager {
     public func cleanUp() {
         // End all active segments
         for quality in segmentWriters.keys {
-            try? endSegment(quality: quality)
+            _ = try? endSegment(quality: quality)
         }
         
         // Clear segments
@@ -241,7 +241,7 @@ private class HLSSegmentWriter {
         self.writer = writer
         
         // Configure video settings
-        let videoSettings: [String: Any] = [
+        let _ = [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: CMFormatDescriptionGetExtension(
                 formatDescription,

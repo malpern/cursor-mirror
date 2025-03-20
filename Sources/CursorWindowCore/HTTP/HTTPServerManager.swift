@@ -3,10 +3,10 @@ import Vapor
 import Logging
 import NIO
 
-// Import our HLS-related types
-import struct CursorWindowCore.H264EncoderSettings
-import class CursorWindowCore.H264VideoEncoder
-import CursorWindowCore
+// No need to explicitly import types from our own module
+// import struct CursorWindowCore.H264EncoderSettings
+// import class CursorWindowCore.H264VideoEncoder
+// import CursorWindowCore
 
 /// HTTP server manager for handling web requests
 public class HTTPServerManager {
@@ -22,7 +22,7 @@ public class HTTPServerManager {
     private var app: Application?
     
     /// HLS Stream manager
-    public private(set) var streamManager: CursorWindowCore.HLSStreamManager
+    public private(set) var streamManager: HLSStreamManager
     
     /// Authentication manager
     public let authManager: AuthenticationManager
@@ -37,16 +37,16 @@ public class HTTPServerManager {
     private var startTime: Date?
     
     /// HLS playlist generator
-    private let playlistGenerator: CursorWindowCore.HLSPlaylistGenerator
+    private let playlistGenerator: HLSPlaylistGenerator
     
     /// HLS segment manager
-    private let segmentManager: CursorWindowCore.HLSSegmentManager
+    private let segmentManager: HLSSegmentManager
     
     /// HLS stream controller
-    private let streamController: CursorWindowCore.HLSStreamController
+    private let streamController: HLSStreamController
     
     /// HLS encoding adapter
-    private var encodingAdapter: CursorWindowCore.HLSEncodingAdapter?
+    private var encodingAdapter: HLSEncodingAdapter?
     
     // MARK: - Lifecycle
     
@@ -59,7 +59,7 @@ public class HTTPServerManager {
     public init(
         config: ServerConfig,
         logger: Logger,
-        streamManager: CursorWindowCore.HLSStreamManager,
+        streamManager: HLSStreamManager,
         authManager: AuthenticationManager
     ) {
         self.config = config
@@ -71,7 +71,7 @@ public class HTTPServerManager {
         let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         let segmentsDirectory = documentsDirectory.appendingPathComponent("HLSSegments")
         
-        let segmentManager = CursorWindowCore.HLSSegmentManager(
+        let segmentManager = HLSSegmentManager(
             segmentDirectory: segmentsDirectory,
             targetSegmentDuration: 4.0,
             maxSegmentCount: 5
@@ -79,7 +79,7 @@ public class HTTPServerManager {
         self.segmentManager = segmentManager
         
         let baseURL = "http://\(config.hostname):\(config.port)"
-        let playlistGenerator = CursorWindowCore.HLSPlaylistGenerator(
+        let playlistGenerator = HLSPlaylistGenerator(
             baseURL: baseURL,
             qualities: [.hd, .sd],
             playlistLength: 5,
@@ -87,7 +87,7 @@ public class HTTPServerManager {
         )
         self.playlistGenerator = playlistGenerator
         
-        let streamController = CursorWindowCore.HLSStreamController(
+        let streamController = HLSStreamController(
             playlistGenerator: playlistGenerator,
             segmentManager: segmentManager,
             streamManager: streamManager
@@ -95,7 +95,7 @@ public class HTTPServerManager {
         self.streamController = streamController
         
         // Create the adapter for encoding
-        self.encodingAdapter = CursorWindowCore.HLSEncodingAdapter(
+        self.encodingAdapter = HLSEncodingAdapter(
             videoEncoder: H264VideoEncoder(),
             segmentManager: segmentManager,
             streamManager: streamManager
@@ -297,7 +297,7 @@ public class HTTPServerManager {
     /// - Parameter videoEncoder: H264 video encoder
     /// - Throws: Error if connection fails
     public func connectVideoEncoder(_ videoEncoder: H264VideoEncoder) throws {
-        encodingAdapter = CursorWindowCore.HLSEncodingAdapter(
+        encodingAdapter = HLSEncodingAdapter(
             videoEncoder: videoEncoder,
             segmentManager: segmentManager,
             streamManager: streamManager
