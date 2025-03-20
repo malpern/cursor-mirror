@@ -2,197 +2,191 @@ import Foundation
 import Vapor
 import Logging
 
-/// Configuration for request logging middleware
-public struct RequestLoggingConfiguration {
-    /// Whether to log HTTP requests
-    public var logRequests: Bool
-    
-    /// Log level for requests
-    public var level: Logger.Level
-    
-    /// Paths to exclude from logging (wildcard patterns supported)
-    public var excludedPaths: [String]
-    
+/// Configuration for request logging
+public struct RequestLoggingConfig {
     /// Whether to log request bodies
-    public var logRequestBody: Bool
+    public let logRequestBodies: Bool
     
     /// Whether to log response bodies
-    public var logResponseBody: Bool
+    public let logResponseBodies: Bool
     
-    /// Whether to log performance metrics
-    public var logPerformance: Bool
+    /// Maximum size of body to log (in bytes)
+    public let maxBodyLogSize: Int
     
-    /// Initialize request logging configuration
+    /// Whether to log headers
+    public let logHeaders: Bool
+    
+    /// Initialize with configuration
+    /// - Parameters:
+    ///   - logRequestBodies: Whether to log request bodies
+    ///   - logResponseBodies: Whether to log response bodies
+    ///   - maxBodyLogSize: Maximum size of body to log (in bytes)
+    ///   - logHeaders: Whether to log headers
     public init(
-        logRequests: Bool = true,
-        level: Logger.Level = .info,
-        excludedPaths: [String] = ["/health", "/metrics", "*.ico", "*.png", "*.jpg", "*.css", "*.js"],
-        logRequestBody: Bool = false,
-        logResponseBody: Bool = false,
-        logPerformance: Bool = true
+        logRequestBodies: Bool = true,
+        logResponseBodies: Bool = true,
+        maxBodyLogSize: Int = 1024,
+        logHeaders: Bool = false
     ) {
-        self.logRequests = logRequests
-        self.level = level
-        self.excludedPaths = excludedPaths
-        self.logRequestBody = logRequestBody
-        self.logResponseBody = logResponseBody
-        self.logPerformance = logPerformance
-    }
-    
-    /// Predefined basic configuration
-    public static let basic = RequestLoggingConfiguration()
-    
-    /// Predefined verbose configuration
-    public static let verbose = RequestLoggingConfiguration(
-        logRequests: true,
-        level: .debug,
-        excludedPaths: ["/health", "/metrics"],
-        logRequestBody: true,
-        logResponseBody: true,
-        logPerformance: true
-    )
-    
-    /// Predefined disabled configuration
-    public static let disabled = RequestLoggingConfiguration(
-        logRequests: false
-    )
-    
-    /// Check if a path should be excluded from logging
-    func shouldExcludePath(_ path: String) -> Bool {
-        guard logRequests else { return true }
-        
-        return excludedPaths.contains { pattern in
-            if pattern.contains("*") {
-                return path.matches(wildcard: pattern)
-            } else {
-                return path.starts(with: pattern)
-            }
-        }
+        self.logRequestBodies = logRequestBodies
+        self.logResponseBodies = logResponseBodies
+        self.maxBodyLogSize = maxBodyLogSize
+        self.logHeaders = logHeaders
     }
 }
 
-/// Middleware for logging HTTP requests
-final class RequestLoggingMiddleware: Middleware {
-    private let config: RequestLoggingConfiguration
-    private let logger: Logger
-    private weak var httpServerManager: HTTPServerManager?
+/// Middleware for logging requests and responses
+public struct RequestLoggingMiddleware: AsyncMiddleware {
+    /// Logging configuration
+    private let config: RequestLoggingConfig
     
-    init(config: RequestLoggingConfiguration, logger: Logger, httpServerManager: HTTPServerManager? = nil) {
+    /// Logger
+    private let logger: Logger
+    
+    /// Server manager (for recording requests)
+    private weak var serverManager: HTTPServerManager?
+    
+    /// Initialize with config
+    /// - Parameters:
+    ///   - config: Logging configuration
+    ///   - logger: Logger
+    ///   - serverManager: HTTP server manager
+    public init(
+        config: RequestLoggingConfig = RequestLoggingConfig(),
+        logger: Logger = Logger(label: "RequestLogger"),
+        serverManager: HTTPServerManager? = nil
+    ) {
         self.config = config
         self.logger = logger
-        self.httpServerManager = httpServerManager
+        self.serverManager = serverManager
     }
     
-    func respond(to request: Request, chainingTo next: Responder) -> EventLoopFuture<Response> {
-        // Check if this path should be excluded from logging
-        if config.shouldExcludePath(request.url.path) {
-            return next.respond(to: request)
-        }
-        
+    /// Handle the request and log it
+    /// - Parameters:
+    ///   - request: The request
+    ///   - next: The next responder
+    /// - Returns: The response
+    public func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
+        // Record the start time
         let startTime = Date()
         
-        // Record request body if configured to do so
-        var requestBody: String?
-        if config.logRequestBody, let bodyData = request.body.data {
-            requestBody = String(data: bodyData, encoding: .utf8) ?? "Unable to decode request body"
+        // Capture the request body if configured
+        let requestBody = config.logRequestBodies ? await captureRequestBody(request) : nil
+        
+        // Process the request
+        let response: Response
+        do {
+            response = try await next.respond(to: request)
+        } catch {
+            // Log any errors
+            let duration = Date().timeIntervalSince(startTime)
+            logger.error("Error processing request: \(error.localizedDescription)")
+            
+            // Record the request with error
+            let statusCode = (error as? AbortError)?.status.code ?? 500
+            await logRequest(
+                request: request,
+                statusCode: Int(statusCode),
+                duration: duration,
+                requestBody: requestBody,
+                responseBody: nil
+            )
+            
+            throw error
         }
         
-        return next.respond(to: request).map { response in
-            // Calculate duration
-            let duration = Date().timeIntervalSince(startTime)
-            
-            // Record response body if configured to do so
-            var responseBody: String?
-            if self.config.logResponseBody, let bodyData = response.body.data {
-                responseBody = String(data: bodyData, encoding: .utf8) ?? "Unable to decode response body"
-            }
-            
-            // Log the request
-            let logLevel = self.determineLogLevel(statusCode: response.status.code)
-            let logMessage = "\(request.method.string) \(request.url.path) -> \(response.status.code)"
-            
-            var metadata: Logger.Metadata = [
-                "method": .string(request.method.string),
-                "path": .string(request.url.path),
-                "status": .string(String(response.status.code)),
-                "duration_ms": .string(String(format: "%.2f", duration * 1000))
-            ]
-            
-            if let clientIp = request.headers.first(name: "X-Forwarded-For") ?? request.remoteAddress?.ipAddress {
-                metadata["client_ip"] = .string(clientIp)
-            }
-            
-            if let requestBody = requestBody {
-                metadata["request_body"] = .string(requestBody)
-            }
-            
-            if let responseBody = responseBody {
-                metadata["response_body"] = .string(responseBody)
-            }
-            
-            if self.config.logPerformance {
-                metadata["performance"] = .dictionary([
-                    "duration_ms": .string(String(format: "%.2f", duration * 1000)),
-                    "timestamp": .string(ISO8601DateFormatter().string(from: startTime))
-                ])
-            }
-            
-            self.logger.log(level: logLevel, "\(logMessage)", metadata: metadata)
-            
-            // Record request for admin dashboard if available
-            let clientIp = request.headers.first(name: "X-Forwarded-For") ?? request.remoteAddress?.ipAddress ?? "unknown"
-            
-            Task {
-                await self.httpServerManager?.recordRequest(
-                    method: request.method.string,
-                    path: request.url.path,
-                    statusCode: response.status.code,
-                    ipAddress: clientIp,
-                    duration: duration,
-                    details: requestBody
-                )
-            }
-            
-            return response
-        }
+        // Calculate request duration
+        let duration = Date().timeIntervalSince(startTime)
+        
+        // Capture the response body if configured
+        let responseBody = config.logResponseBodies ? captureResponseBody(response) : nil
+        
+        // Log the request
+        await logRequest(
+            request: request,
+            statusCode: Int(response.status.code),
+            duration: duration,
+            requestBody: requestBody,
+            responseBody: responseBody
+        )
+        
+        return response
     }
     
-    /// Determine log level based on status code
-    private func determineLogLevel(statusCode: Int) -> Logger.Level {
-        if statusCode >= 500 {
-            return .error
-        } else if statusCode >= 400 {
-            return .warning
-        } else {
-            return config.level
+    /// Capture the request body if it's text or JSON
+    /// - Parameter request: The request
+    /// - Returns: The request body as string
+    private func captureRequestBody(_ request: Request) async -> String? {
+        guard let contentType = request.headers.contentType,
+              contentType.type == "application" || contentType.type == "text",
+              contentType.subType.contains("json") || contentType.subType.contains("text") else {
+            return nil
         }
+        
+        // Attempt to read the body
+        let body: ByteBuffer
+        do {
+            body = try await request.body.collect(max: config.maxBodyLogSize).get()!
+        } catch {
+            return "Error reading body: \(error.localizedDescription)"
+        }
+        
+        // Convert to string
+        return String(buffer: body)
     }
-}
-
-private extension String {
-    /// Check if string matches a wildcard pattern
-    func matches(wildcard pattern: String) -> Bool {
-        let patternComponents = pattern.split(separator: "*")
-        var remaining = self
-        
-        for (index, component) in patternComponents.enumerated() {
-            let componentStr = String(component)
-            
-            if index == 0 {
-                if !remaining.hasPrefix(componentStr) {
-                    return false
-                }
-                remaining = String(remaining.dropFirst(componentStr.count))
-            } else if index == patternComponents.count - 1 {
-                return remaining.hasSuffix(componentStr)
-            } else {
-                guard let range = remaining.range(of: componentStr) else {
-                    return false
-                }
-                remaining = String(remaining[range.upperBound...])
-            }
+    
+    /// Capture the response body if it's text or JSON
+    /// - Parameter response: The response
+    /// - Returns: The response body as string
+    private func captureResponseBody(_ response: Response) -> String? {
+        guard let contentType = response.headers.contentType,
+              contentType.type == "application" || contentType.type == "text",
+              contentType.subType.contains("json") || contentType.subType.contains("text") else {
+            return nil
         }
         
-        return true
+        // Get the body data
+        // The body is not optional in Vapor 4, so we need to check if there's actual data
+        if let buffer = response.body.buffer {
+            // Convert to string, limiting size
+            let data = buffer.readableBytesView.prefix(config.maxBodyLogSize)
+            return String(data: Data(data), encoding: .utf8)
+        }
+        
+        return nil
+    }
+    
+    /// Log a request
+    /// - Parameters:
+    ///   - request: The request
+    ///   - statusCode: The HTTP status code
+    ///   - duration: Request duration
+    ///   - requestBody: Request body
+    ///   - responseBody: Response body
+    private func logRequest(
+        request: Request,
+        statusCode: Int,
+        duration: TimeInterval,
+        requestBody: String?,
+        responseBody: String?
+    ) async {
+        // Log to the server manager if available
+        if let serverManager = serverManager {
+            let log = RequestLog(
+                method: request.method.rawValue,
+                path: request.url.path,
+                status: statusCode,
+                timestamp: Date(),
+                duration: duration,
+                ipAddress: request.remoteAddress?.ipAddress ?? "unknown",
+                requestBody: requestBody,
+                responseBody: responseBody
+            )
+            
+            await serverManager.recordRequest(log)
+        }
+        
+        // Also log to the console
+        logger.info("\(request.method.rawValue) \(request.url.path) - Status: \(statusCode) - Duration: \(String(format: "%.3f", duration))s")
     }
 } 

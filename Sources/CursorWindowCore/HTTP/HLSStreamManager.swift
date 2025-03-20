@@ -1,105 +1,82 @@
 import Foundation
+import Vapor
 
-/// Manages HLS stream access and connection state
+/// Represents an active stream connection
+public struct StreamConnection: Sendable, Identifiable {
+    /// Unique identifier for the connection
+    public let id: UUID
+    
+    /// When the connection was established
+    public let connectedAt: Date
+    
+    /// Client IP address
+    public let clientIP: String
+    
+    /// Connection token
+    public let token: UUID
+}
+
+/// Manages HLS stream access and state
 public actor HLSStreamManager {
-    /// Error types for HLS stream operations
-    public enum HLSStreamError: Error {
+    /// Stream access error
+    public enum StreamError: Error {
+        /// Stream is already in use
         case streamInUse
-        case noActiveStream
+        
+        /// Invalid stream key
         case invalidStreamKey
-    }
-    
-    /// Represents a connected client
-    private struct StreamConnection {
-        let id: UUID
-        let connectedAt: Date
-        let lastAccessedAt: Date
         
-        init(id: UUID = UUID()) {
-            self.id = id
-            self.connectedAt = Date()
-            self.lastAccessedAt = Date()
-        }
+        /// Stream not available
+        case streamNotAvailable
     }
     
-    /// The currently active connection, if any
-    private var activeConnection: StreamConnection?
+    /// Current active stream keys
+    private var activeStreamKeys: Set<UUID> = []
     
-    /// Timeout duration for inactive connections (5 minutes)
-    private let connectionTimeout: TimeInterval = 300
-    
-    /// Task for checking connection timeouts
-    private var timeoutTask: Task<Void, Never>?
-    
-    public init() {
-        Task {
-            await startTimeoutChecker()
-        }
+    /// Whether anyone is currently streaming
+    public var isStreaming: Bool {
+        !activeStreamKeys.isEmpty
     }
     
-    deinit {
-        timeoutTask?.cancel()
+    /// Number of active connections
+    public var activeConnectionCount: Int {
+        activeStreamKeys.count
     }
     
-    /// Requests access to the stream
-    /// - Returns: A stream key that must be included in subsequent requests
+    /// Initialize an empty stream manager
+    public init() {}
+    
+    /// Request access to the stream
+    /// - Returns: A stream key UUID if access is granted
+    /// - Throws: StreamError.streamInUse if the stream is already in use
     public func requestAccess() async throws -> UUID {
-        // Check if there's an active connection and it hasn't timed out
-        if let connection = activeConnection {
-            let timeSinceLastAccess = Date().timeIntervalSince(connection.lastAccessedAt)
-            if timeSinceLastAccess < connectionTimeout {
-                throw HLSStreamError.streamInUse
-            }
+        // For now, we only allow a single active stream
+        guard activeStreamKeys.isEmpty else {
+            throw StreamError.streamInUse
         }
         
-        // Create new connection
-        let connection = StreamConnection()
-        activeConnection = connection
-        return connection.id
-    }
-    
-    /// Validates a stream key and updates the last accessed time
-    /// - Parameter streamKey: The stream key to validate
-    /// - Returns: true if the key is valid
-    public func validateAccess(_ streamKey: UUID) async -> Bool {
-        guard let connection = activeConnection,
-              connection.id == streamKey else {
-            return false
-        }
+        // Generate a new stream key
+        let streamKey = UUID()
+        activeStreamKeys.insert(streamKey)
         
-        // Update last accessed time
-        activeConnection = StreamConnection(id: connection.id)
-        return true
+        return streamKey
     }
     
-    /// Releases access to the stream
+    /// Release access to the stream
     /// - Parameter streamKey: The stream key to release
-    public func releaseAccess(_ streamKey: UUID) async {
-        guard let connection = activeConnection,
-              connection.id == streamKey else {
-            return
-        }
-        
-        activeConnection = nil
+    public func releaseAccess(_ streamKey: UUID) {
+        activeStreamKeys.remove(streamKey)
     }
     
-    /// Starts the timeout checker
-    private func startTimeoutChecker() async {
-        timeoutTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 60 * 1_000_000_000) // 60 seconds
-                await self?.checkTimeout()
-            }
-        }
+    /// Validate that a stream key exists and is valid
+    /// - Parameter streamKey: The stream key to validate
+    /// - Returns: True if the stream key is valid
+    public func validateAccess(_ streamKey: UUID) -> Bool {
+        activeStreamKeys.contains(streamKey)
     }
     
-    /// Checks for connection timeout
-    internal func checkTimeout() async {
-        guard let connection = activeConnection else { return }
-        
-        let timeSinceLastAccess = Date().timeIntervalSince(connection.lastAccessedAt)
-        if timeSinceLastAccess >= connectionTimeout {
-            activeConnection = nil
-        }
+    /// Invalidate all stream keys
+    public func invalidateAllStreams() {
+        activeStreamKeys.removeAll()
     }
 } 
