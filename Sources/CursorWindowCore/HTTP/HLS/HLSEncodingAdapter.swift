@@ -212,7 +212,8 @@ public actor HLSEncodingAdapter {
         }
         
         // Append to segment manager
-        let startedNewSegment = try await segmentManager.appendSampleBuffer(sampleBuffer, quality: streamQuality)
+        let sendableBuffer = SendableSampleBuffer(sampleBuffer)
+        let startedNewSegment = try await segmentManager.appendSampleBuffer(sendableBuffer, quality: streamQuality)
         
         // If we started a new segment and have a format description, initialize it
         if startedNewSegment {

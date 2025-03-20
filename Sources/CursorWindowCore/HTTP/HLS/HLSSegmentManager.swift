@@ -3,6 +3,20 @@ import AVFoundation
 import CoreMedia
 import os.log
 
+/// Sendable wrapper for CMSampleBuffer to safely pass across actor boundaries
+@available(macOS 14.0, *)
+public struct SendableSampleBuffer: @unchecked Sendable {
+    private let buffer: CMSampleBuffer
+    
+    public init(_ buffer: CMSampleBuffer) {
+        self.buffer = buffer
+    }
+    
+    public var unwrapped: CMSampleBuffer {
+        return buffer
+    }
+}
+
 /// Manages HLS video segments
 public actor HLSSegmentManager {
     /// Target duration for segments in seconds
@@ -97,7 +111,7 @@ public actor HLSSegmentManager {
     ///   - sampleBuffer: Video sample buffer
     ///   - quality: Stream quality
     /// - Returns: True if a new segment was started due to duration
-    public func appendSampleBuffer(_ sampleBuffer: CMSampleBuffer, quality: StreamQuality) throws -> Bool {
+    public func appendSampleBuffer(_ sampleBuffer: SendableSampleBuffer, quality: StreamQuality) throws -> Bool {
         guard let writer = segmentWriters[quality] else {
             throw NSError(domain: "HLSSegmentManager", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "No active segment writer for quality \(quality)"
@@ -105,7 +119,8 @@ public actor HLSSegmentManager {
         }
         
         // Get the presentation timestamp
-        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let buffer = sampleBuffer.unwrapped
+        let pts = CMSampleBufferGetPresentationTimeStamp(buffer)
         
         // If this is the first sample, store the start time
         if segmentStartTimes[quality] == CMTime.zero {
@@ -117,7 +132,7 @@ public actor HLSSegmentManager {
         let duration = CMTimeGetSeconds(CMTimeSubtract(pts, startTime))
         
         // Append the sample buffer
-        try writer.append(sampleBuffer: sampleBuffer)
+        try writer.append(sampleBuffer: buffer)
         
         // Check if we've reached the target duration
         if duration >= targetSegmentDuration {
