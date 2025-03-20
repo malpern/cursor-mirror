@@ -85,7 +85,7 @@ public actor HLSSegmentManager {
     public func startNewSegment(quality: StreamQuality, formatDescription: CMFormatDescription) throws -> Int {
         // End any existing segment
         if segmentWriters[quality] != nil {
-            _ = try endSegment(quality: quality)
+            let _ = try endSegment(quality: quality)
         }
         
         // Create a new segment writer
@@ -154,7 +154,8 @@ public actor HLSSegmentManager {
         // Get segment number and duration
         let segmentNumber = currentSegmentNumbers[quality, default: 1] - 1
         let fileName = "segment\(segmentNumber).ts"
-        let _ = segmentStartTimes[quality, default: CMTime.zero]
+        
+        // Remove unused variable and just access directly
         let duration = writer.duration
         
         // Close the writer
@@ -215,7 +216,12 @@ public actor HLSSegmentManager {
     public func cleanUp() {
         // End all active segments
         for quality in segmentWriters.keys {
-            _ = try? endSegment(quality: quality)
+            do {
+                let _ = try endSegment(quality: quality)
+            } catch {
+                // Log the error but continue cleanup
+                logger.error("Error ending segment during cleanup: \(error.localizedDescription)")
+            }
         }
         
         // Clear segments
@@ -255,14 +261,8 @@ private class HLSSegmentWriter {
         let writer = try AVAssetWriter(outputURL: outputURL, fileType: AVFileType(rawValue: "org.mpegts.mpeg-ts"))
         self.writer = writer
         
-        // Configure video settings
-        let _ = [
-            AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: CMFormatDescriptionGetExtension(
-                formatDescription,
-                extensionKey: kCMFormatDescriptionExtension_FormatName
-            ) as Any
-        ]
+        // Note: Video settings are not needed when using sourceFormatHint
+        // VideoToolbox will use the format description directly
         
         // Create input
         let videoInput = AVAssetWriterInput(
