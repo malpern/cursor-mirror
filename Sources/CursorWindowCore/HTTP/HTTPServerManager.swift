@@ -3,6 +3,11 @@ import Vapor
 import Logging
 import NIO
 
+// Import our HLS-related types
+import struct CursorWindowCore.H264EncoderSettings
+import class CursorWindowCore.H264VideoEncoder
+import CursorWindowCore
+
 /// HTTP server manager for handling web requests
 public actor HTTPServerManager {
     // MARK: - Properties
@@ -17,7 +22,7 @@ public actor HTTPServerManager {
     private var app: Application?
     
     /// HLS Stream manager
-    public let streamManager: HLSStreamManager
+    public private(set) var streamManager: CursorWindowCore.HLSStreamManager
     
     /// Authentication manager
     public let authManager: AuthenticationManager
@@ -31,6 +36,18 @@ public actor HTTPServerManager {
     /// Server start time
     private var startTime: Date?
     
+    /// HLS playlist generator
+    private let playlistGenerator: CursorWindowCore.HLSPlaylistGenerator
+    
+    /// HLS segment manager
+    private let segmentManager: CursorWindowCore.HLSSegmentManager
+    
+    /// HLS stream controller
+    private let streamController: CursorWindowCore.HLSStreamController
+    
+    /// HLS encoding adapter
+    private var encodingAdapter: CursorWindowCore.HLSEncodingAdapter?
+    
     // MARK: - Lifecycle
     
     /// Initialize a new HTTP server manager
@@ -42,13 +59,43 @@ public actor HTTPServerManager {
     public init(
         config: ServerConfig,
         logger: Logger,
-        streamManager: HLSStreamManager,
+        streamManager: CursorWindowCore.HLSStreamManager,
         authManager: AuthenticationManager
     ) {
         self.config = config
         self.logger = logger
         self.streamManager = streamManager
         self.authManager = authManager
+        self.adminController = AdminController(
+            serverManager: self,
+            streamManager: streamManager,
+            authManager: authManager,
+            logger: logger
+        )
+        
+        // Initialize HLS components
+        let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let segmentsDirectory = documentsDirectory.appendingPathComponent("HLSSegments")
+        
+        self.segmentManager = CursorWindowCore.HLSSegmentManager(
+            segmentDirectory: segmentsDirectory,
+            targetSegmentDuration: 4.0,
+            maxSegmentCount: 5
+        )
+        
+        let baseURL = "http://\(config.hostname):\(config.port)"
+        self.playlistGenerator = CursorWindowCore.HLSPlaylistGenerator(
+            baseURL: baseURL,
+            qualities: [.hd, .sd],
+            playlistLength: 5,
+            targetSegmentDuration: 4.0
+        )
+        
+        self.streamController = CursorWindowCore.HLSStreamController(
+            playlistGenerator: playlistGenerator,
+            segmentManager: segmentManager,
+            streamManager: streamManager
+        )
     }
     
     /// Clean up resources when deinitialized
@@ -87,7 +134,7 @@ public actor HTTPServerManager {
             }
             
             // Configure routes
-            configureRoutes(app)
+            await configureRoutes(app)
             
             // Configure admin dashboard if enabled
             if config.enableAdmin {
@@ -206,55 +253,23 @@ public actor HTTPServerManager {
     }
     
     /// Configure application routes
-    /// - Parameter app: The Vapor application
-    private func configureRoutes(_ app: Application) {
-        // Health check route
-        app.get("health") { _ -> String in
-            "OK"
+    /// - Parameter application: Vapor application
+    func configureRoutes(_ application: Application) async {
+        // Configure admin routes
+        await adminController?.setupRoutes(application)
+        
+        // Configure HLS stream routes
+        await streamController.setupRoutes(application)
+        
+        // Add health check
+        application.get("health") { _ -> String in
+            return "OK"
         }
         
-        // Status route with better actor isolation
-        app.get("status") { [weak self] req -> Response in
-            guard let self = self else {
-                return Response(status: .internalServerError)
-            }
-            
-            // Capture necessary data from actor in a non-Sendable context
-            let isRunning = self.isRunning
-            
-            // Get status information in a task
-            let streamActive = Task { 
-                return await self.streamManager.isStreaming 
-            }
-            
-            let authEnabled = self.config.authentication.enabled
-            let hostname = self.config.hostname
-            let port = self.config.port
-            
-            // Get time info safely
-            let (startTimeValue, uptimeValue): (TimeInterval, TimeInterval) = {
-                guard let startTime = self.startTime else {
-                    return (0, 0)
-                }
-                return (startTime.timeIntervalSince1970, Date().timeIntervalSince(startTime))
-            }()
-            
-            // Create status response
-            let status = ServerStatus(
-                serverRunning: isRunning,
-                streamActive: await streamActive.value,
-                authEnabled: authEnabled,
-                hostname: hostname,
-                port: port,
-                startTime: startTimeValue,
-                uptime: uptimeValue
-            )
-            
-            return try! JSONEncoder().encode(status).encodeResponse(for: req)
+        // Add version endpoint
+        application.get("version") { _ -> String in
+            return "1.0.0"
         }
-        
-        // Stream routes
-        configureStreamRoutes(app)
     }
     
     /// Configure the admin interface
@@ -275,58 +290,36 @@ public actor HTTPServerManager {
         }
     }
     
-    /// Configure stream routes
-    /// - Parameter app: The Vapor application
-    private func configureStreamRoutes(_ app: Application) {
-        // Create stream routes group
-        let streamRoutes = app.grouped("streams")
-        
-        // Add auth middleware if needed
-        let protectedRoutes: RoutesBuilder
-        if config.authentication.enabled {
-            // Create simple admin auth middleware
-            struct AdminAuthHandler: AsyncMiddleware {
-                let authManager: AuthenticationManager
-                
-                init(authManager: AuthenticationManager) {
-                    self.authManager = authManager
-                }
-                
-                func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
-                    // Check for basic auth
-                    if let auth = request.headers.basicAuthorization {
-                        // Try to authenticate
-                        do {
-                            _ = try await authManager.authenticateBasic(username: auth.username, password: auth.password)
-                            return try await next.respond(to: request)
-                        } catch {
-                            return Response(status: .unauthorized)
-                        }
-                    }
-                    
-                    // Unauthorized
-                    return Response(status: .unauthorized)
-                }
-            }
-            
-            protectedRoutes = streamRoutes.grouped(AdminAuthHandler(authManager: authManager))
-        } else {
-            protectedRoutes = streamRoutes
+    /// Connect a video encoder to the HLS stream
+    /// - Parameter videoEncoder: H264 video encoder
+    /// - Throws: Error if connection fails
+    public func connectVideoEncoder(_ videoEncoder: H264VideoEncoder) throws {
+        encodingAdapter = CursorWindowCore.HLSEncodingAdapter(
+            videoEncoder: videoEncoder,
+            segmentManager: segmentManager,
+            streamManager: streamManager
+        )
+    }
+    
+    /// Start HLS streaming
+    /// - Parameter encoderSettings: Optional encoding settings
+    /// - Throws: Error if starting streaming fails
+    public func startStreaming(encoderSettings: H264EncoderSettings? = nil) async throws {
+        guard let encodingAdapter = encodingAdapter else {
+            throw ServerError.encoderNotConnected
         }
         
-        // Configure stream endpoints
-        protectedRoutes.get(":key", "master.m3u8") { [weak self] req -> Response in
-            guard let self = self, let key = req.parameters.get("key") else {
-                return Response(status: .badRequest)
-            }
-            
-            // Simple placeholder response that uses the values
-            self.logger.info("Received request for stream key: \(key)")
-            
-            return Response(status: .ok, 
-                           headers: ["Content-Type": "application/vnd.apple.mpegurl"], 
-                           body: .init(string: "#EXTM3U\n#EXT-X-VERSION:3\n"))
+        try await encodingAdapter.start(settings: encoderSettings)
+    }
+    
+    /// Stop HLS streaming
+    /// - Throws: Error if stopping streaming fails
+    public func stopStreaming() async throws {
+        guard let encodingAdapter = encodingAdapter else {
+            return
         }
+        
+        try await encodingAdapter.stop()
     }
 }
 

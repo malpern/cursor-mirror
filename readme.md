@@ -13,158 +13,41 @@ A macOS application that captures and streams a portion of your screen matching 
 - Proper app switching support (Cmd+Tab)
 - Quit via menu bar or Cmd+Q
 
-### Phase 2: Screen Capture & Streaming (🚧 In Progress)
-- [✅] Screen capture of viewport region using ScreenCaptureKit
-  - ✅ Basic permission handling implemented
-  - ✅ Test infrastructure set up
-  - ✅ Frame capture implementation completed
-  - ✅ Integration tests completed and passing
-- [✅] Real-time H.264 video encoding with AVFoundation/VideoToolbox
-  - ✅ H.264 encoder implementation with proper thread safety
-  - ✅ Frame processing pipeline with pixel buffer copying
-  - ✅ Video file writing with proper error handling
-  - ✅ Comprehensive test coverage
-  - ✅ Memory-safe frame processing
-- [🚧] HTTP server for stream distribution
-  - ✅ Basic server implementation
-  - ✅ Authentication management implementation
-  - ✅ Request logging middleware
-  - ✅ Admin dashboard controller
-  - ✅ HTTP server error handling
-  - 🚧 Integration with video processing pipeline
-  - 🚧 Stream endpoint implementation
-- [ ] HLS stream generation with segmented .ts files
-- [ ] iOS client app for stream playback
+### Phase 2: Screen Capture & Streaming (✅ Completed)
+- Screen capture of viewport region using ScreenCaptureKit
+- Real-time H.264 video encoding with AVFoundation/VideoToolbox
+- HTTP server for stream distribution
+  - Basic server implementation
+  - Authentication management implementation
+  - Request logging middleware
+  - Admin dashboard controller
+  - HTTP server error handling
+  - Integration with video processing pipeline
+  - Stream endpoint implementation
+- HLS stream generation with segmented .ts files
+  - Playlist generation (master and media playlists)
+  - Video segment management
+  - Multiple quality support
+  - Integration with H.264 encoder
+- iOS client app for stream playback
+
+### Phase 3: Enhanced Functionality (⏱️ In Progress)
+- Touch emulation controls
+- Multiple viewport support
+- Custom styling/theming
+- Shortcut keys and hotkeys
 
 ## Recent Improvements
 
-### HTTP Server Implementation (🚧 In Progress)
-- [x] Core HTTP server architecture
-  - Server configuration with customizable settings
-  - Authentication middleware with session management
-  - Logging middleware for request/response tracking
-  - Error handling with descriptive status codes
-- [x] Swift 6 compatibility improvements
-  - Fixed actor isolation warnings
-  - Properly implemented async/await patterns
-  - Ensured Sendable conformance where needed
-  - Resolved duplicate type declarations
-  - Fixed ambiguous type references
-- [ ] Stream delivery endpoints
-  - HLS manifest generation
-  - Video segment serving
-  - Real-time stream initiation
-
-### BasicFrameProcessor Enhancements (✅ Complete)
-- [x] Frame rate monitoring
-  - Added frame count tracking
-  - Implemented average processing time calculation
-  - Added real-time FPS monitoring
-  - Added dropped frame detection
-- [x] Thread-safe state management
-  - Implemented actor-based state updates
-  - Added safe statistics and configuration access
-  - Thread-safe callback handling
-- [x] Basic frame transformations
-  - Added support for CIFilters
-  - Implemented pixel buffer copying
-  - Added proper buffer locking/unlocking
-- [x] Metadata handling
-  - Added timing information extraction
-  - Added format description capture
-  - Added attachment preservation
-- [x] Comprehensive test coverage
-  - Added configuration tests
-  - Added statistics tracking tests
-  - Added dropped frame detection tests
-  - Added thread safety tests
-
-### Code Stabilization (✅ Complete)
-- [x] Reorganized project into proper Swift package structure
-  - Core functionality in `CursorWindowCore` module
-  - App-specific code in `CursorWindow` module
-- [x] Improved concurrency handling
-  - Added proper actor isolation for frame processing
-  - Implemented thread-safe screen capture management
-  - Fixed Swift 6 concurrency warnings
-  - Separated protocol conformance for better type safety
-- [x] Enhanced permission handling
-  - Streamlined screen capture permission flow
-  - Added proper error handling and user feedback
-- [x] Refactored view models
-  - Proper dependency injection using environment
-  - Clear separation of concerns
-  - Thread-safe state management
-- [x] Fixed all build issues and warnings
-  - Resolved circular dependencies
-  - Proper module imports
-  - Clean build with no warnings
-  - Proper macOS 14.0 availability annotations
-- [x] Ensured API consistency
-  - Standardized naming conventions
-  - Fixed type conflicts and duplicates
-  - Ensured proper separation of concerns
-
-### H264VideoEncoder Improvements (✅ Complete)
-- [x] Thread-safe frame processing
-  - Proper pixel buffer copying for thread safety
-  - Serial queue for maintaining frame order
-  - Actor-based state management
-- [x] Improved error handling
-  - Comprehensive error checks and logging
-  - Proper cleanup on errors
-  - Clear error messages for debugging
-- [x] Memory management
-  - Proper buffer locking/unlocking
-  - Weak references to prevent retain cycles
-  - Automatic cleanup of resources
-- [x] Video configuration
-  - Optimized H.264 baseline profile settings
-  - Real-time encoding support
-  - Configurable frame rate and bitrate
-  - Memory-safe frame management
-  - Robust error handling and validation
-  - Comprehensive test coverage
-- HLS streaming implementation
-  - MPEG-TS segment generation with proper timing
-  - M3U8 playlist management (Master, Media, Event, VOD)
-  - Efficient segment rotation and cleanup
-  - Variant stream support
-  - Async/await support for thread safety
-  - Improved segment timing accuracy
-- Local HTTP server for stream distribution
-  - Phase 1: Core Server Implementation
-    - Vapor-based HTTP server with configuration options
-    - Basic routing (health check, version endpoint)
-    - Static file serving capability
-    - Comprehensive server tests
-  - Phase 2: HLS Integration
-    - HLS endpoint routes
-    - Single-connection stream access control
-    - Connection timeout handling
-    - Master and media playlist generation
-    - Video segment handling and delivery
-  - Phase 3: Advanced Features
-    - Authentication (multiple methods, protected routes, session management)
-    - CORS support (configurable settings, preflight requests)
-    - Request logging (with configurable levels and filtering)
-    - Rate limiting (with configuration options and IP-based tracking)
-    - Admin dashboard (UI for configuration, monitoring, and management)
-
-🚧 **In Progress**
-  - Phase 4: Performance & Security
-    - [ ] Optimize segment delivery
-    - [ ] Add SSL/TLS support
-    - [ ] Write performance tests
-    - [ ] Implement security best practices
-    - [ ] Add monitoring and metrics
-  - Phase 5: UI Integration
-    - [ ] Add server controls to main UI
-    - [ ] Create QR code for mobile connection
-    - [ ] Add server status indicators
-    - [ ] Implement connection management
-    - [ ] Add error handling and user feedback
-- iOS client app for stream playback
+- Added Swift 6 compatibility
+- Fixed duplicate module declarations
+- Integrated HTTP server with authentication
+- Implemented request logging middleware
+- Added admin dashboard controller
+- Added HLS streaming support with segmented video delivery
+- Implemented adaptive bitrate streaming with multiple quality options
+- Added integration between video encoder and HLS segment generator
+- Completed full end-to-end screen capture and streaming pipeline
 
 ## Requirements
 
@@ -525,3 +408,24 @@ class HTTPServerManagerTests: XCTestCase {
 - **Debounced Controls**: UI controls use debouncing to prevent excessive processing
 - **Task Management**: Proper cancellation of ongoing tasks when starting new operations
 - **Async/Await**: Modern concurrency patterns for improved performance and safety
+
+## Architecture
+
+The application is structured into several main components:
+
+- **CursorWindow**: Main macOS application providing the UI
+- **CursorWindowCore**: Core functionality module containing:
+  - **WindowManager**: Handles window creation and management
+  - **ViewportManager**: Manages the capture viewport
+  - **ScreenCapture**: Screen capture implementation
+  - **VideoEncoding**: H.264 encoder implementation
+  - **HTTP**: HTTP server and streaming implementation
+    - **Server**: Basic HTTP server
+    - **Authentication**: User authentication
+    - **Admin**: Admin dashboard and controls
+    - **HLS**: HLS streaming components
+      - Playlist generation
+      - Segment management
+      - Stream control
+- **CursorWindowTests**: Unit tests for core functionality
+- **CursorWindowUITests**: UI tests for macOS application
