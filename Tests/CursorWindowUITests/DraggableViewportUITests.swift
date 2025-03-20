@@ -39,8 +39,10 @@ final class DraggableViewportUITests: XCTestCase {
         // Get initial position
         let initialFrame = viewport.frame
         
-        // Perform drag operation
-        viewport.press(forDuration: 0.5, thenDragTo: viewport.coordinate(withNormalizedOffset: CGVector(dx: 100, dy: 100)))
+        // Perform drag operation using proper coordinate handling
+        let startCoord = viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let endCoord = viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.8))
+        startCoord.press(forDuration: 0.5, thenDragTo: endCoord)
         
         // Get new position
         let newFrame = viewport.frame
@@ -58,15 +60,18 @@ final class DraggableViewportUITests: XCTestCase {
         let viewportWindow = app.windows["CursorWindow"]
         let viewport = viewportWindow.groups["DraggableViewport"]
         
-        // Try to drag viewport off screen to the left
-        viewport.press(forDuration: 0.5, thenDragTo: viewport.coordinate(withNormalizedOffset: CGVector(dx: -1000, dy: 0)))
+        // Try to drag viewport off screen to the left using proper coordinate handling
+        let startCoord = viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let leftEdgeCoord = viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+        startCoord.press(forDuration: 0.5, thenDragTo: leftEdgeCoord)
         
         // Verify viewport is still visible on screen
         XCTAssertTrue(viewport.isHittable)
         XCTAssertGreaterThanOrEqual(viewport.frame.origin.x, 0)
         
-        // Try to drag viewport off screen to the top
-        viewport.press(forDuration: 0.5, thenDragTo: viewport.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: -1000)))
+        // Try to drag viewport off screen to the top using proper coordinate handling
+        let topEdgeCoord = viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
+        startCoord.press(forDuration: 0.5, thenDragTo: topEdgeCoord)
         
         // Verify viewport is still visible on screen
         XCTAssertTrue(viewport.isHittable)

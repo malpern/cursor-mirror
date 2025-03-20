@@ -18,13 +18,21 @@ let package = Package(
             targets: ["CursorWindow"])
     ],
     dependencies: [
+        .package(url: "https://github.com/vapor/vapor", from: "4.76.0"),
+        .package(url: "https://github.com/vapor/leaf", from: "4.2.0"),
+        .package(url: "https://github.com/apple/swift-metrics.git", from: "2.0.0"),
         .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "CursorWindowCore"),
+            name: "CursorWindowCore",
+            dependencies: [
+                .product(name: "Vapor", package: "vapor"),
+                .product(name: "Leaf", package: "leaf"),
+                .product(name: "Metrics", package: "swift-metrics")
+            ]),
         .executableTarget(
             name: "CursorWindow",
             dependencies: ["CursorWindowCore"]),
