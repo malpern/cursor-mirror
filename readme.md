@@ -48,6 +48,8 @@ A macOS application that captures and streams a portion of your screen matching 
   - Fixed actor isolation warnings
   - Properly implemented async/await patterns
   - Ensured Sendable conformance where needed
+  - Resolved duplicate type declarations
+  - Fixed ambiguous type references
 - [ ] Stream delivery endpoints
   - HLS manifest generation
   - Video segment serving
@@ -98,6 +100,10 @@ A macOS application that captures and streams a portion of your screen matching 
   - Proper module imports
   - Clean build with no warnings
   - Proper macOS 14.0 availability annotations
+- [x] Ensured API consistency
+  - Standardized naming conventions
+  - Fixed type conflicts and duplicates
+  - Ensured proper separation of concerns
 
 ### H264VideoEncoder Improvements (✅ Complete)
 - [x] Thread-safe frame processing
