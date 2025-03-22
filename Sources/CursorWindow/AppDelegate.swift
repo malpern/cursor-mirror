@@ -293,37 +293,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         group.enter()
         
         Task {
+            // Stop screen capture first
             do {
-                // Stop screen capture first
-                try? await withTimeout(seconds: 2) {
-                    try? await self.screenCaptureManager?.stopCapture()
+                try await withTimeout(seconds: 2) {
+                    try await self.screenCaptureManager?.stopCapture()
                 }
-                
-                // Clean up viewport
-                await MainActor.run {
-                    viewportManager?.hideViewport()
-                    viewportManager = nil
-                }
-                
-                // Clean up status bar
-                await MainActor.run {
-                    statusBarController = nil
-                }
-                
-                // Clean up screen capture manager
-                screenCaptureManager = nil
-                
-                // Clean up lock file last
-                cleanupLockFile()
             } catch {
-                print("Error during cleanup: \(error)")
+                print("Error stopping screen capture: \(error)")
             }
+            
+            // Clean up viewport
+            await MainActor.run {
+                viewportManager?.hideViewport()
+                viewportManager = nil
+            }
+            
+            // Clean up status bar
+            await MainActor.run {
+                statusBarController = nil
+            }
+            
+            // Clean up screen capture manager
+            screenCaptureManager = nil
+            
+            // Clean up lock file last
+            cleanupLockFile()
             
             group.leave()
         }
         
         // Wait for cleanup with timeout
-        if !group.wait(timeout: .now() + 3) {
+        let timeoutResult = group.wait(timeout: .now() + 3)
+        if timeoutResult == .timedOut {
             print("Warning: Cleanup timed out, forcing exit")
         }
     }
