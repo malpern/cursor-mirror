@@ -15,6 +15,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var startupTask: Task<Void, Never>?
     private let lockFile = "/tmp/cursor-window.lock"
     private var lockFileDescriptor: Int32 = -1
+    private var isForceStarted = false
     
     deinit {
         cleanupLockFile()
@@ -25,7 +26,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             close(lockFileDescriptor)
             lockFileDescriptor = -1
         }
-        try? FileManager.default.removeItem(atPath: lockFile)
+        // Only remove the lock file if we created it (not if we force started)
+        if !isForceStarted {
+            try? FileManager.default.removeItem(atPath: lockFile)
+        }
     }
     
     private func acquireLockFile() -> Bool {
@@ -87,6 +91,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             
             print("User chose to force start. Continuing with startup...")
+            isForceStarted = true
         }
         
         // Make app appear in dock and force activation to ensure it's visible
@@ -280,20 +285,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationWillTerminate(_ notification: Notification) {
-        cleanupLockFile()
-        
-        // Cancel any pending startup tasks
+        // Cancel any pending startup tasks first
         startupTask?.cancel()
         
         // Clean up resources with a timeout to prevent hanging
+        let group = DispatchGroup()
+        group.enter()
+        
         Task {
             do {
-                try await withTimeout(seconds: 2) {
+                // Stop screen capture first
+                try? await withTimeout(seconds: 2) {
                     try? await self.screenCaptureManager?.stopCapture()
                 }
+                
+                // Clean up viewport
+                await MainActor.run {
+                    viewportManager?.hideViewport()
+                    viewportManager = nil
+                }
+                
+                // Clean up status bar
+                await MainActor.run {
+                    statusBarController = nil
+                }
+                
+                // Clean up screen capture manager
+                screenCaptureManager = nil
+                
+                // Clean up lock file last
+                cleanupLockFile()
             } catch {
-                print("Timeout during cleanup: \(error)")
+                print("Error during cleanup: \(error)")
             }
+            
+            group.leave()
+        }
+        
+        // Wait for cleanup with timeout
+        if !group.wait(timeout: .now() + 3) {
+            print("Warning: Cleanup timed out, forcing exit")
         }
     }
 } 
