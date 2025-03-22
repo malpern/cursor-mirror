@@ -46,7 +46,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // Open the file and try to acquire an exclusive lock
-        lockFileDescriptor = Darwin.open(lockFile, O_WRONLY)
+        lockFileDescriptor = lockFile.withCString { cString in
+            Darwin.open(cString, O_WRONLY | O_NONBLOCK)
+        }
+        
         guard lockFileDescriptor != -1 else {
             try? fileManager.removeItem(atPath: lockFile)
             return false
