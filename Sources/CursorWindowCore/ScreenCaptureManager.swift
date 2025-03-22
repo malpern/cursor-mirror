@@ -80,7 +80,7 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         
         do {
             // First check if we can get the shareable content at all
-            let content = try await SCShareableContent.current
+            _ = try await SCShareableContent.current
             
             // On macOS, if we can get SCShareableContent without an error, we have permission
             let hasPermission = true
