@@ -9,22 +9,58 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var screenCaptureManager: ScreenCaptureManager?
     private var mainWindow: NSWindow?
     private var startupTask: Task<Void, Never>?
+    private let lockFile = "/tmp/cursor-window.lock"
+    private var lockFileHandle: FileHandle?
+    
+    deinit {
+        cleanupLockFile()
+    }
+    
+    private func cleanupLockFile() {
+        // Release the file lock if we have it
+        if let handle = lockFileHandle {
+            try? handle.close()
+            lockFileHandle = nil
+        }
+        // Remove the lock file
+        try? FileManager.default.removeItem(atPath: lockFile)
+    }
+    
+    private func acquireLockFile() -> Bool {
+        let fileManager = FileManager.default
+        
+        // Remove stale lock file if it exists
+        if fileManager.fileExists(atPath: lockFile) {
+            if let attributes = try? fileManager.attributesOfItem(atPath: lockFile),
+               let modificationDate = attributes[.modificationDate] as? Date,
+               Date().timeIntervalSince(modificationDate) > 5 {
+                try? fileManager.removeItem(atPath: lockFile)
+            }
+        }
+        
+        // Try to create and lock the file
+        guard fileManager.createFile(atPath: lockFile, contents: Data("\(ProcessInfo.processInfo.processIdentifier)".utf8)) else {
+            return false
+        }
+        
+        do {
+            lockFileHandle = try FileHandle(forWritingTo: URL(fileURLWithPath: lockFile))
+            try lockFileHandle?.lock()
+            return true
+        } catch {
+            print("Failed to acquire lock: \(error)")
+            try? fileManager.removeItem(atPath: lockFile)
+            return false
+        }
+    }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Debug print bundle identifier and PID
         print("App starting with PID: \(ProcessInfo.processInfo.processIdentifier)")
         
-        // Simple file-based lock instead of process detection
-        let lockFile = "/tmp/cursor-window.lock"
-        
-        // Check if lock file exists and is recent (less than 5 seconds old)
-        let fileManager = FileManager.default
-        if fileManager.fileExists(atPath: lockFile),
-           let attributes = try? fileManager.attributesOfItem(atPath: lockFile),
-           let modificationDate = attributes[.modificationDate] as? Date,
-           Date().timeIntervalSince(modificationDate) < 5 {
-            
-            print("Lock file exists and is recent. Another instance may be running.")
+        // Try to acquire the lock file
+        if !acquireLockFile() {
+            print("Lock file exists and is locked. Another instance may be running.")
             
             // Show alert to user about potential other instance
             let alert = NSAlert()
@@ -42,9 +78,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             print("User chose to force start. Continuing with startup...")
         }
-        
-        // Create or update lock file
-        try? "Running".write(toFile: lockFile, atomically: true, encoding: .utf8)
         
         // Make app appear in dock and force activation to ensure it's visible
         NSApp.setActivationPolicy(.regular)
@@ -237,8 +270,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationWillTerminate(_ notification: Notification) {
-        // Remove lock file
-        try? FileManager.default.removeItem(atPath: "/tmp/cursor-window.lock")
+        cleanupLockFile()
         
         // Cancel any pending startup tasks
         startupTask?.cancel()
@@ -250,11 +282,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     try? await self.screenCaptureManager?.stopCapture()
                 }
             } catch {
-                print("Warning: Cleanup timed out during app termination")
+                print("Timeout during cleanup: \(error)")
             }
-            
-            // Hide the viewport
-            viewportManager?.hideViewport()
         }
     }
 } 
