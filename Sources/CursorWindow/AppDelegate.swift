@@ -1,6 +1,10 @@
 import SwiftUI
 import AppKit
 import CursorWindowCore
+import Foundation
+#if canImport(Darwin)
+import Darwin
+#endif
 
 @available(macOS 14.0, *)
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -10,19 +14,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindow: NSWindow?
     private var startupTask: Task<Void, Never>?
     private let lockFile = "/tmp/cursor-window.lock"
-    private var lockFileHandle: FileHandle?
+    private var lockFileDescriptor: Int32 = -1
     
     deinit {
         cleanupLockFile()
     }
     
     private func cleanupLockFile() {
-        // Release the file lock if we have it
-        if let handle = lockFileHandle {
-            try? handle.close()
-            lockFileHandle = nil
+        if lockFileDescriptor != -1 {
+            Darwin.close(lockFileDescriptor)
+            lockFileDescriptor = -1
         }
-        // Remove the lock file
         try? FileManager.default.removeItem(atPath: lockFile)
     }
     
@@ -43,15 +45,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return false
         }
         
-        do {
-            lockFileHandle = try FileHandle(forWritingTo: URL(fileURLWithPath: lockFile))
-            try lockFileHandle?.lock()
-            return true
-        } catch {
-            print("Failed to acquire lock: \(error)")
+        // Open the file and try to acquire an exclusive lock
+        lockFileDescriptor = Darwin.open(lockFile, O_WRONLY)
+        guard lockFileDescriptor != -1 else {
             try? fileManager.removeItem(atPath: lockFile)
             return false
         }
+        
+        let result = Darwin.flock(lockFileDescriptor, LOCK_EX | LOCK_NB)
+        if result != 0 {
+            Darwin.close(lockFileDescriptor)
+            lockFileDescriptor = -1
+            try? fileManager.removeItem(atPath: lockFile)
+            return false
+        }
+        
+        return true
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
