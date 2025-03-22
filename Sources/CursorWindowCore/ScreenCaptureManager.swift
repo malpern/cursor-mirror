@@ -79,8 +79,11 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         defer { isCheckingPermission = false }
         
         do {
+            // First check if we can get the shareable content at all
             let content = try await SCShareableContent.current
-            let hasPermission = !content.displays.isEmpty
+            
+            // On macOS, if we can get SCShareableContent without an error, we have permission
+            let hasPermission = true
             
             print("Permission check result: \(hasPermission)")
             
@@ -104,11 +107,10 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         isCheckingPermission = true
         defer { isCheckingPermission = false }
         
-        // Request current permission status with a fresh check
         do {
-            // Force a new request to get the current state without caching
-            let content = try await SCShareableContent.current
-            let hasPermission = !content.displays.isEmpty
+            // If we can get SCShareableContent without an error, we have permission
+            _ = try await SCShareableContent.current
+            let hasPermission = true
             
             print("Permission refresh check result: \(hasPermission)")
             
