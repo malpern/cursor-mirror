@@ -1,0 +1,46 @@
+[0/1] Planning build
+Building for debugging...
+[0/3] Write swift-version--58304C5D6DBC2206.txt
+Build of product 'CursorWindow' complete! (4.66s)
+*** Terminating app due to uncaught exception 'NSInternalInconsistencyException', reason: 'bundleProxyForCurrentProcess is nil: mainBundle.bundleURL file:///Volumes/Flash%20Gordon%20Storage/Dropbox/code/cursor-window/cursor-window/.build/arm64-apple-macosx/debug/'
+*** First throw call stack:
+(
+	0   CoreFoundation                      0x000000018f6dee80 __exceptionPreprocess + 176
+	1   libobjc.A.dylib                     0x000000018f1c6cd8 objc_exception_throw + 88
+	2   Foundation                          0x00000001908ee198 -[NSCalendarDate initWithCoder:] + 0
+	3   UserNotifications                   0x000000019cf1f16c __53+[UNUserNotificationCenter currentNotificationCenter]_block_invoke + 680
+	4   libdispatch.dylib                   0x000000018f3d15b4 _dispatch_client_callout + 20
+	5   libdispatch.dylib                   0x000000018f3d2e00 _dispatch_once_callout + 32
+	6   UserNotifications                   0x000000019cf1eec0 +[UNUserNotificationCenter currentNotificationCenter] + 156
+	7   CursorWindow                        0x0000000100f6e9a0 $s12CursorWindow11AppDelegateC29applicationDidFinishLaunchingyy10Foundation12NotificationVF + 4072
+	8   CursorWindow                        0x0000000100f71788 $s12CursorWindow11AppDelegateC29applicationDidFinishLaunchingyy10Foundation12NotificationVFTo + 140
+	9   SwiftUI                             0x00000001bf4644f8 $s7SwiftUI11AppDelegateC29applicationDidFinishLaunchingyy10Foundation12NotificationVF + 1024
+	10  SwiftUI                             0x00000001bf464618 $s7SwiftUI11AppDelegateC30applicationWillFinishLaunchingyy10Foundation12NotificationVFToTm + 192
+	11  CoreFoundation                      0x000000018f661370 __CFNOTIFICATIONCENTER_IS_CALLING_OUT_TO_AN_OBSERVER__ + 148
+	12  CoreFoundation                      0x000000018f6f220c ___CFXRegistrationPost_block_invoke + 88
+	13  CoreFoundation                      0x000000018f6f2154 _CFXRegistrationPost + 436
+	14  CoreFoundation                      0x000000018f62ffac _CFXNotificationPost + 732
+	15  Foundation                          0x00000001907ea6b8 -[NSNotificationCenter postNotificationName:object:userInfo:] + 88
+	16  AppKit                              0x00000001931eb48c -[NSApplication _postDidFinishNotification] + 284
+	17  AppKit                              0x00000001931eb23c -[NSApplication _sendFinishLaunchingNotification] + 172
+	18  AppKit                              0x00000001931e969c -[NSApplication(NSAppleEventHandling) _handleAEOpenEvent:] + 500
+	19  AppKit                              0x00000001931e92a4 -[NSApplication(NSAppleEventHandling) _handleCoreEvent:withReplyEvent:] + 488
+	20  Foundation                          0x00000001908134ac -[NSAppleEventManager dispatchRawAppleEvent:withRawReply:handlerRefCon:] + 316
+	21  Foundation                          0x00000001908132a4 _NSAppleEventManagerGenericHandler + 80
+	22  AE                                  0x0000000196c0b134 _AppleEventsCheckInAppWithBlock + 13904
+	23  AE                                  0x0000000196c0aa58 _AppleEventsCheckInAppWithBlock + 12148
+	24  AE                                  0x0000000196c03fa4 aeProcessAppleEvent + 488
+	25  HIToolbox                           0x000000019aaf7210 AEProcessAppleEvent + 68
+	26  AppKit                              0x00000001931e2b40 _DPSNextEvent + 1420
+	27  AppKit                              0x0000000193b48c24 -[NSApplication(NSEventRouting) _nextEventMatchingEventMask:untilDate:inMode:dequeue:] + 688
+	28  AppKit                              0x00000001931d5874 -[NSApplication run] + 480
+	29  AppKit                              0x00000001931ac068 NSApplicationMain + 888
+	30  SwiftUI                             0x00000001be30a70c $s7SwiftUI6runAppys5NeverOSo21NSApplicationDelegate_So11NSResponderCXcFTf4e_nAA07TestingdG0C_Tg5Tm + 160
+	31  SwiftUI                             0x00000001be7809a0 $s7SwiftUI6runAppys5NeverOxAA0D0RzlF + 140
+	32  SwiftUI                             0x00000001beafce68 $s7SwiftUI3AppPAAE4mainyyFZ + 224
+	33  CursorWindow                        0x0000000100f7bdf4 $s12CursorWindow0aB3AppV5$mainyyFZ + 40
+	34  CursorWindow                        0x0000000100f7f234 CursorWindow_main + 12
+	35  dyld                                0x000000018f204274 start + 2840
+)
+libc++abi: terminating due to uncaught exception of type NSException
+App starting with bundle ID: unknown and PID: 11969

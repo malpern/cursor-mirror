@@ -135,9 +135,9 @@ public class HTTPServerManager {
             
             // Configure HTTP settings
             app.http.server.configuration.hostname = config.hostname
-            app.http.server.configuration.port = config.port
-            
-            // Configure middleware
+        app.http.server.configuration.port = config.port
+        
+        // Configure middleware
             configureMiddleware(app)
             
             // Configure TLS if needed
@@ -148,8 +148,8 @@ public class HTTPServerManager {
                     throw HTTPServerError.sslConfigurationError("TLS configuration failed: \(error.localizedDescription)")
                 }
             }
-            
-            // Configure routes
+        
+        // Configure routes
             await configureRoutes(app)
             
             // Configure admin dashboard if enabled
@@ -161,7 +161,7 @@ public class HTTPServerManager {
             self.app = app
             
             // Start the application
-            try await app.startup()
+        try await app.startup()
             
             // Record startup
             isRunning = true

@@ -11,6 +11,7 @@ struct ViewportSize {
 struct DraggableViewport: View {
     @StateObject var viewportState = ViewportState()
     @EnvironmentObject var screenCaptureManager: ScreenCaptureManager
+    @State private var isRequestingPermission = false
     
     // Constants for the glow effect
     private let glowOpacity: Double = 0.8
@@ -22,19 +23,55 @@ struct DraggableViewport: View {
         ZStack {
             // Permission request overlay if needed
             if !screenCaptureManager.isScreenCapturePermissionGranted {
-                Button("Request Screen Capture Permission") {
-                    Task {
-                        // Create a temporary frame processor just for permission request
-                        let tempProcessor = BasicFrameProcessor()
-                        try? await screenCaptureManager.startCapture(frameProcessor: tempProcessor)
-                        // We'll stop capture immediately since this is just for permission
-                        try? await screenCaptureManager.stopCapture()
+                VStack {
+                    Text("Screen recording permission required")
+                        .font(.headline)
+                        .padding(.bottom)
+                    
+                    Button("Request Screen Capture Permission") {
+                        isRequestingPermission = true
+                        Task {
+                            // Create a temporary frame processor just for permission request
+                            let tempProcessor = BasicFrameProcessor()
+                            try? await screenCaptureManager.startCapture(frameProcessor: tempProcessor)
+                            // We'll stop capture immediately since this is just for permission
+                            try? await screenCaptureManager.stopCapture()
+                            // Manually check permission status again with force refresh
+                            await screenCaptureManager.forceRefreshPermissionStatus()
+                            isRequestingPermission = false
+                        }
                     }
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                    .disabled(isRequestingPermission)
+                    .opacity(isRequestingPermission ? 0.5 : 1)
+                    .overlay(
+                        isRequestingPermission ? 
+                            ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white)) : nil
+                    )
+                    
+                    Button("Check If Permission Already Granted") {
+                        Task {
+                            await screenCaptureManager.forceRefreshPermissionStatus()
+                        }
+                    }
+                    .padding()
+                    .background(Color.green)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                    
+                    Text("If you've already granted permission in System Settings, click the green button")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.top)
                 }
                 .padding()
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(8)
+                .background(Color(.windowBackgroundColor).opacity(0.9))
+                .cornerRadius(12)
+                .shadow(radius: 5)
             }
             
             // Invisible hit testing area that extends inside and outside
@@ -85,6 +122,12 @@ struct DraggableViewport: View {
                 viewportState.finalizeDrag()
             }
         )
+        .onAppear {
+            // Check permission status when the view appears
+            Task {
+                await screenCaptureManager.forceRefreshPermissionStatus()
+            }
+        }
     }
 }
 

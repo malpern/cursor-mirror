@@ -1,46 +1,77 @@
 #if os(macOS)
 import SwiftUI
-import ScreenCaptureKit
 import AppKit
-import AVFoundation
 import CursorWindowCore
 
+/// A menu bar application that displays a floating viewport window
+/// The viewport can be positioned and resized by the user
+@available(macOS 14.0, *)
 @main
 struct CursorWindowApp: App {
-    @StateObject private var screenCaptureManager = ScreenCaptureManager()
-    @StateObject private var capturePreviewVM = LiveCapturePreviewViewModel()
-    @StateObject private var encodingControlVM = LiveEncodingControlViewModel()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
+    // Enable debug mode to make the app extra visible (useful when troubleshooting visibility issues)
+    private let debugMode = true
     
     var body: some Scene {
-        WindowGroup("Cursor Mirror") {
-            MainView()
-                .environment(\.capturePreviewViewModel, capturePreviewVM)
-                .environment(\.encodingControlViewModel, encodingControlVM)
-                .environmentObject(screenCaptureManager)
+        Settings {
+            // Enable force-visible debug window in debug mode
+            if debugMode {
+                DebugView()
+            } else {
+                EmptyView()
+            }
         }
     }
 }
 
-// MARK: - Live View Models
-@MainActor
-class LiveCapturePreviewViewModel: ObservableObject, CapturePreviewViewModel {
-    nonisolated let frameProcessor: BasicFrameProcessorProtocol
-    nonisolated let captureManager: FrameCaptureManagerProtocol
+// A very visible debug window to help find the app
+@available(macOS 14.0, *)
+struct DebugView: View {
+    @State private var isVisible = true
     
-    init() {
-        // Initialize with your actual implementations
-        self.frameProcessor = BasicFrameProcessor()
-        self.captureManager = ScreenCaptureManager()
-    }
-}
-
-@MainActor
-class LiveEncodingControlViewModel: ObservableObject, EncodingControlViewModel {
-    nonisolated let frameProcessor: EncodingFrameProcessorProtocol
-    
-    init() {
-        // Initialize with your actual implementation
-        self.frameProcessor = H264VideoEncoder()
+    var body: some View {
+        VStack(spacing: 10) {
+            Text("CURSOR WINDOW DEBUG MODE")
+                .font(.title)
+                .fontWeight(.bold)
+            
+            Text("The app is running!")
+                .font(.headline)
+            
+            Text("Look for 📱CW in your menu bar")
+                .font(.title2)
+                .foregroundColor(.blue)
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.blue, lineWidth: 2)
+                )
+            
+            Image(systemName: "arrow.up")
+                .font(.system(size: 40))
+                .foregroundColor(.red)
+                .padding()
+            
+            Button("Hide This Window") {
+                isVisible = false
+            }
+            .padding()
+            
+            Button("Quit Application") {
+                NSApplication.shared.terminate(nil)
+            }
+            .padding()
+        }
+        .frame(width: 400, height: 300)
+        .padding()
+        .background(Color(NSColor.windowBackgroundColor))
+        .onAppear {
+            if !isVisible {
+                // Make this window visible again when app starts
+                isVisible = true
+            }
+        }
     }
 }
 

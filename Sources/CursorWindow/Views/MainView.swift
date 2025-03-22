@@ -35,19 +35,114 @@ struct MainView: View {
 
 struct CapturePreviewView: View {
     let viewModel: CapturePreviewViewModel
+    @EnvironmentObject var screenCaptureManager: ScreenCaptureManager
     
     var body: some View {
-        // Implement your capture preview view here
-        Text("Capture Preview")
+        VStack {
+            Text("Position the viewport over the area you want to capture")
+                .font(.headline)
+                .padding()
+            
+            ZStack {
+                Color.black.opacity(0.1)
+                    .edgesIgnoringSafeArea(.all)
+                
+                DraggableViewport()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            
+            HStack {
+                Button("Start Capture") {
+                    Task {
+                        try? await screenCaptureManager.startCapture(frameProcessor: viewModel.frameProcessor)
+                    }
+                }
+                .padding()
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+                
+                Button("Stop Capture") {
+                    Task {
+                        try? await screenCaptureManager.stopCapture()
+                    }
+                }
+                .padding()
+                .background(Color.red)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+            .padding()
+        }
     }
 }
 
 struct EncodingControlView: View {
     let viewModel: EncodingControlViewModel
+    @State private var outputPath: String = NSHomeDirectory() + "/Desktop/output.mp4"
+    @State private var isEncoding: Bool = false
+    @State private var width: Int = 393
+    @State private var height: Int = 852
     
     var body: some View {
-        // Implement your encoding control view here
-        Text("Encoding Control")
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Encoding Settings")
+                .font(.headline)
+                .padding(.bottom)
+            
+            HStack {
+                Text("Output File:")
+                TextField("Output Path", text: $outputPath)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                Button("Browse") {
+                    let panel = NSSavePanel()
+                    panel.allowedContentTypes = [.mpeg4Movie]
+                    panel.canCreateDirectories = true
+                    
+                    if panel.runModal() == .OK, let url = panel.url {
+                        outputPath = url.path
+                    }
+                }
+            }
+            
+            HStack {
+                Text("Resolution:")
+                TextField("Width", value: $width, formatter: NumberFormatter())
+                    .frame(width: 80)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                Text("x")
+                TextField("Height", value: $height, formatter: NumberFormatter())
+                    .frame(width: 80)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            }
+            
+            HStack {
+                Button(isEncoding ? "Stop Encoding" : "Start Encoding") {
+                    if isEncoding {
+                        viewModel.frameProcessor.stopEncoding()
+                        isEncoding = false
+                    } else {
+                        do {
+                            try viewModel.frameProcessor.startEncoding(
+                                to: URL(fileURLWithPath: outputPath),
+                                width: width,
+                                height: height
+                            )
+                            isEncoding = true
+                        } catch {
+                            print("Error starting encoding: \(error)")
+                        }
+                    }
+                }
+                .padding()
+                .background(isEncoding ? Color.red : Color.green)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+            
+            Spacer()
+        }
+        .padding()
     }
 }
 
