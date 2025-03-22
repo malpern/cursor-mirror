@@ -3,7 +3,7 @@ import AppKit
 import CursorWindowCore
 import Foundation
 #if canImport(Darwin)
-import Darwin
+import Darwin.POSIX
 #endif
 
 @available(macOS 14.0, *)
@@ -22,7 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func cleanupLockFile() {
         if lockFileDescriptor != -1 {
-            Darwin.close(lockFileDescriptor)
+            close(lockFileDescriptor)
             lockFileDescriptor = -1
         }
         try? FileManager.default.removeItem(atPath: lockFile)
@@ -46,18 +46,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // Open the file and try to acquire an exclusive lock
-        lockFileDescriptor = lockFile.withCString { cString in
-            Darwin.open(cString, O_WRONLY | O_NONBLOCK)
-        }
+        lockFileDescriptor = open(lockFile, O_WRONLY | O_NONBLOCK)
         
         guard lockFileDescriptor != -1 else {
             try? fileManager.removeItem(atPath: lockFile)
             return false
         }
         
-        let result = Darwin.flock(lockFileDescriptor, LOCK_EX | LOCK_NB)
+        let result = flock(lockFileDescriptor, LOCK_EX | LOCK_NB)
         if result != 0 {
-            Darwin.close(lockFileDescriptor)
+            close(lockFileDescriptor)
             lockFileDescriptor = -1
             try? fileManager.removeItem(atPath: lockFile)
             return false
