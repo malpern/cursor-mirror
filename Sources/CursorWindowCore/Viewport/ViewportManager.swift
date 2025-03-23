@@ -5,7 +5,10 @@ import AppKit
 public class ViewportManager: ObservableObject {
     @Published public var isVisible = false
     @Published public var position = CGPoint(x: 100, y: 100)
-    public static let viewportSize = CGSize(width: 393, height: 852)
+    public static let viewportSize = CGSize(
+        width: 393,  // iPhone 15 Pro width
+        height: 852  // iPhone 15 Pro height
+    )
     
     private var window: NSWindow?
     private var viewFactory: (() -> AnyView)?
@@ -35,71 +38,7 @@ public class ViewportManager: ObservableObject {
                 return
             }
             
-            print("DEBUG: Creating window if needed. Current window: \(self.window == nil ? "nil" : "exists")")
-            if self.window == nil {
-                // Create the window only once
-                guard let viewFactory = self.viewFactory else {
-                    print("DEBUG: No view factory provided")
-                    return
-                }
-                
-                print("DEBUG: Creating new window")
-                // Create the viewport view using the factory
-                let viewportView = NSHostingView(rootView: viewFactory()
-                    .environmentObject(self))
-                
-                // Get the main screen's visible frame
-                let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
-                
-                // Calculate initial position to center on screen
-                let initialX = screenFrame.midX - Self.viewportSize.width / 2
-                let initialY = screenFrame.midY - Self.viewportSize.height / 2
-                
-                // Update position if it's the default position
-                if self.position.x == 100 && self.position.y == 100 {
-                    self.position = CGPoint(x: initialX, y: initialY)
-                }
-                
-                // Ensure position is within screen bounds
-                let maxX = screenFrame.maxX - Self.viewportSize.width
-                let maxY = screenFrame.maxY - Self.viewportSize.height
-                let minX = screenFrame.minX
-                let minY = screenFrame.minY
-                
-                self.position.x = min(max(self.position.x, minX), maxX)
-                self.position.y = min(max(self.position.y, minY), maxY)
-                
-                print("DEBUG: Creating window at position \(self.position)")
-                
-                let window = NSWindow(
-                    contentRect: NSRect(x: self.position.x, y: self.position.y, width: Self.viewportSize.width, height: Self.viewportSize.height),
-                    styleMask: [.borderless, .nonactivatingPanel],
-                    backing: .buffered,
-                    defer: false
-                )
-                
-                window.contentView = viewportView
-                window.backgroundColor = .clear
-                window.isOpaque = false
-                window.hasShadow = false
-                window.level = .floating
-                window.collectionBehavior = [.canJoinAllSpaces]
-                window.ignoresMouseEvents = false
-                window.isMovable = true
-                window.isMovableByWindowBackground = true
-                window.acceptsMouseMovedEvents = true
-                
-                self.window = window
-                print("DEBUG: Window created successfully")
-            }
-            
-            // Ensure window is positioned correctly
-            self.window?.setFrameOrigin(self.position)
-            print("DEBUG: Setting window position to \(self.position)")
-            
-            // Force window to front but don't make it key
-            self.window?.orderFrontRegardless()
-            print("DEBUG: Window ordered to front")
+            self.createWindow()
             
             self.isVisible = true
             print("DEBUG: isVisible set to true")
@@ -173,6 +112,52 @@ public class ViewportManager: ObservableObject {
                 UserDefaults.standard.set(boundedX, forKey: UserDefaultsKeys.viewportPositionX)
                 UserDefaults.standard.set(boundedY, forKey: UserDefaultsKeys.viewportPositionY)
             }
+        }
+    }
+    
+    private func createWindow() {
+        print("DEBUG: Creating window if needed. Current window: \(String(describing: window))")
+        
+        if window == nil {
+            print("DEBUG: Creating new window")
+            
+            // Create a new window
+            window = NSWindow(
+                contentRect: NSRect(
+                    x: position.x,
+                    y: position.y,
+                    width: Self.viewportSize.width,
+                    height: Self.viewportSize.height
+                ),
+                styleMask: [.borderless, .nonactivatingPanel],
+                backing: .buffered,
+                defer: false
+            )
+            
+            if let window = window, let factory = viewFactory {
+                // Configure window properties
+                window.level = .floating
+                window.collectionBehavior = [.canJoinAllSpaces]
+                window.backgroundColor = .clear
+                window.isOpaque = false
+                window.hasShadow = false
+                window.isMovable = true
+                window.isMovableByWindowBackground = true
+                window.acceptsMouseMovedEvents = true
+                
+                // Set the content view
+                let contentView = NSHostingView(rootView: factory())
+                window.contentView = contentView
+                
+                print("DEBUG: Window created successfully")
+            }
+        }
+        
+        // Position the window
+        if let window = window {
+            print("DEBUG: Setting window position to \(position)")
+            window.setFrameOrigin(position)
+            window.orderFront(nil)
         }
     }
 } 

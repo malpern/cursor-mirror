@@ -31,8 +31,9 @@ struct ViewportOverlayView: View {
                     width: ViewportManager.viewportSize.width + glowWidth,
                     height: ViewportManager.viewportSize.height + glowWidth
                 )
+                .allowsHitTesting(false) // Make glow non-interactive
             
-            // Main viewport border
+            // Main viewport border - only this should be interactive
             RoundedRectangle(cornerRadius: cornerRadius)
                 .strokeBorder(Color.blue, lineWidth: strokeWidth)
                 .frame(
@@ -40,17 +41,17 @@ struct ViewportOverlayView: View {
                     height: ViewportManager.viewportSize.height
                 )
         }
-        .contentShape(Rectangle())
-        .background(WindowDragHandler(viewportManager: viewportManager))
+        .contentShape(.interaction, RoundedRectangle(cornerRadius: cornerRadius).stroke(lineWidth: strokeWidth))
+        .background(ClickThroughHandler(viewportManager: viewportManager))
     }
 }
 
-// Native window drag handler
-struct WindowDragHandler: NSViewRepresentable {
+// Handler for click-through and window dragging
+struct ClickThroughHandler: NSViewRepresentable {
     @ObservedObject var viewportManager: ViewportManager
     
     func makeNSView(context: Context) -> NSView {
-        let view = NSView()
+        let view = ClickThroughView()
         view.wantsLayer = true
         view.layer?.backgroundColor = .clear
         
@@ -99,5 +100,29 @@ struct WindowDragHandler: NSViewRepresentable {
             userInfo: nil
         )
         nsView.addTrackingArea(newTrackingArea)
+    }
+}
+
+// Custom NSView that implements click-through behavior
+class ClickThroughView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // Get the path of the border stroke
+        let strokePath = NSBezierPath(roundedRect: bounds, xRadius: 47, yRadius: 47)
+        let strokeWidth: CGFloat = 4
+        let innerPath = NSBezierPath(roundedRect: bounds.insetBy(dx: strokeWidth, dy: strokeWidth), xRadius: 47 - strokeWidth, yRadius: 47 - strokeWidth)
+        strokePath.append(innerPath)
+        strokePath.windingRule = .evenOdd
+        
+        // Return self only if the click is on the border stroke
+        // This allows dragging from the border while clicking through the center
+        return strokePath.contains(point) ? self : nil
+    }
+    
+    override var mouseDownCanMoveWindow: Bool {
+        return true
+    }
+    
+    override var isOpaque: Bool {
+        return false
     }
 } 
