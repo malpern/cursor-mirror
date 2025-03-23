@@ -422,35 +422,37 @@ MIT License - See LICENSE file for details
 
 ## iOS Client Implementation Plan (Proof of Concept)
 
+Target: iOS 17.0+ only
+
 ### Phase 1: Basic Setup (1-3)
-1. Create new Xcode project with SwiftUI
-2. Set up basic project structure
-3. Configure minimum deployment target (iOS 17.0)
+1. Create new Xcode project with SwiftUI and iOS 17.0 target
+2. Set up basic project structure with modern Swift features
+3. Configure SwiftUI app lifecycle and navigation
 
 ### Phase 2: Core Video Player (4-7)
-4. Implement basic HLS video player view
-5. Add play/pause controls
-6. Create basic error handling
-7. Add loading indicator
+4. Implement HLS video player using AVKit
+5. Add basic playback controls
+6. Create error handling with modern async/await
+7. Add loading state with SwiftUI animations
 
 ### Phase 3: Connection Management (8-10)
-8. Add server URL input field
-9. Implement basic connection status
-10. Add QR code scanner for easy connection
+8. Add server URL input with modern SwiftUI form handling
+9. Implement connection status using async/await
+10. Add QR code scanner using Vision framework
 
 ### Phase 4: Testing & Polish (11-15)
 11. Test with local network
-12. Add basic error messages
+12. Add error messages with SwiftUI alerts
 13. Test with different network conditions
 14. Add basic app icon
-15. Test on different iOS devices
+15. Test on iOS 17.0+ devices
 
 Total: 15 story points for minimal proof of concept
 
 This minimal implementation focuses on the core functionality needed to validate the concept:
-- Basic video playback
-- Simple connection management
-- Essential error handling
-- Basic UI/UX
+- Basic video playback using modern AVKit
+- Simple connection management with async/await
+- Essential error handling with SwiftUI
+- Basic UI/UX using latest SwiftUI features
 
 Future enhancements can be added after validating the core functionality works as expected.
