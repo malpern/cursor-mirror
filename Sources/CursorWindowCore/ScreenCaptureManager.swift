@@ -75,32 +75,24 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
     /// Configuration for the capture stream
     private var configuration: SCStreamConfiguration?
     
-    /// A serial queue for processing captured frames
-    /// This ensures frames are processed in order and prevents thread contention
-    private let frameProcessingQueue = DispatchQueue(label: "com.cursor-window.frame-processing", qos: .userInteractive)
-    
     /// Frame rate limiter
     private var lastFrameTime: Date?
     private let targetFrameInterval: TimeInterval = 1.0 / 60.0 // 60 FPS
     
-    /// An actor that provides thread-safe access to the current frame processor
-    internal actor FrameProcessorStore {
-        var processor: AnyObject?
-        
-        init() {
-            self.processor = nil
-        }
-        
-        func set(_ newProcessor: AnyObject?) {
-            processor = newProcessor
-        }
-        
-        func get() -> AnyObject? {
-            return processor
-        }
-    }
+    /// Actor for thread-safe state updates
+    private let frameProcessorActor = FrameProcessorActor()
     
-    internal let frameProcessor = FrameProcessorStore()
+    /// Queue for frame processing
+    private let frameProcessingQueue = DispatchQueue(
+        label: "com.cursorwindow.screencapturemanager",
+        qos: .userInitiated
+    )
+    
+    /// Serial queue for processing captured frames
+    private let processingQueue = DispatchQueue(
+        label: "com.cursorwindow.screencapturemanager.processing",
+        qos: .userInitiated
+    )
     
     /// Initialize the screen capture manager and check initial permission status
     public override init() {
@@ -116,7 +108,7 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         }
         
         Task {
-            await frameProcessor.set(nil)
+            await frameProcessorActor.set(nil)
         }
     }
     
@@ -214,7 +206,7 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         // Clean up any existing capture session
         try? await stopCapture()
         
-        await frameProcessor.set(processor)
+        await frameProcessorActor.set(processor)
         do {
             #if DEBUG
             // In test environment, use the injected mock stream
@@ -275,7 +267,7 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         // Clean up any existing capture session
         try? await stopCapture()
         
-        await self.frameProcessor.set(processor)
+        await frameProcessorActor.set(processor)
         do {
             #if DEBUG
             // In test environment, use the injected mock stream
@@ -338,7 +330,7 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
             if let stream = stream {
                 try await stream.stopCapture()
                 self.stream = nil
-                await frameProcessor.set(nil)
+                await frameProcessorActor.set(nil)
                 configuration = nil
             }
         } catch {
@@ -358,7 +350,7 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
     #if DEBUG
     /// Helper method for testing to get the current frame processor state
     internal func getFrameProcessorForTesting() async -> AnyObject? {
-        return await frameProcessor.get()
+        return await frameProcessorActor.get()
     }
     
     /// Helper method for testing to get the current stream
@@ -388,24 +380,23 @@ extension ScreenCaptureManager: SCStreamOutput {
     /// through the actor-isolated frame processor
     @preconcurrency
     nonisolated public func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .screen else { return }
-        
         // Frame rate limiting
         let now = Date()
-        if let lastTime = lastFrameTime {
-            let timeSinceLastFrame = now.timeIntervalSince(lastTime)
-            if timeSinceLastFrame < targetFrameInterval {
-                return // Skip frame if we're processing too fast
+        Task { @MainActor in
+            if let lastTime = self.lastFrameTime {
+                let timeSinceLastFrame = now.timeIntervalSince(lastTime)
+                if timeSinceLastFrame < self.targetFrameInterval {
+                    return // Skip frame if we're processing too fast
+                }
             }
-        }
-        lastFrameTime = now
-        
-        Task {
-            if let processor = await frameProcessor.get() {
+            self.lastFrameTime = now
+            
+            // Process the frame
+            if let processor = await frameProcessorActor.get() {
                 if let basicProcessor = processor as? BasicFrameProcessorProtocol {
                     basicProcessor.processFrame(sampleBuffer)
                 } else if let encodingProcessor = processor as? EncodingFrameProcessorProtocol {
-                    try? await encodingProcessor.processFrame(sampleBuffer)
+                    await encodingProcessor.processFrame(sampleBuffer)
                 }
             }
         }
