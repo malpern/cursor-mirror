@@ -1,5 +1,7 @@
 import SwiftUI
 import AppKit
+import Cocoa
+import Combine
 import CursorWindowCore
 import Foundation
 #if canImport(Darwin)
@@ -7,64 +9,100 @@ import Darwin.POSIX
 #endif
 
 @available(macOS 14.0, *)
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     private var statusBarController: StatusBarController?
-    private var viewportManager: ViewportManager?
-    private var screenCaptureManager: ScreenCaptureManager?
+    private var viewportManager: ViewportManager? = nil
+    private var screenCaptureManager: ScreenCaptureManager? = nil
     private var mainWindow: NSWindow?
-    private var startupTask: Task<Void, Never>?
+    private var startupTask: Task<Void, Never>? = nil
     private let lockFile = "/tmp/cursor-window.lock"
     private var lockFileDescriptor: Int32 = -1
     private var isForceStarted = false
     
     deinit {
-        cleanupLockFile()
-    }
-    
-    private func cleanupLockFile() {
-        if lockFileDescriptor != -1 {
-            close(lockFileDescriptor)
-            lockFileDescriptor = -1
-        }
-        // Only remove the lock file if we created it (not if we force started)
-        if !isForceStarted {
-            try? FileManager.default.removeItem(atPath: lockFile)
-        }
+        // Release the lock file directly
+        releaseLockFile()
     }
     
     private func acquireLockFile() -> Bool {
         let fileManager = FileManager.default
+        let lockFile = "/tmp/cursor-window.lock"
+        let currentPid = ProcessInfo.processInfo.processIdentifier
         
-        // Remove stale lock file if it exists
+        print("Acquiring app lock for PID \(currentPid)")
+        
+        // Check if the lock file exists
         if fileManager.fileExists(atPath: lockFile) {
-            if let attributes = try? fileManager.attributesOfItem(atPath: lockFile),
-               let modificationDate = attributes[.modificationDate] as? Date,
-               Date().timeIntervalSince(modificationDate) > 5 {
+            do {
+                // Try to read the PID from the file
+                if let existingData = fileManager.contents(atPath: lockFile),
+                   let existingPid = String(data: existingData, encoding: .utf8).flatMap({ Int32($0) }) {
+                    
+                    // Check if the process with that PID is still running
+                    if kill(existingPid, 0) == 0 {
+                        // Process exists, check if it's actually our app
+                        let runningPidCmd = "ps -p \(existingPid) | grep -c CursorWindow"
+                        let process = Process()
+                        process.launchPath = "/bin/sh"
+                        process.arguments = ["-c", runningPidCmd]
+                        
+                        let pipe = Pipe()
+                        process.standardOutput = pipe
+                        try process.run()
+                        process.waitUntilExit()
+                        
+                        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
+                        
+                        if output != "0" {
+                            // It's a real running instance of our app
+                            print("Found genuine running instance with PID \(existingPid)")
+                            return false
+                        } else {
+                            // Process exists but it's not our app - stale lock
+                            print("Found process \(existingPid) but it's not CursorWindow")
+                            try fileManager.removeItem(atPath: lockFile)
+                        }
+                    } else {
+                        // Process doesn't exist, stale lock file
+                        print("Process \(existingPid) no longer exists, removing stale lock")
+                        try fileManager.removeItem(atPath: lockFile)
+                    }
+                } else {
+                    // Invalid lock file content
+                    print("Invalid lock file content, removing")
+                    try fileManager.removeItem(atPath: lockFile)
+                }
+            } catch {
+                print("Error checking lock file: \(error)")
                 try? fileManager.removeItem(atPath: lockFile)
             }
         }
         
-        // Try to create and lock the file
-        guard fileManager.createFile(atPath: lockFile, contents: Data("\(ProcessInfo.processInfo.processIdentifier)".utf8)) else {
+        // Now try to create our lock file
+        if !fileManager.createFile(atPath: lockFile, contents: Data("\(currentPid)".utf8)) {
+            print("Failed to create lock file")
             return false
         }
         
-        // Open the file and try to acquire an exclusive lock
-        lockFileDescriptor = open(lockFile, O_WRONLY | O_NONBLOCK)
-        
-        guard lockFileDescriptor != -1 else {
+        // Open and lock the file
+        lockFileDescriptor = open(lockFile, O_WRONLY)
+        if lockFileDescriptor == -1 {
+            print("Failed to open lock file: \(errno)")
             try? fileManager.removeItem(atPath: lockFile)
             return false
         }
         
-        let result = flock(lockFileDescriptor, LOCK_EX | LOCK_NB)
-        if result != 0 {
+        // Attempt to get an exclusive lock
+        let lockResult = flock(lockFileDescriptor, LOCK_EX | LOCK_NB)
+        if lockResult != 0 {
+            print("Failed to lock file: \(errno)")
             close(lockFileDescriptor)
             lockFileDescriptor = -1
-            try? fileManager.removeItem(atPath: lockFile)
             return false
         }
         
+        print("Successfully acquired lock file for PID \(currentPid)")
         return true
     }
     
@@ -74,26 +112,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Try to acquire the lock file
         if !acquireLockFile() {
-            print("Lock file exists and is locked. Another instance may be running.")
+            print("Lock file exists and is locked. Another instance is running.")
             
             // Show alert to user about potential other instance
             let alert = NSAlert()
-            alert.messageText = "Cursor Window May Already Be Running"
-            alert.informativeText = "Another instance appears to be running. Look for 'CW' in your menu bar. Would you like to force start a new instance?"
+            alert.messageText = "Cursor Window Is Already Running"
+            alert.informativeText = "Another instance of Cursor Window is already running. Look for 'CW' in your menu bar. Attempting to activate the existing instance."
             alert.alertStyle = .warning
-            alert.addButton(withTitle: "Force Start")
-            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: "OK")
             
-            if alert.runModal() == .alertSecondButtonReturn {
-                print("User chose to cancel startup.")
-                NSApp.terminate(nil)
-                return
-            }
+            alert.runModal()
             
-            print("User chose to force start. Continuing with startup...")
-            isForceStarted = true
+            // Try to activate the existing instance
+            let runningInstances = NSRunningApplication.runningApplications(
+                withBundleIdentifier: Bundle.main.bundleIdentifier ?? "com.cursor-window"
+            )
+            runningInstances.first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier })?
+                .activate(options: [.activateAllWindows])
+            
+            // Quit immediately without further cleanup (already handled by atexit handler)
+            print("Terminating duplicate instance.")
+            exit(0)
         }
         
+        // Continue with normal app startup
+        initializeApplication()
+    }
+    
+    private func terminateImmediately() {
+        // Clean exit without using NSApp.terminate which might trigger multiple termination events
+        exit(0)
+    }
+    
+    private func initializeApplication() {
         // Make app appear in dock and force activation to ensure it's visible
         NSApp.setActivationPolicy(.regular)
         
@@ -101,54 +152,70 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.requestUserAttention(.criticalRequest)
         
         // Initialize managers with a timeout safeguard
-        startupTask = Task { @MainActor in
-            // Set up watchdog timer to prevent hanging
-            let watchdogTask = Task {
-                try? await Task.sleep(nanoseconds: 10_000_000_000) // 10 second timeout
-                if !Task.isCancelled {
-                    print("Startup watchdog triggered - app may be hanging. Forcing termination.")
-                    exit(1) // Force quit if startup takes too long
-                }
+        startupTask = Task { [weak self] in
+            guard let self = self else { return }
+            
+            // Execute on MainActor since we're handling UI
+            await MainActor.run {
+                // Set up UI components synchronously
+                self.setupApplication()
             }
+        }
+    }
+    
+    @MainActor
+    private func setupApplication() {
+        // Set up watchdog timer to prevent hanging
+        let watchdogTask = Task {
+            try? await Task.sleep(nanoseconds: 10_000_000_000) // 10 second timeout
+            if !Task.isCancelled {
+                print("Startup watchdog triggered - app may be hanging. Forcing termination.")
+                exit(1) // Force quit if startup takes too long
+            }
+        }
+        
+        // Start the async initialization in a new task
+        Task { [weak self] in
+            guard let self = self else { return }
             
             do {
                 // Initialize the screen capture manager
                 self.screenCaptureManager = ScreenCaptureManager()
                 
                 // Check permission status first with timeout
+                // This is the single source of truth for permission status
                 try await withTimeout(seconds: 5) {
                     await self.screenCaptureManager?.forceRefreshPermissionStatus()
                 }
                 
-                // Initialize the viewport manager with a factory for our overlay view
-                viewportManager = ViewportManager(viewFactory: { 
-                    AnyView(ViewportOverlayView())
-                })
-                
-                // Create a popover for the menu bar
-                let popover = NSPopover()
-                let contentView = MenuBarView()
-                    .environmentObject(viewportManager!)
-                    .environmentObject(screenCaptureManager!)
-                
-                popover.contentViewController = NSHostingController(rootView: contentView)
-                popover.behavior = .transient
-                
-                // Create the status bar controller with our popover
-                statusBarController = StatusBarController(popover: popover)
-                
-                // Ensure app is active and visible
-                DispatchQueue.main.async {
-                    NSApp.activate(ignoringOtherApps: true)
-                }
-                
-                // Only show welcome window and permission dialog if needed
-                let hasPermission = self.screenCaptureManager?.isScreenCapturePermissionGranted ?? false
-                if !hasPermission {
-                    // Show permission dialog on main thread to avoid blocking
-                    DispatchQueue.main.async {
-                        self.showPermissionAlert()
-                    }
+                // Execute UI updates on the main actor
+                await MainActor.run {
+                    // Create the viewport manager first
+                    let viewportManager = ViewportManager(viewFactory: { [weak self] in
+                        guard let self = self else { return AnyView(EmptyView()) }
+                        return AnyView(ViewportOverlayView(viewportManager: self.viewportManager!))
+                    })
+                    
+                    // Assign it to self after creation
+                    self.viewportManager = viewportManager
+                    
+                    // Create a popover for the menu bar
+                    let popover = NSPopover()
+                    let contentView = MenuBarView()
+                        .environmentObject(self.viewportManager!)
+                        .environmentObject(self.screenCaptureManager!)
+                    
+                    popover.contentViewController = NSHostingController(rootView: contentView)
+                    popover.behavior = .transient
+                    
+                    // Create the status bar controller with our popover
+                    self.statusBarController = StatusBarController(popover: popover)
+                    
+                    // Ensure app is active and visible
+                    NSApp.activate()
+                    
+                    // Remove the automatic viewport restoration
+                    // The viewport will now only show when the user explicitly enables it
                 }
                 
                 // Create the main window - always show it at startup for better visibility
@@ -156,13 +223,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 
                 // Add a slight delay before showing a notification about menu bar presence
                 try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
-                showMenuBarAlert()
+                await MainActor.run {
+                    self.showMenuBarAlert()
+                }
                 
                 // Cancel the watchdog since startup completed successfully
                 watchdogTask.cancel()
             } catch {
                 print("Error during app startup: \(error)")
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.showFatalErrorAlert(error: error)
                 }
             }
@@ -170,17 +239,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func showMenuBarAlert() {
-        // Show an alert instead of a notification
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Cursor Window is running"
-            alert.informativeText = "Look for 📱CW in your menu bar at the top of the screen"
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
-        
-        print("Menu bar alert shown. Look for 'CW' in your menu bar.")
+        // Just log to console without showing a dialog
+        print("Cursor Window is now running in your menu bar. Look for 'CW' in your menu bar at the top of the screen.")
     }
     
     private func showPermissionAlert() {
@@ -260,11 +320,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     Text("Screen recording permission not granted ⚠️")
                         .foregroundColor(.orange)
                         .padding(.bottom, 8)
-                    
-                    Button("Request Permission") {
-                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
-                    }
-                    .padding(.bottom, 8)
                 }
                 
                 Text("You can close this window - the app will keep running in the menu bar.")
@@ -284,48 +339,131 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.mainWindow = window
     }
     
+    private func releaseLockFile() {
+        // The lock file path should match what we used in acquireLockFile
+        let lockFile = "/tmp/cursor-window.lock"
+        let pid = ProcessInfo.processInfo.processIdentifier
+        
+        print("Releasing lock file for PID \(pid)")
+        
+        if lockFileDescriptor != -1 {
+            // First, unlock the file
+            let unlockResult = flock(lockFileDescriptor, LOCK_UN)
+            if unlockResult != 0 {
+                print("Warning: Failed to unlock file: \(errno)")
+            } else {
+                print("Successfully unlocked file")
+            }
+            
+            // Then close the file descriptor
+            close(lockFileDescriptor)
+            lockFileDescriptor = -1
+            
+            // Finally try to remove the file, but only if it belongs to us
+            do {
+                if let fileData = FileManager.default.contents(atPath: lockFile),
+                   let filePidString = String(data: fileData, encoding: .utf8),
+                   let filePid = Int(filePidString) {
+                    
+                    // Only remove if this is our lock file
+                    if filePid == pid {
+                        try FileManager.default.removeItem(atPath: lockFile)
+                        print("Successfully removed lock file")
+                    } else {
+                        print("Lock file now belongs to PID \(filePid), not removing")
+                    }
+                } else {
+                    print("Lock file contains invalid data, removing anyway")
+                    try FileManager.default.removeItem(atPath: lockFile)
+                }
+            } catch {
+                print("Error removing lock file: \(error)")
+            }
+        } else {
+            print("No lock file descriptor to release")
+        }
+    }
+    
+    @MainActor
+    private func cleanup() async {
+        // First cleanup all UI and capture resources
+        do {
+            // Stop screen capture
+            if let captureManager = self.screenCaptureManager {
+                try await withTimeout(seconds: 2) {
+                    try await captureManager.stopCapture()
+                }
+            }
+            
+            // Hide viewport
+            viewportManager?.hideViewport()
+            
+            // Clean up menu bar controller
+            statusBarController = nil
+            
+            // Clean up window
+            mainWindow?.close()
+            mainWindow = nil
+        } catch {
+            print("Error during cleanup: \(error)")
+        }
+        
+        // Release lock file
+        releaseLockFile()
+    }
+    
     func applicationWillTerminate(_ notification: Notification) {
-        // Cancel any pending startup tasks first
+        print("App will terminate, cleaning up resources...")
+        
+        // Cancel startup task if still running
         startupTask?.cancel()
         
-        // Clean up resources with a timeout to prevent hanging
+        // Set up a cleanup task with a shorter timeout to ensure we don't hang
+        let cleanupTask = Task { [weak self] in
+            guard let self = self else { return }
+            await self.cleanup()
+        }
+        
+        // Set up a timeout (shorter than before)
+        let timeoutTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 second timeout
+            cleanupTask.cancel()
+            print("Cleanup timed out, forcing release of lock file")
+            self?.releaseLockFile() // Force release the lock file even if cleanup timed out
+        }
+        
+        // Wait for cleanup to complete with timeout
         let group = DispatchGroup()
         group.enter()
         
         Task {
-            // Stop screen capture first
-            do {
-                try await withTimeout(seconds: 2) {
-                    try await self.screenCaptureManager?.stopCapture()
-                }
-            } catch {
-                print("Error stopping screen capture: \(error)")
-            }
+            // Wait for cleanup to complete or be cancelled
+            _ = await cleanupTask.result
             
-            // Clean up viewport
-            await MainActor.run {
-                viewportManager?.hideViewport()
-                viewportManager = nil
-            }
-            
-            // Clean up status bar
-            await MainActor.run {
-                statusBarController = nil
-            }
-            
-            // Clean up screen capture manager
-            screenCaptureManager = nil
-            
-            // Clean up lock file last
-            cleanupLockFile()
+            // Cancel the timeout task
+            timeoutTask.cancel()
             
             group.leave()
         }
         
-        // Wait for cleanup with timeout
-        let timeoutResult = group.wait(timeout: .now() + 3)
-        if timeoutResult == .timedOut {
-            print("Warning: Cleanup timed out, forcing exit")
+        // Wait for cleanup with a shorter timeout
+        let result = group.wait(timeout: .now() + 2.0)
+        if result == .timedOut {
+            print("Cleanup timed out after waiting, force releasing lock file")
+            releaseLockFile() // Force release the lock file if we timed out
+        } else {
+            print("Cleanup completed successfully")
         }
+    }
+    
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Start pre-emptive cleanup of resources
+        print("User initiated app termination")
+        
+        // First ensure the lock file will be released
+        releaseLockFile()
+        
+        // Allow the termination to proceed
+        return .terminateNow
     }
 } 
