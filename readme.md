@@ -436,9 +436,9 @@ Target: iOS 17.0+ only
 7. Add loading state with SwiftUI animations
 
 ### Phase 3: Connection Management (8-10)
-8. Add server URL input with modern SwiftUI form handling
-9. Implement connection status using async/await
-10. Add QR code scanner using Vision framework
+8. Implement iCloud device discovery using CloudKit
+9. Add automatic connection to discovered devices
+10. Create connection status UI with iCloud sync state
 
 ### Phase 4: Testing & Polish (11-15)
 11. Test with local network
