@@ -522,126 +522,37 @@ MIT License - See LICENSE file for details
 99. Add mist client
 100. Add dew client
 
-## iOS Client Implementation Plan
+## iOS Client Implementation Plan (Proof of Concept)
 
-### Phase 1: Project Setup and Core Infrastructure (1-5)
-1. Create new Xcode project with SwiftUI and MVVM architecture
-2. Set up Swift Package Manager dependencies and project structure
-3. Configure build settings and deployment targets
-4. Set up CI/CD pipeline for iOS builds
-5. Create basic app navigation structure
+### Phase 1: Basic Setup (1-3)
+1. Create new Xcode project with SwiftUI
+2. Set up basic project structure
+3. Configure minimum deployment target (iOS 17.0)
 
-### Phase 2: UI Components and Design System (6-15)
-6. Design and implement color scheme and typography system
-7. Create reusable UI components library
-8. Implement custom navigation bar and tab bar
-9. Design and implement loading states and animations
-10. Create error handling and retry UI components
-11. Implement pull-to-refresh functionality
-12. Design and implement empty state views
-13. Create custom transition animations
-14. Implement haptic feedback system
-15. Design and implement custom keyboard handling
+### Phase 2: Core Video Player (4-7)
+4. Implement basic HLS video player view
+5. Add play/pause controls
+6. Create basic error handling
+7. Add loading indicator
 
-### Phase 3: Core Features Implementation (16-30)
-16. Implement HLS video player component
-17. Create video quality selection interface
-18. Implement video playback controls
-19. Add picture-in-picture support
-20. Create video orientation handling
-21. Implement video buffering states
-22. Add video progress tracking
-23. Create video thumbnail generation
-24. Implement video caching system
-25. Add offline playback support
-26. Create video quality auto-switching
-27. Implement bandwidth monitoring
-28. Add network condition handling
-29. Create video error recovery system
-30. Implement video analytics tracking
+### Phase 3: Connection Management (8-10)
+8. Add server URL input field
+9. Implement basic connection status
+10. Add QR code scanner for easy connection
 
-### Phase 4: Network Layer and API Integration (31-40)
-31. Create API client with Swift concurrency
-32. Implement request/response models
-33. Add request retry logic
-34. Create response caching system
-35. Implement request queuing
-36. Add request prioritization
-37. Create network reachability monitoring
-38. Implement offline data persistence
-39. Add request cancellation handling
-40. Create API error handling system
+### Phase 4: Testing & Polish (11-15)
+11. Test with local network
+12. Add basic error messages
+13. Test with different network conditions
+14. Add basic app icon
+15. Test on different iOS devices
 
-### Phase 5: State Management and Data Flow (41-50)
-41. Implement app state management system
-42. Create data persistence layer
-43. Add state restoration support
-44. Implement background task handling
-45. Create data synchronization system
-46. Add conflict resolution handling
-47. Implement data migration system
-48. Create data backup/restore functionality
-49. Add data export/import features
-50. Implement data cleanup system
+Total: 15 story points for minimal proof of concept
 
-### Phase 6: Performance Optimization (51-60)
-51. Implement memory management system
-52. Create performance monitoring tools
-53. Add battery usage optimization
-54. Implement background refresh system
-55. Create app size optimization
-56. Add launch time optimization
-57. Implement UI rendering optimization
-58. Create network usage optimization
-59. Add storage space optimization
-60. Implement CPU usage optimization
+This minimal implementation focuses on the core functionality needed to validate the concept:
+- Basic video playback
+- Simple connection management
+- Essential error handling
+- Basic UI/UX
 
-### Phase 7: Security and Privacy (61-70)
-61. Implement secure storage system
-62. Create authentication system
-63. Add biometric authentication
-64. Implement data encryption
-65. Create secure communication channel
-66. Add privacy settings management
-67. Implement data deletion system
-68. Create security audit logging
-69. Add app security hardening
-70. Implement secure backup system
-
-### Phase 8: Testing and Quality Assurance (71-80)
-71. Set up unit testing framework
-72. Create UI testing suite
-73. Implement integration tests
-74. Add performance testing
-75. Create accessibility testing
-76. Implement security testing
-77. Add localization testing
-78. Create device compatibility testing
-79. Implement network condition testing
-80. Add stress testing suite
-
-### Phase 9: App Store Preparation (81-90)
-81. Create app store screenshots
-82. Design app icon and assets
-83. Write app store description
-84. Create app preview videos
-85. Implement app store analytics
-86. Add crash reporting system
-87. Create user feedback system
-88. Implement app rating prompts
-89. Add app store optimization
-90. Create app store listing
-
-### Phase 10: Documentation and Support (91-100)
-91. Create user documentation
-92. Write technical documentation
-93. Implement in-app help system
-94. Create troubleshooting guides
-95. Add support ticket system
-96. Implement FAQ system
-97. Create video tutorials
-98. Add community support features
-99. Implement feedback collection
-100. Create analytics dashboard
-
-Each task is estimated at 1 story point and represents a focused, testable piece of functionality. Tasks are organized in phases to ensure logical progression and dependencies are met. The plan follows iOS best practices and includes all necessary components for a production-ready app.
+Future enhancements can be added after validating the core functionality works as expected.
