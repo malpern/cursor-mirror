@@ -72,6 +72,17 @@ import AVFoundation
     nonisolated var frameProcessor: EncodingFrameProcessorProtocol { get }
 }
 
+/// A protocol for managing viewport positioning and visibility.
+/// Implementations should handle viewport window management and state.
+@available(macOS 14.0, *)
+@preconcurrency public protocol ViewportManagerProtocol: AnyObject {
+    /// The current position of the viewport
+    var position: CGPoint { get set }
+    
+    /// The size of the viewport
+    static var viewportSize: CGSize { get }
+}
+
 // MARK: - Environment Keys
 
 /// Environment key for providing the capture preview view model

@@ -6,7 +6,6 @@ import CursorWindowCore
 /// A menu bar application that displays a floating viewport window
 /// The viewport can be positioned and resized by the user
 @available(macOS 14.0, *)
-@main
 struct CursorWindowApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     

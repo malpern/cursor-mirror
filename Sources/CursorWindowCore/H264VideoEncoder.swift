@@ -60,8 +60,9 @@ extension H264VideoEncoder: EncodingFrameProcessorProtocol {
         )
         
         // Process the frame on a serial queue to maintain order
-        Task { @MainActor [weak self] in
-            await self?.processFrameInternal(frameData)
+        // Use a strong reference to self to ensure frames aren't dropped
+        Task {
+            await self.processFrameInternal(frameData)
         }
     }
     

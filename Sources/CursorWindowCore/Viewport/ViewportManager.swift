@@ -2,7 +2,14 @@ import SwiftUI
 import AppKit
 
 @available(macOS 14.0, *)
-public class ViewportManager: ObservableObject {
+public class ViewportManager: ObservableObject, ViewportManagerProtocol {
+    // UserDefaults keys
+    private enum UserDefaultsKeys {
+        static let viewportPositionX = "com.cursor-window.viewport.position.x"
+        static let viewportPositionY = "com.cursor-window.viewport.position.y"
+        static let viewportWasVisible = "com.cursor-window.viewport.wasVisible"
+    }
+    
     @Published public var isVisible = false
     @Published public var position = CGPoint(x: 100, y: 100)
     public static let viewportSize = CGSize(
@@ -102,16 +109,16 @@ public class ViewportManager: ObservableObject {
         let boundedX = min(max(point.x, minX), maxX)
         let boundedY = min(max(point.y, minY), maxY)
         
-        // Only update if the position has actually changed
-        if position.x != boundedX || position.y != boundedY {
-            // Update the position state
-            position = CGPoint(x: boundedX, y: boundedY)
-            
-            // Only save to UserDefaults when explicitly requested
-            if persistPosition {
-                UserDefaults.standard.set(boundedX, forKey: UserDefaultsKeys.viewportPositionX)
-                UserDefaults.standard.set(boundedY, forKey: UserDefaultsKeys.viewportPositionY)
-            }
+        // Update the position property
+        position = CGPoint(x: boundedX, y: boundedY)
+        
+        // Update window position
+        updateWindowPosition(to: position, useAnimation: useAnimation)
+        
+        // Save position if requested
+        if persistPosition {
+            UserDefaults.standard.set(position.x, forKey: UserDefaultsKeys.viewportPositionX)
+            UserDefaults.standard.set(position.y, forKey: UserDefaultsKeys.viewportPositionY)
         }
     }
     
@@ -121,8 +128,8 @@ public class ViewportManager: ObservableObject {
         if window == nil {
             print("DEBUG: Creating new window")
             
-            // Create a new window
-            window = NSWindow(
+            // Create a new panel
+            let panel = NSPanel(
                 contentRect: NSRect(
                     x: position.x,
                     y: position.y,
@@ -134,22 +141,28 @@ public class ViewportManager: ObservableObject {
                 defer: false
             )
             
-            if let window = window, let factory = viewFactory {
-                // Configure window properties
-                window.level = .floating
-                window.collectionBehavior = [.canJoinAllSpaces]
-                window.backgroundColor = .clear
-                window.isOpaque = false
-                window.hasShadow = false
-                window.isMovable = true
-                window.isMovableByWindowBackground = true
-                window.acceptsMouseMovedEvents = true
+            if let factory = viewFactory {
+                // Configure panel properties
+                panel.level = .floating
+                panel.collectionBehavior = [.canJoinAllSpaces]
+                panel.backgroundColor = .clear
+                panel.isOpaque = false
+                panel.hasShadow = false
+                panel.isMovable = true
+                panel.isMovableByWindowBackground = true
+                panel.acceptsMouseMovedEvents = true
+                
+                // Configure panel behavior
+                panel.becomesKeyOnlyIfNeeded = false
+                panel.worksWhenModal = true
+                panel.isFloatingPanel = true
                 
                 // Set the content view
                 let contentView = NSHostingView(rootView: factory())
-                window.contentView = contentView
+                panel.contentView = contentView
                 
-                print("DEBUG: Window created successfully")
+                window = panel
+                print("DEBUG: Panel created successfully")
             }
         }
         

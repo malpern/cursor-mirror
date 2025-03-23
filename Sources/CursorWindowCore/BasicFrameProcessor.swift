@@ -77,8 +77,14 @@ public final class BasicFrameProcessor: @unchecked Sendable {
     /// Queue for frame processing
     private let processingQueue = DispatchQueue(
         label: "com.cursorwindow.basicframeprocessor",
-        qos: .userInteractive
+        qos: .userInitiated
     )
+    
+    /// Frame rate limiter
+    private var lastProcessingTime: Date?
+    private var targetProcessingInterval: TimeInterval {
+        1.0 / Double(configuration.targetFrameRate)
+    }
     
     /// Actor for thread-safe state updates
     private actor StateManager {
@@ -228,6 +234,16 @@ extension BasicFrameProcessor: BasicFrameProcessorProtocol {
     /// Process a single frame from the screen capture stream
     /// - Parameter frame: A CMSampleBuffer containing the captured frame data
     nonisolated public func processFrame(_ frame: CMSampleBuffer) {
+        // Frame rate limiting
+        let now = Date()
+        if let lastTime = lastProcessingTime {
+            let timeSinceLastFrame = now.timeIntervalSince(lastTime)
+            if timeSinceLastFrame < targetProcessingInterval {
+                return // Skip frame if we're processing too fast
+            }
+        }
+        lastProcessingTime = now
+        
         // Extract frame data in the nonisolated context
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(frame) else { return }
         

@@ -70,23 +70,28 @@ final class BasicFrameProcessorTests: XCTestCase {
         XCTAssertGreaterThan(updatedStats?.averageProcessingTime ?? 0, 0)
     }
     
-    func testStatisticsReset() async {
-        let frame = try? createTestFrame()
-        if let frame = frame {
-            processor.processFrame(frame)
-        }
+    func testStatisticsReset() async throws {
+        let frame = try createTestFrame()
+        processor.processFrame(frame)
         
         // Allow time for processing
-        try? await Task.sleep(for: .milliseconds(100))
+        try await Task.sleep(for: .milliseconds(100))
         
-        processor.resetStatistics()
+        // Get initial statistics
+        let initialStats = await processor.getCurrentStatistics()
+        XCTAssertGreaterThan(initialStats.processedFrameCount, 0)
+        
+        // Reset statistics
+        await processor.resetStatistics()
         
         // Allow time for reset
-        try? await Task.sleep(for: .milliseconds(100))
+        try await Task.sleep(for: .milliseconds(100))
         
-        XCTAssertEqual(processor.statistics.processedFrameCount, 0)
-        XCTAssertEqual(processor.statistics.averageProcessingTime, 0)
-        XCTAssertEqual(processor.statistics.droppedFrameCount, 0)
+        // Get final statistics
+        let finalStats = await processor.getCurrentStatistics()
+        XCTAssertEqual(finalStats.processedFrameCount, 0)
+        XCTAssertEqual(finalStats.averageProcessingTime, 0)
+        XCTAssertEqual(finalStats.droppedFrameCount, 0)
     }
     
     func testDroppedFrameDetection() async throws {

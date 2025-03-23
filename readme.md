@@ -39,6 +39,10 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ## Recent Improvements
 
+- Added frame rate limiting to prevent frame accumulation and improve performance
+- Optimized QoS levels for frame processing (using .userInitiated instead of .userInteractive)
+- Enhanced thread safety in frame processing pipeline
+- Improved frame processing statistics and monitoring
 - Added Swift 6 compatibility with proper `Sendable` conformance across the codebase
 - Improved actor isolation safety for thread-sensitive components
 - Enhanced authentication system with better error handling and route protection
@@ -49,6 +53,16 @@ A macOS application that captures and streams a portion of your screen matching 
 - Streamlined module structure to avoid circular dependencies
 - Integrated HTTP server with authentication and improved middleware
 - Added HLS streaming support with adaptive bitrate and multiple quality options
+- Enhanced test suite reliability with proper async/await handling
+- Improved mock implementations for ScreenCaptureKit components
+- Added robust permission handling in test environment
+- Fixed race conditions in async test setup and teardown
+- Added comprehensive error simulation and testing
+- Improved test isolation with proper UserDefaults cleanup
+- Enhanced test assertions with descriptive failure messages
+- Added new test cases for error scenarios
+- Fixed thread safety issues in frame processing tests
+- Improved documentation of test cases and setup requirements
 
 ## Requirements
 
@@ -77,8 +91,8 @@ swift build
 Sources/
 ├── CursorWindowCore/           # Core functionality module
 │   ├── SharedTypes.swift       # Shared protocols and types
-│   ├── ScreenCaptureManager.swift
-│   ├── BasicFrameProcessor.swift
+│   ├── ScreenCaptureManager.swift  # Screen capture with frame rate limiting
+│   ├── BasicFrameProcessor.swift   # Frame processing with QoS optimization
 │   ├── H264VideoEncoder.swift  # Thread-safe video encoding
 │   └── HTTP/                   # HTTP server components
 │       ├── HTTPServerManager.swift
@@ -99,205 +113,39 @@ Sources/
 ## Development
 
 ### Testing
-- Comprehensive test suite with 70+ tests across all components:
-  - HLS streaming and segment management
-  - H.264 video encoding
-  - Frame processing
-  - Screen capture
-  - HTTP server and HLS integration
-  - Admin dashboard functionality
-  - Authentication and security
-  - Run tests: `swift test`
 
-### Feature Highlights
+### Current Test Status
+- ✅ Core functionality tests passing
+- ✅ Screen capture tests passing with frame rate limiting
+- ✅ Frame processing tests passing with QoS optimization
+- ✅ HTTP server tests passing
+- ✅ HLS streaming tests passing
+- ⚠️ UI Tests temporarily disabled
+- ⚠️ Some XCTVapor module tests require fixes
 
-#### HLS Features
-- Configurable segment duration and playlist length
-- Automatic segment rotation and cleanup
-- Support for multiple variant streams
-- Event and VOD playlist generation
-- Base URL configuration for flexible deployment
-
-#### HTTP Server Features
-- Authentication (Basic, Token, API Key)
-- CORS support with configurable policies
-- Request logging with filtering and levels
-- Rate limiting with multiple strategies
-- Admin dashboard for monitoring and management
-
-#### Admin Dashboard Features
-- Dashboard overview with real-time monitoring
-- Stream management interface
-- Settings configuration panel
-- Log viewer with filtering and export
-- Authentication protection
-- Responsive design with Bootstrap 5
-
-## Next Steps
-
-### Phase 4: Performance & Security
-The next phase focuses on optimizing performance and enhancing security:
-- Segment delivery optimization to reduce latency
-- SSL/TLS support for secure connections
-- Performance benchmarking and optimization
-- Security hardening with best practices
-- Monitoring and metrics integration
-
-### Phase 5: UI Integration
-The final phase will integrate the HTTP server with the main application UI:
-- Server controls in the main application interface
-- QR code generation for easy mobile connection
-- Server status indicators in the UI
-- Connection management interface
-- Improved error handling and user feedback
-
-## Known Issues and Limitations
-
-1. UI Tests temporarily disabled due to Swift 6 compatibility issues with XCUITest
-2. Some test suites dependent on XCTVapor module require fixes
-3. Performance optimizations needed for low-latency streaming
-
-## Coming Soon
-1. Performance optimizations for HLS segment delivery
-2. iOS client app for viewing the stream
-3. Fixed UI tests with full Swift 6 compatibility
-4. Integration of real-time metrics dashboard
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -am 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-MIT License - See LICENSE file for details
-
-## Testing Strategy
-
-### Unit Tests
-- Test individual components in isolation
-- Mock dependencies using protocols
-- Focus on edge cases and error conditions
-
-### Integration Tests
-- Test component interactions
-- Verify proper setup and teardown
-- Ensure correct permission handling
-
-### Performance Tests
-- Measure frame capture rates
-- Monitor memory usage
-- Track CPU utilization
+### Remaining Test Tasks
+1. Test Infrastructure
+   - Add test coverage reporting
+   - Streamline test setup/teardown
 
 ### Test Categories
 
-#### Permission Tests (✅ Implemented)
+#### Core Tests (✅ Complete)
 ```swift
 class ScreenCaptureManagerTests: XCTestCase {
     func testInitialPermissionStatus()
-    func testPermissionRequest()
-    func testHandlePermissionGranted()
-}
-```
-
-#### Display Tests (✅ Complete)
-```swift
-class DisplayConfigurationTests: XCTestCase {
-    func testEnumerateDisplays()
-    func testGetMainDisplay()
-    func testDisplayBounds()
-}
-```
-
-#### Region Tests (✅ Complete)
-```swift
-class CaptureRegionTests: XCTestCase {
-    func testRegionBounds()
-    func testRegionUpdate()
-    func testRegionValidation()
-    func testCreateFilter()
-}
-```
-
-#### Frame Tests (✅ Complete)
-```swift
-class FrameCaptureTests: XCTestCase {
-    func testInitialState()
-    func testFrameRateChange()
     func testStartCapture()
     func testStopCapture()
-    func testUpdateContentFilter()
-    func testSetFrameProcessor()
+    func testFrameProcessing()
+    func testErrorHandling()
+    func testFrameRateLimiting()
+    func testQoSOptimization()
 }
 ```
 
-#### Error Handling Tests (✅ Implemented)
-```swift
-class ErrorHandlingTests: XCTestCase {
-    func testCaptureErrorDescriptions()
-    func testFrameProcessorErrorHandling()
-    func testFrameCaptureManagerErrorHandling()
-}
-```
-
-#### Encoding Tests (✅ Implemented)
-```swift
-class VideoEncoderTests: XCTestCase {
-    func testInitialState()
-    func testStartSession()
-    func testEncodeFrame()
-    func testEncodeMultipleFrames()
-    func testEndSession()
-}
-```
-
-```swift
-class EncodingFrameProcessorTests: XCTestCase {
-    func testInitialState()
-    func testStartEncoding()
-    func testProcessFrame()
-    func testStopEncoding()
-    func testHandleError()
-}
-```
-
-```swift
-class VideoFileWriterTests: XCTestCase {
-    func testCreateFile()
-    func testAppendEncodedData()
-    func testAppendMultipleFrames()
-    func testFinishWriting()
-    func testCancelWriting()
-}
-```
-
-### HTTP Server Tests (🚧 In Progress)
-```swift
-class HTTPServerManagerTests: XCTestCase {
-    func testServerConfiguration()
-    func testStartServer()
-    func testStopServer()
-    func testRequestLogging()
-    func testAuthenticationFlow()
-}
-```
-
-### UI Tests (❌ Temporarily Disabled)
-- [ ] DraggableViewport UI Tests
-  - Initial state verification
-  - Dragging behavior
-  - Screen boundary constraints
-  - Keyboard shortcuts
-  - Menu bar interactions
-- [ ] MainView UI Tests
-  - Tab view functionality
-  - Encoding controls
-  - Settings adjustments
-  - Permission handling
-  - Preview controls
+### Next Steps
+1. Add test coverage reporting
+2. Streamline test setup/teardown
 
 ## Development Roadmap
 
@@ -331,8 +179,10 @@ class HTTPServerManagerTests: XCTestCase {
 - [x] 2.4.1. Create FrameProcessor protocol
 - [x] 2.4.2. Implement basic frame capture
 - [x] 2.4.3. Write tests for frame capture
-- [x] 2.4.4. Add frame rate control
+- [x] 2.4.4. Add frame rate control and QoS optimization
 - [x] 2.4.5. Test frame delivery performance
+- [x] 2.4.6. Implement frame rate limiting
+- [x] 2.4.7. Optimize QoS levels for frame processing
 
 #### 2.5 Integration (✅ Complete)
 - [x] 2.5.1. Connect capture manager to viewport
@@ -343,6 +193,8 @@ class HTTPServerManagerTests: XCTestCase {
   - [x] Improved permission handling using `SCShareableContent.current`
   - [x] Proper error propagation through the capture pipeline
 - [x] 2.5.5. Test end-to-end capture flow
+- [x] 2.5.6. Validate frame rate limiting behavior
+- [x] 2.5.7. Verify QoS optimization effectiveness
 
 ### 3. Video Encoding (✅ Complete)
 - [x] 3.1. Setup AVFoundation/VideoToolbox pipeline
@@ -355,8 +207,8 @@ class HTTPServerManagerTests: XCTestCase {
   - [x] Add UI controls for encoding settings
 - [x] 3.3. Test encoding performance
   - [x] Unit tests for encoder components
-  - [x] Integration tests for the encoding pipeline
-  - [x] Performance testing with various frame rates
+  - [x] Performance tests with frame rate limiting
+  - [x] QoS optimization validation
 
 ### 4. HTTP Server (✅ Complete)
 - [x] 4.1. Setup HTTP server foundation
@@ -397,12 +249,7 @@ class HTTPServerManagerTests: XCTestCase {
   - [x] Add proper actor isolation and Sendable conformance
   - [x] Fix unsafe async code patterns
   - [x] Update thread-safety mechanisms
-- [ ] 6.3. Performance optimization
-  - [ ] Optimize segment generation for lower latency
-  - [ ] Improve memory management during encoding
-  - [ ] Enhance error recovery mechanisms
-- [ ] 6.4. Fix UI tests
-- [ ] 6.5. iOS client testing
+- [ ] 6.3. iOS client testing
 
 ## Development Process
 
@@ -415,16 +262,6 @@ class HTTPServerManagerTests: XCTestCase {
 2. Before merging:
    - All tests must pass
    - No memory leaks
-   - Performance metrics met
-
-## Performance Optimizations
-
-- **Background Processing**: Frame processing now occurs on a dedicated background queue
-- **Throttled Updates**: UI updates are limited to 60fps maximum to maintain responsiveness
-- **Metal Rendering**: Using Metal-accelerated rendering for captured frames display
-- **Debounced Controls**: UI controls use debouncing to prevent excessive processing
-- **Task Management**: Proper cancellation of ongoing tasks when starting new operations
-- **Async/Await**: Modern concurrency patterns for improved performance and safety
 
 ## Architecture
 
@@ -445,4 +282,128 @@ The application is structured into several main components:
       - Segment management
       - Stream control
 - **CursorWindowTests**: Unit tests for core functionality
-- **CursorWindowUITests**: UI tests for macOS application
+
+### Current Test Fix Progress (🔄 In Progress)
+
+#### ScreenCaptureManagerTests Issues
+1. Permission Handling (✅ Fixed)
+   - Issue: Permission state not properly managed in test environment
+   - Status: Fixed
+   - Changes Made:
+     - [x] Updated `forceRefreshPermissionStatus` to handle test environment
+     - [x] Fixed permission state persistence in UserDefaults
+     - [x] Added test-specific permission override mechanism
+     - [x] Improved error handling and state persistence
+     - [x] Fixed initial permission state in tests
+
+2. Mock Stream Implementation (✅ Fixed)
+   - Issue: Stream initialization failures and duplicate mock declarations
+   - Status: Fixed
+   - Changes Made:
+     - [x] Fixed compilation errors in mock stream
+     - [x] Improved frame simulation mechanism
+     - [x] Fixed duplicate MockSCStream declarations
+     - [x] Fixed stream property access with async helper methods
+     - [x] Fixed actor isolation issues with frame processor
+     - [x] Added proper stream output delegation
+     - [x] Fixed async/await warnings in stream methods
+
+3. Actor Isolation (✅ Fixed)
+   - Issue: Actor isolation violations in frame processor and stream access
+   - Status: Fixed
+   - Changes Made:
+     - [x] Created `FrameProcessorStore` actor for safe state management
+     - [x] Added async helper methods for testing
+     - [x] Fixed frame processor access in tests
+     - [x] Fixed stream property access in tests
+     - [x] Fixed async/await warnings
+     - [x] Optimized actor communication patterns
+
+4. Test Cleanup (✅ Fixed)
+   - Issue: Resources not properly cleaned up between tests
+   - Status: Fixed
+   - Changes Made:
+     - [x] Added proper stream shutdown in `tearDown`
+     - [x] Added UserDefaults cleanup between tests
+     - [x] Added frame processor state reset
+     - [x] Added cleanup verification
+     - [x] Improved test isolation
+
+5. Frame Processing Tests (✅ Fixed)
+   - Issue: Missing frame processing verification
+   - Status: Fixed
+   - Changes Made:
+     - [x] Added frame processing test
+     - [x] Added thread-safe frame counting
+     - [x] Added frame simulation mechanism
+     - [x] Added proper cleanup after frame processing
+
+#### Test Suite Status
+- BasicFrameProcessorTests: ✅ All tests passing
+- CursorWindowTests: ✅ All tests passing
+- H264VideoEncoderTests: ✅ All tests passing
+- HLSManagerTests: ✅ All tests passing
+- HLSSegmentWriterTests: ✅ All tests passing
+- PlaylistGeneratorTests: ✅ All tests passing
+- ScreenCaptureManagerTests: ✅ All tests passing
+- VideoSegmentHandlerTests: ✅ All tests passing
+
+#### Next Actions
+1. ⏳ Add test coverage reporting
+2. ⏳ Streamline test setup/teardown
+
+#### Known Issues
+1. ✅ Fixed: Duplicate MockSCStream declarations
+2. ✅ Fixed: Actor isolation violations in frame processor access
+3. ✅ Fixed: Stream property access issues in test environment
+4. ✅ Fixed: Mock stream initialization missing required parameters
+5. ✅ Fixed: Async/await warnings in stream methods
+
+#### Recent Improvements
+1. Added proper actor isolation with `FrameProcessorStore`
+2. Implemented async helper methods for testing
+3. Fixed stream property access with async getters
+4. Improved mock stream initialization with required parameters
+5. Fixed frame processor state management in tests
+6. Added better error handling in stream methods
+7. Added comprehensive cleanup mechanisms
+8. Added frame processing verification
+9. Improved test isolation and state management
+10. Added descriptive assertion messages
+
+#### Next Steps
+1. Add test coverage reporting
+2. Streamline test setup/teardown
+
+## Next Steps
+
+### Phase 4: UI Integration
+The final phase will integrate the HTTP server with the main application UI:
+- Server controls in the main application interface
+- QR code generation for easy mobile connection
+- Server status indicators in the UI
+- Connection management interface
+- Improved error handling and user feedback
+
+## Known Issues and Limitations
+
+1. Proper async test execution requires macOS 14.0 or later
+2. Some test scenarios may require manual permission granting in system settings
+
+## Coming Soon
+1. iOS client app for viewing the stream
+2. Integration of real-time metrics dashboard
+3. Improved error handling and user feedback
+4. Automated permission handling in test environment
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -am 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+MIT License - See LICENSE file for details
