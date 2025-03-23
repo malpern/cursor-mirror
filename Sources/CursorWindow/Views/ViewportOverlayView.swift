@@ -7,12 +7,12 @@ struct ViewportOverlayView: View {
     @ObservedObject var viewportManager: ViewportManager
     @State private var viewUpdateCount: Int = 0
     
-    // Constants for visual appearance
-    private let cornerRadius: CGFloat = 8
-    private let strokeWidth: CGFloat = 2
-    private let glowWidth: CGFloat = 4
-    private let glowRadius: CGFloat = 8
-    private let glowOpacity: CGFloat = 0.5
+    // iPhone 15 Pro dimensions and appearance
+    private let cornerRadius: CGFloat = 47 // iPhone 15 Pro corner radius
+    private let strokeWidth: CGFloat = 4 // Increased from 2 to 4
+    private let glowWidth: CGFloat = 6
+    private let glowRadius: CGFloat = 12
+    private let glowOpacity: CGFloat = 0.4
     
     var body: some View {
         ZStack {
@@ -23,13 +23,13 @@ struct ViewportOverlayView: View {
                     viewUpdateCount += 1
                 }
             
-            // Glow effect
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .strokeBorder(Color.blue.opacity(glowOpacity), lineWidth: glowWidth)
+            // Outer glow effect
+            RoundedRectangle(cornerRadius: cornerRadius + glowWidth/2)
+                .stroke(Color.blue.opacity(glowOpacity), lineWidth: glowWidth)
                 .blur(radius: glowRadius)
                 .frame(
-                    width: ViewportManager.viewportSize.width,
-                    height: ViewportManager.viewportSize.height
+                    width: ViewportManager.viewportSize.width + glowWidth,
+                    height: ViewportManager.viewportSize.height + glowWidth
                 )
             
             // Main viewport border
@@ -39,20 +39,6 @@ struct ViewportOverlayView: View {
                     width: ViewportManager.viewportSize.width,
                     height: ViewportManager.viewportSize.height
                 )
-                
-            // Debug coordinates
-            #if DEBUG
-            VStack {
-                Spacer()
-                Text("Position: \(Int(viewportManager.position.x)), \(Int(viewportManager.position.y))")
-                    .font(.caption)
-                    .foregroundColor(.white)
-                    .padding(4)
-                    .background(Color.black.opacity(0.5))
-                    .cornerRadius(4)
-            }
-            .frame(width: ViewportManager.viewportSize.width, height: ViewportManager.viewportSize.height)
-            #endif
         }
         .contentShape(Rectangle())
         .background(WindowDragHandler(viewportManager: viewportManager))
