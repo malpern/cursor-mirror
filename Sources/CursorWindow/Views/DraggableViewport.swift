@@ -126,8 +126,30 @@ struct DraggableViewport: View {
             // Check permission status when the view appears
             Task {
                 await screenCaptureManager.forceRefreshPermissionStatus()
+                
+                // Update TouchEventController with viewport bounds
+                updateTouchControllerBounds()
             }
         }
+        .onChange(of: viewportState.offset) { _, _ in
+            // Update TouchEventController bounds when viewport moves
+            updateTouchControllerBounds()
+        }
+    }
+    
+    /// Update the TouchEventController with the current viewport bounds
+    private func updateTouchControllerBounds() {
+        let size = CGSize(width: ViewportSize.width, height: ViewportSize.height)
+        let origin = NSPoint(
+            x: NSScreen.main?.frame.width ?? 0 / 2 + viewportState.offset.width - size.width / 2,
+            y: NSScreen.main?.frame.height ?? 0 / 2 + viewportState.offset.height - size.height / 2
+        )
+        
+        // Update TouchEventController with viewport bounds
+        TouchEventController.shared.viewportBounds = CGRect(origin: origin, size: size)
+        
+        // Enable touch emulation
+        TouchEventController.shared.isEnabled = true
     }
 }
 

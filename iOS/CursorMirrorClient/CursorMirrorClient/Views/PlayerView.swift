@@ -21,6 +21,9 @@ struct PlayerView: View {
     // Timer for updating stream statistics
     @State private var statsTimer: Timer? = nil
     
+    // Add a touchState property to track the touch state
+    @State private var touchState = TouchState()
+    
     var body: some View {
         GeometryReader { geometry in
             NavigationStack {
@@ -46,7 +49,13 @@ struct PlayerView: View {
                             
                             // Touch overlay when enabled
                             if isTouchEnabled {
-                                TouchOverlayView(touchPosition: $touchPosition) { position in
+                                TouchOverlayView(
+                                    touchPosition: $touchPosition, 
+                                    isPressed: Binding<Bool>(
+                                        get: { self.touchState.isPressed },
+                                        set: { self.touchState.isPressed = $0 }
+                                    )
+                                ) { position in
                                     sendTouchEvent(at: position)
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -316,11 +325,46 @@ struct PlayerView: View {
     }
     
     private func sendTouchEvent(at position: CGPoint) {
-        // In a real implementation, this would send touch events back to the macOS app
+        // Calculate as percentage of viewport size
+        let containerSize = CGSize(width: ViewportSize.width, height: ViewportSize.height)
+        
+        // Calculate normalized position (0-1)
+        let percentX = position.x / containerSize.width
+        let percentY = position.y / containerSize.height
+        
+        // Store touch position for visual feedback
         touchPosition = position
         
-        // Here you would implement the logic to send touch events to the server
-        // using your connection viewModel
+        // Determine the touch event type based on the touch state
+        var touchType: TouchEventType
+        
+        if !touchState.isPressed {
+            // Touch has ended
+            touchType = .ended
+        } else if touchPosition == nil {
+            // First touch
+            touchType = .began
+        } else {
+            // Moving touch
+            touchType = .moved
+        }
+        
+        // Create and send the touch event
+        let touchEvent = TouchEvent(
+            type: touchType,
+            percentX: Double(percentX),
+            percentY: Double(percentY)
+        )
+        
+        // Send the event asynchronously
+        Task {
+            await viewModel.sendTouchEvent(touchEvent)
+            
+            // If this was an ended event, clear the touch position after sending
+            if touchType == .ended {
+                touchPosition = nil
+            }
+        }
     }
 }
 
@@ -448,6 +492,7 @@ struct QualityPickerView: View {
 
 struct TouchOverlayView: View {
     @Binding var touchPosition: CGPoint?
+    @Binding var isPressed: Bool
     let onTouch: (CGPoint) -> Void
     
     var body: some View {
@@ -467,10 +512,23 @@ struct TouchOverlayView: View {
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
                     let position = value.location
+                    
+                    // Update state
                     touchPosition = position
+                    isPressed = true
+                    
+                    // Pass to handler
                     onTouch(position)
                 }
                 .onEnded { _ in
+                    // Mark as ended
+                    isPressed = false
+                    
+                    // Send the ended event with the last known position
+                    if let lastPosition = touchPosition {
+                        onTouch(lastPosition)
+                    }
+                    
                     // Fade out touch indicator after a delay
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         withAnimation {
@@ -510,6 +568,11 @@ enum BufferingState {
         case .ready: return "Ready"
         }
     }
+}
+
+// Add a TouchState class to track touch state
+class TouchState: ObservableObject {
+    @Published var isPressed = false
 }
 
 #Preview {

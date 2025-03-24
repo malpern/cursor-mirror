@@ -240,4 +240,49 @@ class ConnectionViewModel {
         
         return streamConfig.generateStreamURL(forDevice: device.id, baseURL: baseURL)
     }
+    
+    /// Send a touch event to the connected device
+    func sendTouchEvent(_ event: TouchEvent) async {
+        guard connectionState.status == .connected,
+              let device = connectionState.selectedDevice else {
+            return
+        }
+        
+        // Base URL for API calls
+        let baseURLString = "http://localhost:8080" // Default for testing
+        
+        // Build the URL for the touch event endpoint
+        guard let url = URL(string: "\(baseURLString)/api/touch") else {
+            print("Invalid URL for touch event")
+            return
+        }
+        
+        // Create the request
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            // Add device ID and touch event data
+            let payload: [String: Any] = [
+                "deviceID": device.id,
+                "event": try JSONSerialization.jsonObject(with: JSONEncoder().encode(event))
+            ]
+            
+            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+            
+            // Send the request
+            let (_, response) = try await URLSession.shared.data(for: request)
+            
+            // Check response
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                // Success
+                print("Touch event sent successfully")
+            } else {
+                print("Failed to send touch event, status: \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+            }
+        } catch {
+            print("Error sending touch event: \(error.localizedDescription)")
+        }
+    }
 } 

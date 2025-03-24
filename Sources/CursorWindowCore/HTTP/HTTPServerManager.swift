@@ -275,12 +275,15 @@ public class HTTPServerManager {
     
     /// Configure application routes
     /// - Parameter application: Vapor application
-    func configureRoutes(_ application: Application) async {
+    private func configureRoutes(_ application: Application) async {
         // Configure admin routes
         await adminController?.setupRoutes(application)
         
         // Configure HLS stream routes
         await streamController.setupRoutes(application)
+        
+        // Register touch event routes
+        TouchEventController.shared.registerRoutes(with: application)
         
         // Add health check
         application.get("health") { _ -> String in
