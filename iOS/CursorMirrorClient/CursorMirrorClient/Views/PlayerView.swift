@@ -5,60 +5,202 @@ struct PlayerView: View {
     @Bindable var viewModel: ConnectionViewModel
     @State private var player: AVPlayer?
     @State private var isPlaying = false
+    @State private var isFullscreen = false
+    @State private var showQualityPicker = false
+    @State private var selectedQuality: StreamQuality = .auto
+    @State private var showStreamInfo = false
+    @State private var isTouchEnabled = false
+    @State private var touchPosition: CGPoint?
+    
+    // Stream statistics
+    @State private var bitrate: Double = 0
+    @State private var frameRate: Double = 0
+    @State private var bufferingState: BufferingState = .ready
+    @State private var reconnectAttempts = 0
+    
+    // Timer for updating stream statistics
+    @State private var statsTimer: Timer? = nil
     
     var body: some View {
-        NavigationStack {
-            VStack {
-                if viewModel.connectionState.status == .error {
-                    ErrorBannerView(error: viewModel.connectionState.lastError) {
-                        viewModel.clearError()
+        GeometryReader { geometry in
+            NavigationStack {
+                VStack {
+                    if viewModel.connectionState.status == .error {
+                        ErrorBannerView(error: viewModel.connectionState.lastError) {
+                            viewModel.clearError()
+                        }
                     }
-                }
-                
-                if viewModel.connectionState.status == .connected, let streamURL = viewModel.getStreamURL() {
-                    VideoPlayerView(player: player)
-                        .aspectRatio(393/852, contentMode: .fit) // iPhone 15 Pro aspect ratio
-                        .cornerRadius(16)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                        )
-                        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                        .padding()
+                    
+                    if viewModel.connectionState.status == .connected, let streamURL = viewModel.getStreamURL() {
+                        ZStack {
+                            VideoPlayerView(player: player)
+                                .aspectRatio(isFullscreen ? nil : 393/852, contentMode: isFullscreen ? .fill : .fit) // iPhone 15 Pro aspect ratio
+                                .frame(maxWidth: isFullscreen ? geometry.size.width : nil, 
+                                       maxHeight: isFullscreen ? geometry.size.height : nil)
+                                .cornerRadius(isFullscreen ? 0 : 16)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: isFullscreen ? 0 : 16)
+                                        .stroke(Color.secondary.opacity(0.3), lineWidth: isFullscreen ? 0 : 1)
+                                )
+                                .shadow(color: .black.opacity(isFullscreen ? 0 : 0.1), radius: isFullscreen ? 0 : 10, x: 0, y: 5)
+                            
+                            // Touch overlay when enabled
+                            if isTouchEnabled {
+                                TouchOverlayView(touchPosition: $touchPosition) { position in
+                                    sendTouchEvent(at: position)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                            
+                            // Stream quality indicator
+                            if showStreamInfo && !isFullscreen {
+                                StreamInfoOverlay(
+                                    bitrate: bitrate,
+                                    frameRate: frameRate,
+                                    bufferingState: bufferingState,
+                                    quality: selectedQuality,
+                                    reconnectAttempts: reconnectAttempts
+                                )
+                                .padding(8)
+                                .background(Color.black.opacity(0.6))
+                                .cornerRadius(8)
+                                .padding(8)
+                                .transition(.opacity)
+                                .animation(.easeInOut, value: showStreamInfo)
+                                .position(x: geometry.size.width - 80, y: 40)
+                            }
+                            
+                            // Fullscreen button
+                            Button(action: toggleFullscreen) {
+                                Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                    .font(.system(size: 20))
+                                    .padding(12)
+                                    .background(Circle().fill(Color.black.opacity(0.6)))
+                                    .foregroundStyle(.white)
+                            }
+                            .position(x: geometry.size.width - 40, y: isFullscreen ? geometry.size.height - 40 : 40)
+                        }
+                        .padding(isFullscreen ? 0 : 16)
                         .onAppear {
                             setupPlayer(with: streamURL)
+                            startStatsTimer()
                         }
                         .onDisappear {
                             stopPlayer()
+                            stopStatsTimer()
                         }
-                } else {
-                    ContentUnavailableView {
-                        Label("No Stream Available", systemImage: "play.slash")
-                    } description: {
-                        Text("Connect to a device to start streaming")
-                    } actions: {
-                        NavigationLink(destination: DeviceDiscoveryView(viewModel: viewModel)) {
-                            Text("Browse Devices")
+                        .gesture(
+                            TapGesture(count: 2)
+                                .onEnded { _ in
+                                    withAnimation {
+                                        toggleFullscreen()
+                                    }
+                                }
+                        )
+                    } else {
+                        ContentUnavailableView {
+                            Label("No Stream Available", systemImage: "play.slash")
+                        } description: {
+                            Text(getConnectionMessage())
+                        } actions: {
+                            NavigationLink(destination: DeviceDiscoveryView(viewModel: viewModel)) {
+                                Text("Browse Devices")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            
+                            if viewModel.connectionState.status == .error {
+                                Button(action: retryConnection) {
+                                    Text("Retry Connection")
+                                }
+                                .buttonStyle(.bordered)
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
+                    }
+                    
+                    if viewModel.connectionState.status == .connected && !isFullscreen {
+                        VStack(spacing: 8) {
+                            PlayerControls(isPlaying: $isPlaying) {
+                                togglePlayback()
+                            }
+                            
+                            HStack {
+                                // Stream quality picker button
+                                Button(action: { showQualityPicker.toggle() }) {
+                                    Label("Quality: \(selectedQuality.displayName)", systemImage: "gear")
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(Color(UIColor.tertiarySystemBackground))
+                                        .cornerRadius(8)
+                                }
+                                
+                                Spacer()
+                                
+                                // Stream info toggle button
+                                Button(action: { withAnimation { showStreamInfo.toggle() } }) {
+                                    Label(showStreamInfo ? "Hide Info" : "Show Info", systemImage: showStreamInfo ? "info.circle.fill" : "info.circle")
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(Color(UIColor.tertiarySystemBackground))
+                                        .cornerRadius(8)
+                                }
+                                
+                                Spacer()
+                                
+                                // Touch control toggle button
+                                Button(action: { isTouchEnabled.toggle() }) {
+                                    Label(isTouchEnabled ? "Touch: On" : "Touch: Off", systemImage: isTouchEnabled ? "hand.tap.fill" : "hand.tap")
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(Color(UIColor.tertiarySystemBackground))
+                                        .cornerRadius(8)
+                                }
+                            }
+                            .font(.subheadline)
+                            .padding(.horizontal)
+                        }
+                        .padding(.bottom)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color(UIColor.secondarySystemBackground))
+                        )
                     }
                 }
-                
-                if viewModel.connectionState.status == .connected {
-                    PlayerControls(isPlaying: $isPlaying) {
-                        togglePlayback()
-                    }
-                    .padding()
+                .animation(.spring, value: viewModel.connectionState.status)
+                .navigationTitle(isFullscreen ? "" : "Stream Player")
+                .navigationBarHidden(isFullscreen)
+                .sheet(isPresented: $showQualityPicker) {
+                    QualityPickerView(selectedQuality: $selectedQuality, onDismiss: {
+                        showQualityPicker = false
+                        applyQualityChange()
+                    })
                 }
+                .statusBarHidden(isFullscreen)
+                .ignoresSafeArea(isFullscreen ? .all : .keyboard)
             }
-            .animation(.spring, value: viewModel.connectionState.status)
-            .navigationTitle("Stream Player")
+        }
+    }
+    
+    private func getConnectionMessage() -> String {
+        switch viewModel.connectionState.status {
+        case .disconnected:
+            return "Connect to a device to start streaming"
+        case .connecting:
+            return "Connecting to device..."
+        case .disconnecting:
+            return "Disconnecting from stream..."
+        case .error:
+            return viewModel.connectionState.lastError?.localizedDescription ?? "Connection error occurred"
+        default:
+            return "Connect to a device to start streaming"
         }
     }
     
     private func setupPlayer(with url: URL) {
         let playerItem = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: playerItem)
+        
+        // Set the preferred playback quality
+        updatePlayerQuality()
         
         // Add observer for status changes
         NotificationCenter.default.addObserver(
@@ -89,7 +231,100 @@ struct PlayerView: View {
         }
         isPlaying.toggle()
     }
+    
+    private func toggleFullscreen() {
+        withAnimation(.spring) {
+            isFullscreen.toggle()
+        }
+    }
+    
+    private func applyQualityChange() {
+        updatePlayerQuality()
+        
+        // In a real implementation, you would update the stream URL 
+        // to point to the appropriate quality variant
+        if let currentURL = viewModel.getStreamURL(), let player = self.player {
+            // Example: For demonstration, just restart the player
+            let newItem = AVPlayerItem(url: currentURL)
+            player.replaceCurrentItem(with: newItem)
+            player.play()
+        }
+    }
+    
+    private func updatePlayerQuality() {
+        // Set preferred peakBitRate based on selected quality
+        if let player = player {
+            switch selectedQuality {
+            case .low:
+                player.currentItem?.preferredPeakBitRate = 1_500_000 // 1.5 Mbps
+            case .medium:
+                player.currentItem?.preferredPeakBitRate = 4_000_000 // 4 Mbps
+            case .high:
+                player.currentItem?.preferredPeakBitRate = 8_000_000 // 8 Mbps
+            case .auto:
+                player.currentItem?.preferredPeakBitRate = 0 // Auto
+            }
+        }
+    }
+    
+    private func startStatsTimer() {
+        statsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            updateStreamStats()
+        }
+    }
+    
+    private func stopStatsTimer() {
+        statsTimer?.invalidate()
+        statsTimer = nil
+    }
+    
+    private func updateStreamStats() {
+        guard let player = player, let playerItem = player.currentItem else { return }
+        
+        // Update bitrate (from AVPlayer accessLog if available)
+        if let accessLog = playerItem.accessLog(),
+           let lastEvent = accessLog.events.last {
+            bitrate = lastEvent.indicatedBitrate
+            
+            // Note: AVPlayerItemAccessLogEvent doesn't have indicatedFrameRate in all iOS versions
+            // Using a fixed value for demonstration purposes
+            frameRate = 30.0
+        }
+        
+        // Update buffering state
+        if playerItem.isPlaybackBufferEmpty {
+            bufferingState = .buffering
+        } else if playerItem.isPlaybackLikelyToKeepUp {
+            bufferingState = .ready
+        }
+    }
+    
+    private func retryConnection() {
+        guard viewModel.connectionState.status == .error else { return }
+        
+        // Clear errors
+        viewModel.clearError()
+        reconnectAttempts += 1
+        
+        // If we have a selected device, try to reconnect
+        if let selectedDevice = viewModel.connectionState.selectedDevice {
+            viewModel.connectToDevice(selectedDevice)
+        } else {
+            // Otherwise, go back to device discovery
+            viewModel.startDeviceDiscovery()
+        }
+    }
+    
+    private func sendTouchEvent(at position: CGPoint) {
+        // In a real implementation, this would send touch events back to the macOS app
+        touchPosition = position
+        
+        // Here you would implement the logic to send touch events to the server
+        // using your connection viewModel
+    }
 }
+
+// MARK: - Supporting Views
 
 struct VideoPlayerView: UIViewControllerRepresentable {
     let player: AVPlayer?
@@ -126,14 +361,154 @@ struct PlayerControls: View {
                         .foregroundStyle(.white)
                 }
             }
+            .accessibilityLabel(isPlaying ? "Pause" : "Play")
             
             Spacer()
         }
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(UIColor.secondarySystemBackground))
+    }
+}
+
+struct StreamInfoOverlay: View {
+    let bitrate: Double
+    let frameRate: Double
+    let bufferingState: BufferingState
+    let quality: StreamQuality
+    let reconnectAttempts: Int
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Quality: \(quality.displayName)")
+                .font(.caption)
+                .bold()
+            
+            Text(String(format: "Bitrate: %.1f Mbps", bitrate / 1_000_000))
+                .font(.caption)
+            
+            Text(String(format: "FPS: %.1f", frameRate))
+                .font(.caption)
+            
+            HStack {
+                Circle()
+                    .fill(bufferingState == .ready ? Color.green : Color.orange)
+                    .frame(width: 8, height: 8)
+                
+                Text(bufferingState.description)
+                    .font(.caption)
+            }
+            
+            if reconnectAttempts > 0 {
+                Text("Reconnects: \(reconnectAttempts)")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(8)
+    }
+}
+
+struct QualityPickerView: View {
+    @Binding var selectedQuality: StreamQuality
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(StreamQuality.allCases, id: \.self) { quality in
+                    Button(action: {
+                        selectedQuality = quality
+                        onDismiss()
+                    }) {
+                        HStack {
+                            Text(quality.displayName)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if quality == selectedQuality {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Stream Quality")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        onDismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
+struct TouchOverlayView: View {
+    @Binding var touchPosition: CGPoint?
+    let onTouch: (CGPoint) -> Void
+    
+    var body: some View {
+        ZStack {
+            Color.clear
+            
+            if let position = touchPosition {
+                Circle()
+                    .fill(Color.white.opacity(0.5))
+                    .frame(width: 30, height: 30)
+                    .position(position)
+                    .transition(.opacity)
+            }
+        }
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    let position = value.location
+                    touchPosition = position
+                    onTouch(position)
+                }
+                .onEnded { _ in
+                    // Fade out touch indicator after a delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        withAnimation {
+                            touchPosition = nil
+                        }
+                    }
+                }
         )
+    }
+}
+
+// MARK: - Helper Types
+
+enum StreamQuality: String, CaseIterable {
+    case auto
+    case low
+    case medium
+    case high
+    
+    var displayName: String {
+        switch self {
+        case .auto: return "Auto"
+        case .low: return "Low (480p)"
+        case .medium: return "Medium (720p)"
+        case .high: return "High (1080p)"
+        }
+    }
+}
+
+enum BufferingState {
+    case buffering
+    case ready
+    
+    var description: String {
+        switch self {
+        case .buffering: return "Buffering"
+        case .ready: return "Ready"
+        }
     }
 }
 
