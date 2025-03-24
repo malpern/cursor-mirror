@@ -9,6 +9,7 @@ struct SettingsView: View {
         case video = "Video"
         case touch = "Touch Controls"
         case appearance = "Appearance"
+        case cloudSync = "Cloud Sync"
         
         var icon: String {
             switch self {
@@ -16,6 +17,7 @@ struct SettingsView: View {
             case .video: return "film"
             case .touch: return "hand.tap"
             case .appearance: return "paintpalette"
+            case .cloudSync: return "cloud"
             }
         }
     }
@@ -61,6 +63,8 @@ struct SettingsView: View {
                     TouchSettingsView(settings: settings)
                 case .appearance:
                     AppearanceSettingsView(settings: settings)
+                case .cloudSync:
+                    CloudSyncSettingsView(settings: settings)
                 }
             }
             .padding()
@@ -347,6 +351,76 @@ struct AppearanceSettingsView: View {
             }
             .padding(.top, 20)
         }
+    }
+}
+
+struct CloudSyncSettingsView: View {
+    @State var settings: UserSettings
+    @State private var showingSyncConfirmation = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Section {
+                Toggle("Enable Cloud Sync", isOn: $settings.enableCloudSync)
+                    .padding(.vertical, 8)
+                
+                Toggle("Device-Specific Settings", isOn: $settings.deviceSpecificSettings)
+                    .padding(.vertical, 8)
+                    .onChange(of: settings.deviceSpecificSettings) { oldValue, newValue in
+                        if oldValue != newValue {
+                            settings.toggleDeviceSpecificSettings()
+                        }
+                    }
+                
+                VStack(alignment: .leading, spacing: 5) {
+                    if let lastSync = settings.syncLastSuccessful {
+                        Text("Last sync: \(formattedDate(lastSync))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Never synced")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Button(action: {
+                        showingSyncConfirmation = true
+                    }) {
+                        Label("Force Sync Now", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.blue)
+                    .disabled(!settings.enableCloudSync)
+                }
+                .padding(.vertical, 8)
+            } header: {
+                Text("Sync Options")
+                    .font(.headline)
+            }
+            
+            Text("Cloud sync allows your settings to be saved across devices and backed up to your iCloud account. Device-specific settings allow you to have different settings on each device.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .alert("Sync Settings", isPresented: $showingSyncConfirmation) {
+            Button("Sync", role: .none) {
+                forceSync()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Do you want to manually sync your settings to iCloud now?")
+        }
+    }
+    
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
+    private func forceSync() {
+        settings.syncLastAttempted = Date()  // This will trigger save() which will sync
     }
 }
 

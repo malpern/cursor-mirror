@@ -61,7 +61,12 @@ A macOS application that captures and streams a portion of your screen matching 
     - Fullscreen mode with gesture support
     - Detailed stream statistics
     - Touch controls for remote interaction
-  - Settings view (⏱️ Planned)
+  - Settings view (✅ Completed)
+    - Connection settings management
+    - Video quality and buffering configuration
+    - Touch control sensitivity and behavior
+    - Appearance customization options
+    - CloudKit settings synchronization
 - Testing (✅ Completed)
   - Comprehensive test suite for models
   - Mocks for CloudKit and network operations
@@ -70,12 +75,17 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ## Recent Improvements
 
-- Added iOS client with model layer and connection infrastructure
+- Added CloudKit Settings Sync for iOS client
+  - Implemented device-specific settings storage
+  - Added user preferences persistence across app restarts
+  - Created CloudKit integration for settings synchronization
+  - Added UI for managing sync settings
 - Simplified and fixed iOS client Settings screen
   - Replaced complex NavigationSplitView with more reliable NavigationStack
   - Fixed UI component rendering issues with proper color handling
   - Standardized appearance handling across light and dark modes
   - Improved UI responsiveness and reliability
+- Added iOS client with model layer and connection infrastructure
 - Improved iOS client test suite reliability
   - Fixed asynchronous test issues in device discovery tests
   - Implemented synchronous testing patterns for CloudKit operations
