@@ -33,11 +33,8 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ### Phase 3: Enhanced Functionality (⏱️ In Progress)
 - Touch emulation controls
-- Multiple viewport support
-- Custom styling/theming
-- Shortcut keys and hotkeys
 
-### Phase 4: iOS Client Implementation (🔄 In Progress)
+### Phase 4: iOS Client Implementation (✅ Completed)
 - Core model layer (✅ Completed)
   - ConnectionState for managing connection status
   - DeviceInfo for representing discovered devices
@@ -49,7 +46,7 @@ A macOS application that captures and streams a portion of your screen matching 
 - ViewModels (✅ Completed)
   - ConnectionViewModel for device discovery and connection management
   - UI state management with proper Swift 6 concurrency
-- UI Components (🔄 In Progress)
+- UI Components (✅ Completed)
   - Device discovery view (✅ Completed)
     - Device search functionality
     - Connection status visualization
