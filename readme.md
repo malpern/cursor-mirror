@@ -49,10 +49,19 @@ A macOS application that captures and streams a portion of your screen matching 
 - ViewModels (✅ Completed)
   - ConnectionViewModel for device discovery and connection management
   - UI state management with proper Swift 6 concurrency
-- UI Components (⏱️ Planned)
-  - Device discovery view
-  - Connection status view
-  - Video player interface
+- UI Components (🔄 In Progress)
+  - Device discovery view (✅ Completed)
+    - Device search functionality
+    - Connection status visualization
+    - Error handling and retry mechanism
+    - Detailed help and troubleshooting guides
+  - Video player interface (✅ Completed)
+    - Video streaming with HLS
+    - Quality selection (Auto, 480p, 720p, 1080p)
+    - Fullscreen mode with gesture support
+    - Detailed stream statistics
+    - Touch controls for remote interaction
+  - Settings view (⏱️ Planned)
 - Testing (✅ Completed)
   - Comprehensive test suite for models
   - Mocks for CloudKit and network operations
@@ -62,10 +71,27 @@ A macOS application that captures and streams a portion of your screen matching 
 ## Recent Improvements
 
 - Added iOS client with model layer and connection infrastructure
+- Simplified and fixed iOS client Settings screen
+  - Replaced complex NavigationSplitView with more reliable NavigationStack
+  - Fixed UI component rendering issues with proper color handling
+  - Standardized appearance handling across light and dark modes
+  - Improved UI responsiveness and reliability
 - Improved iOS client test suite reliability
   - Fixed asynchronous test issues in device discovery tests
   - Implemented synchronous testing patterns for CloudKit operations
   - Enhanced mock implementations for more reliable testing
+  - Fixed build errors related to UI component implementation
+- Enhanced DeviceDiscoveryView with advanced features
+  - Added search capability to filter devices by name or type
+  - Improved accessibility with proper labels and hints
+  - Added retry connection mechanism for error recovery
+  - Created comprehensive help interface for troubleshooting
+- Enhanced PlayerView with advanced streaming features
+  - Implemented stream quality selection with adaptive bitrate
+  - Added fullscreen mode with double-tap gesture control
+  - Created touch overlay for input capture and remote control
+  - Added real-time stream statistics monitoring
+  - Improved error handling and connection recovery
 
 ## Requirements
 
@@ -94,6 +120,8 @@ swift build
    - Discover available devices on the same iCloud account
    - Connect to a streaming device
    - View the streamed content
+   - Adjust quality settings as needed for your network
+   - Use touch controls to interact with remote content
 
 ## Project Structure
 
@@ -129,7 +157,10 @@ iOS/
         │   └── StreamConfig.swift     # Stream configuration
         ├── ViewModels/        # View models for iOS client
         │   └── ConnectionViewModel.swift  # Device discovery and connection
-        ├── Views/             # SwiftUI views (In Progress)
+        ├── Views/             # SwiftUI views
+        │   ├── DeviceDiscoveryView.swift  # Device discovery and selection
+        │   ├── PlayerView.swift   # Video player with streaming controls
+        │   └── ConnectionStatusView.swift  # Connection status visualization
         └── Tests/             # Test suite for iOS client
             ├── ConnectionStateTests.swift
             ├── DeviceInfoTests.swift
@@ -151,6 +182,8 @@ iOS/
   - HLS streaming functional
   - Device discovery working
   - Stream configuration persistence functioning
+  - Touch event forwarding functional
+  - Stream quality adjustment working
 
 ## Contributing
 

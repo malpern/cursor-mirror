@@ -1,155 +1,409 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Bindable var viewModel: ConnectionViewModel
-    @State private var streamConfig = StreamConfig()
-    @State private var showingResetAlert = false
+    @State private var settings = UserSettings.shared
+    @State private var showingResetConfirmation = false
+    
+    enum SettingsSection: String, CaseIterable {
+        case connection = "Connection"
+        case video = "Video"
+        case touch = "Touch Controls"
+        case appearance = "Appearance"
+        
+        var icon: String {
+            switch self {
+            case .connection: return "network"
+            case .video: return "film"
+            case .touch: return "hand.tap"
+            case .appearance: return "paintpalette"
+            }
+        }
+    }
     
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Stream Quality") {
-                    Picker("Quality", selection: $streamConfig.quality) {
-                        ForEach(StreamConfig.Quality.allCases, id: \.self) { quality in
-                            Text(quality.displayName)
-                                .tag(quality)
-                        }
+            List {
+                ForEach(SettingsSection.allCases, id: \.self) { section in
+                    NavigationLink(destination: settingsDetailView(for: section)) {
+                        Label(section.rawValue, systemImage: section.icon)
                     }
-                    .pickerStyle(.segmented)
-                    
-                    if streamConfig.quality == .auto {
-                        Text("Auto quality will adjust based on your network conditions")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                
-                Section("Buffer Settings") {
-                    HStack {
-                        Text("Buffer Size")
-                        Spacer()
-                        Text("\(streamConfig.bufferSize, specifier: "%.1f") seconds")
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    Slider(
-                        value: $streamConfig.bufferSize,
-                        in: StreamConfig.minimumBufferSize...StreamConfig.maximumBufferSize,
-                        step: 0.5
-                    ) {
-                        Text("Buffer Size")
-                    } minimumValueLabel: {
-                        Text("\(StreamConfig.minimumBufferSize, specifier: "%.1f")")
-                            .font(.caption)
-                    } maximumValueLabel: {
-                        Text("\(StreamConfig.maximumBufferSize, specifier: "%.1f")")
-                            .font(.caption)
-                    }
-                    
-                    Text("Larger buffer sizes provide smoother playback but increase latency")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                
-                Section("Connection") {
-                    if let selectedDevice = viewModel.connectionState.selectedDevice {
-                        HStack {
-                            Text("Connected Device")
-                            Spacer()
-                            Text(selectedDevice.name)
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        HStack {
-                            Text("Status")
-                            Spacer()
-                            StatusText(status: viewModel.connectionState.status)
-                        }
-                        
-                        if viewModel.connectionState.status == .connected {
-                            Button("Disconnect", role: .destructive) {
-                                viewModel.disconnect()
-                            }
-                        }
-                    } else {
-                        Text("Not connected to any device")
-                            .foregroundStyle(.secondary)
-                        
-                        NavigationLink(destination: DeviceDiscoveryView(viewModel: viewModel)) {
-                            Text("Browse Devices")
-                        }
-                    }
-                }
-                
-                Section {
-                    Button("Save Settings") {
-                        streamConfig.saveConfiguration()
-                    }
-                    
-                    Button("Reset to Defaults", role: .destructive) {
-                        showingResetAlert = true
-                    }
-                } footer: {
-                    Text("Settings are automatically applied when connecting to a device")
                 }
             }
             .navigationTitle("Settings")
-            .onAppear {
-                // Create a new instance to ensure we're loading the latest settings
-                streamConfig = StreamConfig()
-            }
-            .alert("Reset Settings", isPresented: $showingResetAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Reset", role: .destructive) {
-                    streamConfig.resetToDefaults()
+            .toolbar {
+                Button(action: {
+                    showingResetConfirmation = true
+                }) {
+                    Label("Reset", systemImage: "arrow.counterclockwise")
                 }
+            }
+            .alert("Reset Settings", isPresented: $showingResetConfirmation) {
+                Button("Reset", role: .destructive) {
+                    settings.resetToDefaults()
+                }
+                Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This will reset all settings to their default values.")
+                Text("Are you sure you want to reset all settings to their defaults?")
             }
         }
     }
+    
+    @ViewBuilder
+    func settingsDetailView(for section: SettingsSection) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                switch section {
+                case .connection:
+                    ConnectionSettingsView(settings: settings)
+                case .video:
+                    VideoSettingsView(settings: settings)
+                case .touch:
+                    TouchSettingsView(settings: settings)
+                case .appearance:
+                    AppearanceSettingsView(settings: settings)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .navigationTitle(section.rawValue + " Settings")
+    }
 }
 
-struct StatusText: View {
-    let status: ConnectionStatus
+struct ConnectionSettingsView: View {
+    @State var settings: UserSettings
     
     var body: some View {
-        switch status {
-        case .connected:
-            Label("Connected", systemImage: "circle.fill")
-                .foregroundStyle(.green)
-        case .connecting:
-            Label("Connecting", systemImage: "arrow.clockwise")
-                .foregroundStyle(.orange)
-        case .disconnecting:
-            Label("Disconnecting", systemImage: "arrow.clockwise")
-                .foregroundStyle(.orange)
-        case .disconnected:
-            Label("Disconnected", systemImage: "circle.fill")
+        VStack(alignment: .leading, spacing: 20) {
+            Section {
+                Toggle("Auto Connect", isOn: $settings.autoConnect)
+                    .padding(.vertical, 8)
+                
+                Toggle("Remember Last Device", isOn: $settings.rememberLastDevice)
+                    .padding(.vertical, 8)
+                
+                VStack(alignment: .leading) {
+                    Text("Connection Timeout")
+                        .font(.headline)
+                    
+                    HStack {
+                        Slider(value: $settings.connectionTimeout, in: 5...60, step: 5)
+                        Text("\(Int(settings.connectionTimeout)) seconds")
+                            .frame(width: 80)
+                    }
+                }
+                .padding(.vertical, 8)
+                
+                VStack(alignment: .leading) {
+                    Text("Max Reconnection Attempts")
+                        .font(.headline)
+                    
+                    Stepper("\(settings.maxReconnectionAttempts) attempts", value: $settings.maxReconnectionAttempts, in: 0...10)
+                }
+                .padding(.vertical, 8)
+            } header: {
+                Text("Connection Options")
+                    .font(.headline)
+            }
+            
+            Text("These settings control how the app connects to devices and handles connection issues.")
+                .font(.caption)
                 .foregroundStyle(.secondary)
-        case .error:
-            Label("Error", systemImage: "exclamationmark.circle.fill")
-                .foregroundStyle(.red)
         }
     }
 }
 
-extension StreamConfig.Quality {
-    var displayName: String {
-        switch self {
-        case .auto:
-            return "Auto"
-        case .low:
-            return "Low"
-        case .medium:
-            return "Medium"
-        case .high:
-            return "High"
+struct VideoSettingsView: View {
+    @State var settings: UserSettings
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Section {
+                VStack(alignment: .leading) {
+                    Text("Default Quality")
+                        .font(.headline)
+                    
+                    Picker("", selection: $settings.defaultQuality) {
+                        ForEach(StreamQuality.allCases, id: \.self) { quality in
+                            Text(quality.displayName).tag(quality)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .padding(.vertical, 8)
+                
+                Toggle("Enable Adaptive Bitrate", isOn: $settings.enableAdaptiveBitrate)
+                    .padding(.vertical, 8)
+                
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Buffer Size")
+                            .font(.headline)
+                        Spacer()
+                        Text("\(settings.bufferSize, specifier: "%.1f") seconds")
+                    }
+                    
+                    Slider(value: $settings.bufferSize, in: 1...10, step: 0.5)
+                }
+                .padding(.vertical, 8)
+                
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Max Bandwidth")
+                            .font(.headline)
+                        Spacer()
+                        if settings.maxBandwidthUsage == 0 {
+                            Text("Unlimited")
+                        } else {
+                            Text("\(Int(settings.maxBandwidthUsage)) Mbps")
+                        }
+                    }
+                    
+                    Slider(value: $settings.maxBandwidthUsage, in: 0...20, step: 1)
+                }
+                .padding(.vertical, 8)
+            } header: {
+                Text("Video Options")
+                    .font(.headline)
+            }
+            
+            Text("These settings control video quality and streaming behavior. Higher quality settings require more bandwidth.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
+    }
+}
+
+struct TouchSettingsView: View {
+    @State var settings: UserSettings
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Section {
+                Toggle("Enable Touch Controls", isOn: $settings.enableTouchControls)
+                    .padding(.vertical, 8)
+                
+                Toggle("Show Touch Indicator", isOn: $settings.showTouchIndicator)
+                    .padding(.vertical, 8)
+                
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("Touch Sensitivity")
+                            .font(.headline)
+                        Spacer()
+                        Text(sensitivityLabel)
+                    }
+                    
+                    Slider(value: $settings.touchSensitivity, in: 0.5...2.0, step: 0.1)
+                }
+                .padding(.vertical, 8)
+            } header: {
+                Text("Touch Control Options")
+                    .font(.headline)
+            }
+            
+            Text("These settings control how touch interactions work with the mirrored content.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Touch Control Preview")
+                    .font(.headline)
+                
+                TouchDemoView(
+                    enabled: settings.enableTouchControls,
+                    showIndicator: settings.showTouchIndicator,
+                    sensitivity: settings.touchSensitivity
+                )
+                .frame(height: 200)
+                .background(Color(UIColor.tertiarySystemBackground))
+                .cornerRadius(12)
+            }
+            .padding(.top, 20)
+        }
+    }
+    
+    private var sensitivityLabel: String {
+        switch settings.touchSensitivity {
+        case ..<0.7: return "Low"
+        case 0.7..<0.9: return "Medium-Low"
+        case 0.9..<1.1: return "Medium"
+        case 1.1..<1.5: return "Medium-High"
+        default: return "High"
+        }
+    }
+}
+
+struct AppearanceSettingsView: View {
+    @State var settings: UserSettings
+    @State private var selectedColorScheme: Int
+    @State private var selectedColor: UIColor
+    
+    init(settings: UserSettings) {
+        self._settings = State(initialValue: settings)
+        self._selectedColor = State(initialValue: UIColor(settings.accentColor))
+        
+        // Set initial value for color scheme
+        if let scheme = settings.preferredColorScheme {
+            self._selectedColorScheme = State(initialValue: scheme == .dark ? 2 : 1)
+        } else {
+            self._selectedColorScheme = State(initialValue: 0)
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Section {
+                VStack(alignment: .leading) {
+                    Text("Appearance Mode")
+                        .font(.headline)
+                    
+                    Picker("", selection: $selectedColorScheme) {
+                        Text("System").tag(0)
+                        Text("Light").tag(1)
+                        Text("Dark").tag(2)
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: selectedColorScheme) { _, newValue in
+                        switch newValue {
+                        case 1: settings.preferredColorScheme = .light
+                        case 2: settings.preferredColorScheme = .dark
+                        default: settings.preferredColorScheme = nil
+                        }
+                    }
+                }
+                .padding(.vertical, 8)
+                
+                VStack(alignment: .leading) {
+                    Text("Interface Opacity")
+                        .font(.headline)
+                    
+                    HStack {
+                        Image(systemName: "circle.fill")
+                            .foregroundStyle(.secondary.opacity(0.3))
+                        Slider(value: $settings.interfaceOpacity, in: 0.5...1.0, step: 0.05)
+                        Image(systemName: "circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Text("Controls how transparent or opaque the player controls appear")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 8)
+                
+                VStack(alignment: .leading) {
+                    Text("Accent Color")
+                        .font(.headline)
+                    
+                    ColorPicker("App accent color", selection: Binding(
+                        get: { Color(uiColor: selectedColor) },
+                        set: { newValue in
+                            self.selectedColor = UIColor(newValue)
+                            settings.accentColor = Color(uiColor: selectedColor)
+                        }
+                    ))
+                }
+                .padding(.vertical, 8)
+                
+            } header: {
+                Text("Appearance Options")
+                    .font(.headline)
+            }
+            
+            Text("These settings control the visual appearance of the application.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            
+            // Simplified appearance preview
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Appearance Preview")
+                    .font(.headline)
+                
+                HStack(spacing: 16) {
+                    // Light mode sample
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .overlay(
+                            Circle()
+                                .foregroundColor(Color(uiColor: selectedColor))
+                                .frame(width: 24, height: 24)
+                        )
+                        .frame(width: 100, height: 60)
+                        .shadow(radius: 2)
+                    
+                    // Dark mode sample
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.black)
+                        .overlay(
+                            Circle()
+                                .foregroundColor(Color(uiColor: selectedColor))
+                                .frame(width: 24, height: 24)
+                        )
+                        .frame(width: 100, height: 60)
+                        .shadow(radius: 2)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.top, 20)
+        }
+    }
+}
+
+struct TouchDemoView: View {
+    let enabled: Bool
+    let showIndicator: Bool
+    let sensitivity: Double
+    
+    @State private var touchPosition: CGPoint?
+    @State private var isPressed = false
+    
+    var body: some View {
+        ZStack {
+            VStack {
+                Text("Touch Preview Area")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                Spacer()
+                
+                if !enabled {
+                    Text("Touch Controls Disabled")
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            
+            if enabled && showIndicator && isPressed, let position = touchPosition {
+                Circle()
+                    .foregroundColor(Color.white.opacity(0.5))
+                    .frame(width: 30 * sensitivity, height: 30 * sensitivity)
+                    .position(position)
+            }
+        }
+        .gesture(
+            DragGesture(minimumDistance: enabled ? 0 : 1000) // Effectively disable when not enabled
+                .onChanged { value in
+                    touchPosition = value.location
+                    isPressed = true
+                }
+                .onEnded { _ in
+                    isPressed = false
+                    
+                    // Fade out touch indicator after a delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        withAnimation {
+                            touchPosition = nil
+                        }
+                    }
+                }
+        )
     }
 }
 
 #Preview {
-    let viewModel = ConnectionViewModel()
-    return SettingsView(viewModel: viewModel)
+    SettingsView()
 } 

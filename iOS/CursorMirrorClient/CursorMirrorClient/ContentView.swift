@@ -22,7 +22,7 @@ struct ContentView: View {
                     Label("Player", systemImage: "play.rectangle.fill")
                 }
             
-            SettingsView(viewModel: connectionViewModel)
+            SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gear")
                 }
