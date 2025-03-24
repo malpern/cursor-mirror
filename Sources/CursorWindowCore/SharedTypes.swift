@@ -119,10 +119,7 @@ public enum CaptureError: Error {
     // ... existing code ...
 }
 
-@available(macOS 14.0, *)
-public protocol FrameProcessor: Actor {
-    // ... existing code ...
-}
+// FrameProcessor protocol has been moved to FrameProcessor.swift
 
 @available(macOS 14.0, *)
 public protocol VideoEncoder: Actor {

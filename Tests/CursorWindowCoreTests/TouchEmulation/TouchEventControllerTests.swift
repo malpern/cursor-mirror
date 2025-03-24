@@ -45,6 +45,10 @@ class TouchEventControllerTests: XCTestCase {
         class TestTouchEventController: TouchEventController {
             var lastProcessedPosition: CGPoint?
             
+            override init() {
+                super.init()
+            }
+            
             override func simulateMouseDown(at position: CGPoint) {
                 lastProcessedPosition = position
                 // Don't actually post the event in tests
@@ -118,6 +122,10 @@ class TouchEventControllerTests: XCTestCase {
             var isMouseMovedCalled = false
             var isMouseDraggedCalled = false
             var isMouseUpCalled = false
+            
+            override init() {
+                super.init()
+            }
             
             func reset() {
                 lastEventType = nil
@@ -217,6 +225,10 @@ class TouchEventControllerTests: XCTestCase {
         class TestTouchEventController: TouchEventController {
             var methodCalled = false
             
+            override init() {
+                super.init()
+            }
+            
             func reset() {
                 methodCalled = false
             }
@@ -252,6 +264,10 @@ class TouchEventControllerTests: XCTestCase {
         // Create a custom subclass for testing
         class TestTouchEventController: TouchEventController {
             var methodCalled = false
+            
+            override init() {
+                super.init()
+            }
             
             func reset() {
                 methodCalled = false

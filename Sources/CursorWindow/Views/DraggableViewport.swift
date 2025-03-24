@@ -1,11 +1,11 @@
 import SwiftUI
 import CursorWindowCore
 
-struct ViewportSize {
-    static let width: CGFloat = 393
-    static let height: CGFloat = 852
-    static let strokeWidth: CGFloat = 5
-    static let cornerRadius: CGFloat = 55  // iPhone 15 Pro corner radius
+public struct ViewportSize {
+    public static let width: CGFloat = 393
+    public static let height: CGFloat = 852
+    public static let strokeWidth: CGFloat = 5
+    public static let cornerRadius: CGFloat = 55  // iPhone 15 Pro corner radius
 }
 
 struct DraggableViewport: View {

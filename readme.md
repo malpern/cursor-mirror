@@ -74,8 +74,20 @@ A macOS application that captures and streams a portion of your screen matching 
   - Proper test isolation using dependency injection
   - Robust synchronous testing approach for async operations
 
+  Future development:
+  * Investigate including sound, so sound played on the desktop can be heard on the iphone.
+
 ## Recent Improvements
 
+- Refactored frame processing architecture
+  - Created unified `FrameProcessor` protocol for consistent frame handling
+  - Improved `BasicFrameProcessor` with better performance tracking
+  - Added thread-safe statistics collection with exponential moving average
+  - Enhanced frame dropping detection for better performance monitoring
+- Fixed circular dependencies
+  - Moved shared types to appropriate modules
+  - Improved code organization and modularity
+  - Reduced coupling between core components
 - Enhanced test suite reliability and coverage
   - Fixed async/await handling in ViewportTests
   - Improved main thread handling for UI operations
@@ -206,6 +218,9 @@ swift test
   - HLSManager tests
   - PlaylistGenerator tests
   - VideoSegmentHandler tests
+  - BasicFrameProcessor tests
+  - MenuBarView tests
+  - Viewport tests
 - ✅ iOS client test suites are passing
 - ✅ Manual testing confirms core functionality:
   - Screen capture working

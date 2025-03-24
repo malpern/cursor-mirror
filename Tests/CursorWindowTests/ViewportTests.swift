@@ -3,40 +3,54 @@ import CursorWindowCore
 import AppKit
 import SwiftUI
 
+@available(macOS 14.0, *)
 final class ViewportTests: XCTestCase {
     var viewportManager: ViewportManager!
+    private var setupTask: Task<Void, Never>?
     
     override func setUp() {
         super.setUp()
-        viewportManager = ViewportManager {
-            AnyView(Text("Test View"))
+        // Ensure we're on the main thread for UI operations
+        setupTask = Task { @MainActor in
+            viewportManager = ViewportManager {
+                AnyView(Text("Test View"))
+            }
+            // Ensure we start with a clean state
+            UserDefaults.standard.removeObject(forKey: "com.cursor-window.viewport.position.x")
+            UserDefaults.standard.removeObject(forKey: "com.cursor-window.viewport.position.y")
+            viewportManager.showViewport()
         }
-        // Ensure we start with a clean state
-        UserDefaults.standard.removeObject(forKey: "com.cursor-window.viewport.position.x")
-        UserDefaults.standard.removeObject(forKey: "com.cursor-window.viewport.position.y")
-        viewportManager.showViewport()
     }
     
     override func tearDown() {
-        viewportManager.hideViewport()
-        viewportManager = nil
-        // Clean up saved position
-        UserDefaults.standard.removeObject(forKey: "com.cursor-window.viewport.position.x")
-        UserDefaults.standard.removeObject(forKey: "com.cursor-window.viewport.position.y")
+        Task { @MainActor in
+            viewportManager.hideViewport()
+            viewportManager = nil
+            // Clean up saved position
+            UserDefaults.standard.removeObject(forKey: "com.cursor-window.viewport.position.x")
+            UserDefaults.standard.removeObject(forKey: "com.cursor-window.viewport.position.y")
+        }
         super.tearDown()
     }
     
     func testWindowMovementSmoothness() async throws {
+        // Wait for setup to complete
+        await setupTask?.value
+        
         // Test window movement with native dragging
         let initialPosition = CGPoint(x: 100, y: 100)
-        viewportManager.updatePosition(to: initialPosition)
+        await MainActor.run {
+            viewportManager.updatePosition(to: initialPosition)
+        }
         
         // Wait for any animations to complete
         try await Task.sleep(for: .milliseconds(100))
         
         // Verify initial position
-        XCTAssertEqual(viewportManager.position.x, initialPosition.x, accuracy: 1.0)
-        XCTAssertEqual(viewportManager.position.y, initialPosition.y, accuracy: 1.0)
+        await MainActor.run {
+            XCTAssertEqual(viewportManager.position.x, initialPosition.x, accuracy: 1.0)
+            XCTAssertEqual(viewportManager.position.y, initialPosition.y, accuracy: 1.0)
+        }
         
         // Test movement with delays to allow for smoothing
         let movements = [
@@ -46,74 +60,85 @@ final class ViewportTests: XCTestCase {
         ]
         
         for position in movements {
-            viewportManager.updatePosition(to: position)
+            await MainActor.run {
+                viewportManager.updatePosition(to: position)
+            }
             // Wait for movement to complete
             try await Task.sleep(for: .milliseconds(100))
             
             // Verify position with more lenient accuracy due to smoothing
-            XCTAssertEqual(viewportManager.position.x, position.x, accuracy: 2.0)
-            XCTAssertEqual(viewportManager.position.y, position.y, accuracy: 2.0)
+            await MainActor.run {
+                XCTAssertEqual(viewportManager.position.x, position.x, accuracy: 2.0)
+                XCTAssertEqual(viewportManager.position.y, position.y, accuracy: 2.0)
+            }
         }
     }
     
-    func testWindowBounds() {
-        guard let screen = NSScreen.main else {
-            XCTFail("No main screen available")
-            return
+    func testWindowBounds() async throws {
+        // Wait for setup to complete
+        await setupTask?.value
+        
+        await MainActor.run {
+            guard let screen = NSScreen.main else {
+                XCTFail("No main screen available")
+                return
+            }
+            
+            let screenFrame = screen.visibleFrame
+            
+            // Try to move window outside bounds
+            let outOfBoundsPosition = CGPoint(
+                x: screenFrame.maxX + 100,
+                y: screenFrame.maxY + 100
+            )
+            
+            viewportManager.updatePosition(to: outOfBoundsPosition)
+            
+            // Verify window was constrained to screen bounds
+            XCTAssertLessThanOrEqual(
+                viewportManager.position.x,
+                screenFrame.maxX - ViewportManager.viewportSize.width,
+                "Window should be constrained within screen bounds (x-axis)"
+            )
+            XCTAssertLessThanOrEqual(
+                viewportManager.position.y,
+                screenFrame.maxY - ViewportManager.viewportSize.height,
+                "Window should be constrained within screen bounds (y-axis)"
+            )
         }
-        
-        let screenFrame = screen.visibleFrame
-        
-        // Try to move window outside bounds
-        let outOfBoundsPosition = CGPoint(
-            x: screenFrame.maxX + 100,
-            y: screenFrame.maxY + 100
-        )
-        
-        viewportManager.updatePosition(to: outOfBoundsPosition)
-        
-        // Verify window was constrained to screen bounds
-        XCTAssertLessThanOrEqual(
-            viewportManager.position.x,
-            screenFrame.maxX - ViewportManager.viewportSize.width,
-            "Window should be constrained within screen bounds (x-axis)"
-        )
-        XCTAssertLessThanOrEqual(
-            viewportManager.position.y,
-            screenFrame.maxY - ViewportManager.viewportSize.height,
-            "Window should be constrained within screen bounds (y-axis)"
-        )
     }
     
     func testPositionPersistence() async throws {
-        // Test that position is saved when requested
-        let testPosition = CGPoint(x: 300, y: 300)
+        // Wait for setup to complete
+        await setupTask?.value
         
-        // Ensure position is within screen bounds
-        guard let screen = NSScreen.main else {
-            XCTFail("No main screen available")
-            return
+        await MainActor.run {
+            // Test that position is saved when requested
+            let testPosition = CGPoint(x: 300, y: 300)
+            
+            // Ensure position is within screen bounds
+            guard let screen = NSScreen.main else {
+                XCTFail("No main screen available")
+                return
+            }
+            
+            let constrainedPosition = CGPoint(
+                x: min(testPosition.x, screen.visibleFrame.maxX - ViewportManager.viewportSize.width),
+                y: min(testPosition.y, screen.visibleFrame.maxY - ViewportManager.viewportSize.height)
+            )
+            
+            viewportManager.updatePosition(to: constrainedPosition, persistPosition: true)
+            
+            // Verify position was saved to UserDefaults
+            let savedX = UserDefaults.standard.double(forKey: "com.cursor-window.viewport.position.x")
+            let savedY = UserDefaults.standard.double(forKey: "com.cursor-window.viewport.position.y")
+            
+            XCTAssertEqual(savedX, constrainedPosition.x, accuracy: 2.0)
+            XCTAssertEqual(savedY, constrainedPosition.y, accuracy: 2.0)
+            
+            // Verify actual window position matches saved position
+            XCTAssertEqual(viewportManager.position.x, constrainedPosition.x, accuracy: 2.0)
+            XCTAssertEqual(viewportManager.position.y, constrainedPosition.y, accuracy: 2.0)
         }
-        
-        let constrainedPosition = CGPoint(
-            x: min(testPosition.x, screen.visibleFrame.maxX - ViewportManager.viewportSize.width),
-            y: min(testPosition.y, screen.visibleFrame.maxY - ViewportManager.viewportSize.height)
-        )
-        
-        viewportManager.updatePosition(to: constrainedPosition, persistPosition: true)
-        
-        // Wait for any animations and persistence operations
-        try await Task.sleep(for: .milliseconds(100))
-        
-        // Verify position was saved to UserDefaults
-        let savedX = UserDefaults.standard.double(forKey: "com.cursor-window.viewport.position.x")
-        let savedY = UserDefaults.standard.double(forKey: "com.cursor-window.viewport.position.y")
-        
-        XCTAssertEqual(savedX, constrainedPosition.x, accuracy: 2.0)
-        XCTAssertEqual(savedY, constrainedPosition.y, accuracy: 2.0)
-        
-        // Verify actual window position matches saved position
-        XCTAssertEqual(viewportManager.position.x, constrainedPosition.x, accuracy: 2.0)
-        XCTAssertEqual(viewportManager.position.y, constrainedPosition.y, accuracy: 2.0)
     }
 } 

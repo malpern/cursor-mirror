@@ -4,16 +4,17 @@ import CloudKit
 
 /// A mock implementation of CloudKitDatabaseProtocol for testing without real CloudKit dependencies
 class MockCloudKitDatabase: CloudKitDatabaseProtocol {
-    // Records to return for queries
-    var mockDevices: [CKRecord] = []
+    var recordsToReturn: [(CKRecord.ID, Result<CKRecord, Error>)] = []
+    var recordsToSave: [CKRecord] = []
+    var queriesReceived: [CKQuery] = []
+    var error: Error?
     
-    // Test control flags
-    var shouldFailQueries = false
-    var simulatedQueryError: Error?
-    var queriesPerformed: [CKQuery] = []
-    var saveOperationsPerformed: [CKRecord] = []
-    var shouldFailSaves = false
-    var simulatedSaveError: Error?
+    func reset() {
+        recordsToReturn = []
+        recordsToSave = []
+        queriesReceived = []
+        error = nil
+    }
     
     /// Creates a mock device record for testing
     static func createMockDeviceRecord(id: String, name: String) -> CKRecord {
@@ -36,45 +37,40 @@ class MockCloudKitDatabase: CloudKitDatabaseProtocol {
         matchResults: [(CKRecord.ID, Result<CKRecord, Error>)],
         queryCursor: CKQueryOperation.Cursor?
     ) {
-        // Record this query for test verification
-        queriesPerformed.append(query)
+        queriesReceived.append(query)
         
-        // Simulate failure if needed
-        if shouldFailQueries {
-            throw simulatedQueryError ?? NSError(
-                domain: "MockCloudKitError",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "Simulated query failure"]
-            )
+        if let error = self.error {
+            throw error
         }
         
-        // Return mock results
-        let results: [(CKRecord.ID, Result<CKRecord, Error>)] = mockDevices.map { record in
-            (record.recordID, .success(record))
-        }
-        
-        // Apply result limit if specified
-        let limitedResults = resultsLimit > 0 && resultsLimit < results.count
-            ? Array(results.prefix(resultsLimit))
-            : results
-        
-        return (matchResults: limitedResults, queryCursor: nil)
+        return (recordsToReturn, nil)
     }
     
     func save(_ record: CKRecord) async throws -> CKRecord {
-        // Record this save operation for test verification
-        saveOperationsPerformed.append(record)
-        
-        // Simulate failure if needed
-        if shouldFailSaves {
-            throw simulatedSaveError ?? NSError(
-                domain: "MockCloudKitError",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "Simulated save failure"]
-            )
+        if let error = self.error {
+            throw error
         }
         
-        // Return the saved record
+        recordsToSave.append(record)
         return record
+    }
+    
+    // Helper to add a successful record
+    func addRecord(id: String = "test-record", type: String = "Device") {
+        let recordID = CKRecord.ID(recordName: id)
+        let record = CKRecord(recordType: type, recordID: recordID)
+        record["id"] = id
+        record["name"] = "Test Device"
+        record["type"] = "Mac"
+        record["isOnline"] = 1
+        record["lastSeen"] = Date()
+        
+        recordsToReturn.append((recordID, .success(record)))
+    }
+    
+    // Helper to add an error result
+    func addError(recordID: String = "error-record", error: Error) {
+        let recordID = CKRecord.ID(recordName: recordID)
+        recordsToReturn.append((recordID, .failure(error)))
     }
 } 

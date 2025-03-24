@@ -31,6 +31,7 @@ actor FrameProcessorActor {
 /// Error types for ScreenCaptureManager
 public enum ScreenCaptureError: Error, Equatable {
     case permissionDenied
+    case noDisplayFound
     case streamInitializationFailed
     case invalidConfiguration
     case captureError(String)
@@ -70,7 +71,7 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
     @Published public var isCheckingPermission: Bool = false
     
     /// The active screen capture stream
-    private var stream: SCStream?
+    private(set) var stream: SCStream?
     
     /// Configuration for the capture stream
     private var configuration: SCStreamConfiguration?
@@ -93,6 +94,15 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         label: "com.cursorwindow.screencapturemanager.processing",
         qos: .userInitiated
     )
+    
+    /// Indicates whether the screen capture is currently active
+    @Published public private(set) var isCapturing = false
+    
+    /// The frame processor for the current capture session
+    private var frameProcessor: FrameProcessor?
+    
+    /// The viewport manager for the current capture session
+    private var viewportManager: ViewportManager?
     
     /// Initialize the screen capture manager and check initial permission status
     public override init() {
@@ -258,91 +268,50 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
     ///   - frameProcessor: The processor that will handle captured frames
     ///   - viewportManager: The viewport manager that defines the capture region
     /// - Throws: ScreenCaptureError if capture cannot be started
-    public func startCaptureForViewport(frameProcessor processor: AnyObject, viewportManager: ViewportManagerProtocol) async throws {
-        // Check permission first
+    public func startCaptureForViewport(frameProcessor: FrameProcessor, viewportManager: ViewportManager) async throws {
         guard isScreenCapturePermissionGranted else {
             throw ScreenCaptureError.permissionDenied
         }
         
-        // Clean up any existing capture session
-        try? await stopCapture()
+        self.frameProcessor = frameProcessor
+        self.viewportManager = viewportManager
         
-        await frameProcessorActor.set(processor)
-        do {
-            #if DEBUG
-            // In test environment, use the injected mock stream
-            guard let stream = self.stream else {
-                throw ScreenCaptureError.streamInitializationFailed
-            }
-            #else
-            let content = try await SCShareableContent.current
-            guard let display = content.displays.first else {
-                throw ScreenCaptureError.streamInitializationFailed
-            }
-            
-            let screenFrame = CGRect(
-                x: 0, 
-                y: 0, 
-                width: display.width, 
-                height: display.height
-            )
-            
-            // Convert viewport position to screen coordinates
-            let viewportRect = CGRect(
-                x: viewportManager.position.x,
-                y: screenFrame.height - viewportManager.position.y - type(of: viewportManager).viewportSize.height,
-                width: type(of: viewportManager).viewportSize.width,
-                height: type(of: viewportManager).viewportSize.height
-            )
-            
-            let config = SCStreamConfiguration()
-            config.width = Int(viewportRect.width)
-            config.height = Int(viewportRect.height)
-            config.minimumFrameInterval = CMTime(value: 1, timescale: 60)
-            config.queueDepth = 5
-            
-            let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
-            self.stream = SCStream(filter: filter, configuration: config, delegate: nil)
-            configuration = config
-            
-            guard let stream = self.stream else {
-                throw ScreenCaptureError.streamInitializationFailed
-            }
-            #endif
-            
-            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: frameProcessingQueue)
-            try await stream.startCapture()
-            
-            await checkPermission()
-        } catch let error as ScreenCaptureError {
-            print("Error starting capture: \(error)")
-            try? await stopCapture()
-            throw error
-        } catch {
-            print("Error starting capture: \(error)")
-            try? await stopCapture()
-            throw ScreenCaptureError.captureError("Failed to start capture: \(error.localizedDescription)")
+        #if DEBUG
+        print("Running in DEBUG mode...")
+        print("Creating mock stream...")
+        stream = try await MockSCStream()
+        print("Mock stream created")
+        #else
+        let content = try await SCShareableContent.current
+        guard let display = content.displays.first else {
+            throw ScreenCaptureError.noDisplayFound
         }
+        
+        let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
+        let config = SCStreamConfiguration()
+        stream = SCStream(filter: filter, configuration: config, delegate: nil)
+        #endif
+        
+        print("Adding stream output...")
+        try await stream?.addStreamOutput(self, type: .screen, sampleHandlerQueue: .main)
+        print("Starting stream capture...")
+        try await stream?.startCapture()
+        print("Stream capture started successfully")
+        isCapturing = true
     }
     
     public func stopCapture() async throws {
-        do {
-            if let stream = stream {
-                try await stream.stopCapture()
-                self.stream = nil
-                await frameProcessorActor.set(nil)
-                configuration = nil
-            }
-        } catch {
-            print("Error stopping capture: \(error)")
-            throw ScreenCaptureError.captureError("Failed to stop capture: \(error.localizedDescription)")
-        }
+        try await stream?.stopCapture()
+        stream = nil
+        frameProcessor = nil
+        viewportManager = nil
+        isCapturing = false
     }
     
     deinit {
         // We can't use async/await in deinit, so we'll stop the stream synchronously
         if let stream = self.stream {
-            try? stream.stopCapture()
+            try? stream.stopCapture() // Use try? since we can't throw in deinit
             self.stream = nil
         }
     }
@@ -380,23 +349,13 @@ extension ScreenCaptureManager: SCStreamOutput {
     /// through the actor-isolated frame processor
     @preconcurrency
     nonisolated public func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        // Frame rate limiting
-        let now = Date()
-        Task { @MainActor in
-            if let lastTime = self.lastFrameTime {
-                let timeSinceLastFrame = now.timeIntervalSince(lastTime)
-                if timeSinceLastFrame < self.targetFrameInterval {
-                    return // Skip frame if we're processing too fast
-                }
-            }
-            self.lastFrameTime = now
-            
-            // Process the frame
+        // Only process frames if we have a processor
+        Task {
             if let processor = await frameProcessorActor.get() {
                 if let basicProcessor = processor as? BasicFrameProcessorProtocol {
                     basicProcessor.processFrame(sampleBuffer)
                 } else if let encodingProcessor = processor as? EncodingFrameProcessorProtocol {
-                    await encodingProcessor.processFrame(sampleBuffer)
+                    encodingProcessor.processFrame(sampleBuffer)
                 }
             }
         }

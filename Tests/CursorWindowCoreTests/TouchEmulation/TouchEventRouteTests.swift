@@ -6,6 +6,7 @@ import XCTVapor
 class TouchEventRouteTests: XCTestCase {
     
     var app: Application!
+    var testController: TestTouchEventController!
     
     override func setUp() {
         super.setUp()
@@ -13,14 +14,15 @@ class TouchEventRouteTests: XCTestCase {
         // Create test app
         app = Application(.testing)
         
-        // Register touch routes
-        let testController = TestTouchEventController()
+        // Create test controller and register routes
+        testController = TestTouchEventController()
         testController.registerRoutes(with: app)
     }
     
     override func tearDown() {
         app.shutdown()
         app = nil
+        testController = nil
         
         super.tearDown()
     }
@@ -49,10 +51,9 @@ class TouchEventRouteTests: XCTestCase {
             XCTAssertEqual(response.status, .ok, "Response status should be 200 OK")
             
             // Verify the event was processed
-            let testController = TestTouchEventController.shared
-            XCTAssertTrue(testController.lastTouchEventProcessed, "Event should have been processed")
+            XCTAssertTrue(self.testController.lastTouchEventProcessed, "Event should have been processed")
             
-            if let processedEvent = testController.lastTouchEvent {
+            if let processedEvent = self.testController.lastTouchEvent {
                 // Verify event content
                 XCTAssertEqual(processedEvent["deviceID"] as? String, "test-device")
                 
@@ -100,21 +101,17 @@ class TouchEventRouteTests: XCTestCase {
             req.headers.contentType = .json
             req.body = .init(data: jsonData)
         }, afterResponse: { response in
-            // Since Vapor will decode this request but our controller expects certain fields,
-            // the response should still be OK, but no event processing occurs
-            XCTAssertEqual(response.status, .ok)
+            // Since the request is missing required fields, it should return a 400 Bad Request
+            XCTAssertEqual(response.status, .badRequest, "Response should be 400 Bad Request for missing required fields")
             
-            let testController = TestTouchEventController.shared
-            XCTAssertFalse(testController.lastTouchEventProcessed, "Event should not have been processed with missing fields")
+            // The event should not have been processed
+            XCTAssertFalse(self.testController.lastTouchEventProcessed, "Event should not have been processed with missing fields")
         })
     }
 }
 
 // Mock TouchEventController for testing
 class TestTouchEventController: TouchEventController {
-    // Use a shared instance for tests
-    static let shared = TestTouchEventController()
-    
     // Track the last event that was processed
     var lastTouchEvent: [String: Any]?
     var lastTouchEventProcessed = false

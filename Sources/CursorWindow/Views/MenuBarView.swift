@@ -5,8 +5,7 @@ import AppKit
 @available(macOS 14.0, *)
 struct MenuBarView: View {
     @EnvironmentObject var viewportManager: ViewportManager
-    @EnvironmentObject var screenCaptureManager: ScreenCaptureManager
-    @State private var isCapturing = false
+    @EnvironmentObject private var screenCaptureManager: ScreenCaptureManager
     @State private var isEncoding = false
     @State private var outputPath = NSHomeDirectory() + "/Desktop/output.mp4"
     @State private var showEncodingSettings = false
@@ -28,29 +27,29 @@ struct MenuBarView: View {
                 ))
                 .toggleStyle(.switch)
                 
-                Button(isCapturing ? "Stop Capture" : "Start Capture") {
+                Button(screenCaptureManager.isCapturing ? "Stop Capture" : "Start Capture") {
                     Task {
                         do {
-                            if !isCapturing {
+                            if !screenCaptureManager.isCapturing {
+                                print("Starting capture...")
                                 try await screenCaptureManager.startCaptureForViewport(
                                     frameProcessor: BasicFrameProcessor(),
                                     viewportManager: viewportManager
                                 )
-                                isCapturing = true
+                                print("Capture started successfully")
                             } else {
+                                print("Stopping capture...")
                                 try await screenCaptureManager.stopCapture()
-                                isCapturing = false
+                                print("Capture stopped successfully")
                             }
                         } catch {
                             print("Capture error: \(error)")
-                            // If there was an error, reset the capturing state
-                            isCapturing = false
                         }
                     }
                 }
-                .buttonStyle(.bordered)
-                .tint(isCapturing ? .red : .blue)
-                .disabled(screenCaptureManager.isCheckingPermission)
+                .buttonStyle(.borderedProminent)
+                .tint(screenCaptureManager.isCapturing ? .red : .blue)
+                .tag("captureButton")
                 
                 Divider()
                 

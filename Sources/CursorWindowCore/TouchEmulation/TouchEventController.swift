@@ -3,7 +3,7 @@ import SwiftUI
 import AppKit
 
 /// Controller for handling touch events and emulating them as mouse events on macOS
-public class TouchEventController {
+open class TouchEventController {
     /// Singleton instance
     public static let shared = TouchEventController()
     
@@ -17,10 +17,10 @@ public class TouchEventController {
     private var currentPosition: CGPoint = .zero
     
     /// Last mouse button state (down/up)
-    private var isMouseDown: Bool = false
+    internal var isMouseDown: Bool = false
     
-    /// Private initializer for singleton
-    private init() {}
+    /// Internal initializer to allow subclassing in tests
+    internal init() {}
     
     /// Process a touch event
     /// - Parameter touchEvent: The touch event to process
@@ -70,7 +70,7 @@ public class TouchEventController {
     
     /// Simulate a mouse down event
     /// - Parameter position: Screen position
-    private func simulateMouseDown(at position: CGPoint) {
+    internal func simulateMouseDown(at position: CGPoint) {
         let event = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown,
                            mouseCursorPosition: position, mouseButton: .left)
         event?.post(tap: .cghidEventTap)
@@ -78,7 +78,7 @@ public class TouchEventController {
     
     /// Simulate a mouse move event
     /// - Parameter position: Screen position
-    private func simulateMouseMoved(to position: CGPoint) {
+    internal func simulateMouseMoved(to position: CGPoint) {
         let event = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
                            mouseCursorPosition: position, mouseButton: .left)
         event?.post(tap: .cghidEventTap)
@@ -86,7 +86,7 @@ public class TouchEventController {
     
     /// Simulate a mouse drag event
     /// - Parameter position: Screen position
-    private func simulateMouseDragged(to position: CGPoint) {
+    internal func simulateMouseDragged(to position: CGPoint) {
         let event = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged,
                            mouseCursorPosition: position, mouseButton: .left)
         event?.post(tap: .cghidEventTap)
@@ -94,7 +94,7 @@ public class TouchEventController {
     
     /// Simulate a mouse up event
     /// - Parameter position: Screen position
-    private func simulateMouseUp(at position: CGPoint) {
+    internal func simulateMouseUp(at position: CGPoint) {
         let event = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp,
                            mouseCursorPosition: position, mouseButton: .left)
         event?.post(tap: .cghidEventTap)
