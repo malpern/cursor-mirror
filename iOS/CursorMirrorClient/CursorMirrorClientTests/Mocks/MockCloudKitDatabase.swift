@@ -2,80 +2,79 @@ import Foundation
 import CloudKit
 @testable import CursorMirrorClient
 
+/// A mock implementation of CloudKitDatabaseProtocol for testing without real CloudKit dependencies
 class MockCloudKitDatabase: CloudKitDatabaseProtocol {
-    // Devices to return in queries
+    // Records to return for queries
     var mockDevices: [CKRecord] = []
     
-    // Simulated errors
+    // Test control flags
     var shouldFailQueries = false
     var simulatedQueryError: Error?
+    var queriesPerformed: [CKQuery] = []
+    var saveOperationsPerformed: [CKRecord] = []
     var shouldFailSaves = false
     var simulatedSaveError: Error?
     
-    // Track operations
-    var queriesPerformed: [CKQuery] = []
-    var recordsSaved: [CKRecord] = []
-    
-    // Initialize with optional mock devices
-    init(mockDevices: [CKRecord] = []) {
-        self.mockDevices = mockDevices
-    }
-    
-    // Create a standard mock device record
-    static func createMockDeviceRecord(id: String, name: String, type: String = "Mac") -> CKRecord {
-        let recordID = CKRecord.ID(recordName: id)
-        let record = CKRecord(recordType: "Device", recordID: recordID)
+    /// Creates a mock device record for testing
+    static func createMockDeviceRecord(id: String, name: String) -> CKRecord {
+        let record = CKRecord(recordType: "Device")
         record["id"] = id
         record["name"] = name
-        record["type"] = type
+        record["type"] = "Mac"
         record["isOnline"] = 1
         record["lastSeen"] = Date()
         return record
     }
     
-    // MARK: - CloudKitDatabaseProtocol Implementation
+    // MARK: - CloudKitDatabaseProtocol
     
     func records(
         matching query: CKQuery,
-        inZoneWith zoneID: CKRecordZone.ID? = nil,
-        resultsLimit: Int = 0
+        inZoneWith zoneID: CKRecordZone.ID?,
+        resultsLimit: Int
     ) async throws -> (
         matchResults: [(CKRecord.ID, Result<CKRecord, Error>)],
         queryCursor: CKQueryOperation.Cursor?
     ) {
-        // Track this query
+        // Record this query for test verification
         queriesPerformed.append(query)
         
-        // Check if should fail
+        // Simulate failure if needed
         if shouldFailQueries {
             throw simulatedQueryError ?? NSError(
                 domain: "MockCloudKitError",
                 code: -1,
-                userInfo: nil
+                userInfo: [NSLocalizedDescriptionKey: "Simulated query failure"]
             )
         }
         
-        // Process and return mock results
+        // Return mock results
         let results: [(CKRecord.ID, Result<CKRecord, Error>)] = mockDevices.map { record in
-            return (record.recordID, .success(record))
+            (record.recordID, .success(record))
         }
         
-        return (results, nil)
+        // Apply result limit if specified
+        let limitedResults = resultsLimit > 0 && resultsLimit < results.count
+            ? Array(results.prefix(resultsLimit))
+            : results
+        
+        return (matchResults: limitedResults, queryCursor: nil)
     }
     
     func save(_ record: CKRecord) async throws -> CKRecord {
-        // Track this save
-        recordsSaved.append(record)
+        // Record this save operation for test verification
+        saveOperationsPerformed.append(record)
         
-        // Check if should fail
+        // Simulate failure if needed
         if shouldFailSaves {
             throw simulatedSaveError ?? NSError(
                 domain: "MockCloudKitError",
                 code: -1,
-                userInfo: nil
+                userInfo: [NSLocalizedDescriptionKey: "Simulated save failure"]
             )
         }
         
+        // Return the saved record
         return record
     }
 } 

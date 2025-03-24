@@ -2,7 +2,7 @@ import SwiftUI
 import AVKit
 
 struct PlayerView: View {
-    @ObservedObject var viewModel: ConnectionViewModel
+    @Bindable var viewModel: ConnectionViewModel
     @State private var player: AVPlayer?
     @State private var isPlaying = false
     

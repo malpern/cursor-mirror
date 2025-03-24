@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct DeviceDiscoveryView: View {
-    @ObservedObject var viewModel: ConnectionViewModel
+    @Bindable var viewModel: ConnectionViewModel
     @State private var isRefreshing = false
     
     var body: some View {

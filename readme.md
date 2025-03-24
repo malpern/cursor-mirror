@@ -57,37 +57,15 @@ A macOS application that captures and streams a portion of your screen matching 
   - Comprehensive test suite for models
   - Mocks for CloudKit and network operations
   - Proper test isolation using dependency injection
+  - Robust synchronous testing approach for async operations
 
 ## Recent Improvements
 
 - Added iOS client with model layer and connection infrastructure
-- Implemented CloudKit-based device discovery for iOS client
-- Created robust testing infrastructure with isolated test environment
-- Fixed persistence issues with proper UserDefaults handling
-- Added frame rate limiting to prevent frame accumulation and improve performance
-- Optimized QoS levels for frame processing (using .userInitiated instead of .userInteractive)
-- Enhanced thread safety in frame processing pipeline
-- Improved frame processing statistics and monitoring
-- Added Swift 6 compatibility with proper `Sendable` conformance across the codebase
-- Improved actor isolation safety for thread-sensitive components
-- Enhanced authentication system with better error handling and route protection
-- Fixed unnecessary imports and module references in HTTP components
-- Cleaned up unused code in HLS segment management
-- Improved error handling in video segment generation and management
-- Implemented better shutdown protocols for asynchronous operations
-- Streamlined module structure to avoid circular dependencies
-- Integrated HTTP server with authentication and improved middleware
-- Added HLS streaming support with adaptive bitrate and multiple quality options
-- Enhanced test suite reliability with proper async/await handling
-- Improved mock implementations for ScreenCaptureKit components
-- Added robust permission handling in test environment
-- Fixed race conditions in async test setup and teardown
-- Added comprehensive error simulation and testing
-- Improved test isolation with proper UserDefaults cleanup
-- Enhanced test assertions with descriptive failure messages
-- Added new test cases for error scenarios
-- Fixed thread safety issues in frame processing tests
-- Improved documentation of test cases and setup requirements
+- Improved iOS client test suite reliability
+  - Fixed asynchronous test issues in device discovery tests
+  - Implemented synchronous testing patterns for CloudKit operations
+  - Enhanced mock implementations for more reliable testing
 
 ## Requirements
 

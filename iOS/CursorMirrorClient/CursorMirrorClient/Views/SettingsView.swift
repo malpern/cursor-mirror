@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @ObservedObject var viewModel: ConnectionViewModel
+    @Bindable var viewModel: ConnectionViewModel
     @State private var streamConfig = StreamConfig()
     @State private var showingResetAlert = false
     

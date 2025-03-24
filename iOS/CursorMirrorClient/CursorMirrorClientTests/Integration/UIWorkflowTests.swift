@@ -5,14 +5,14 @@ import CloudKit
 
 final class UIWorkflowTests: XCTestCase {
     
-    var mockViewModel: MockConnectionViewModel!
-    var contentView: ContentView!
+    var mockViewModel: TestConnectionViewModel!
+    var contentView: ContentView?
     
     override func setUp() {
         super.setUp()
         
         // Create a mock view model with pre-populated devices
-        mockViewModel = MockConnectionViewModel()
+        mockViewModel = TestConnectionViewModel()
         
         // Add mock devices
         let recordID1 = CKRecord.ID(recordName: "device1")
@@ -58,7 +58,7 @@ final class UIWorkflowTests: XCTestCase {
         
         // Verify connection
         XCTAssertTrue(mockViewModel.connectToDeviceCalled)
-        XCTAssertEqual(mockViewModel.connectionState.status, .connected)
+        XCTAssertEqual(mockViewModel.connectionState.status, ConnectionStatus.connected)
         XCTAssertEqual(mockViewModel.connectionState.selectedDevice?.id, deviceToConnect.id)
         
         // 3. Test streaming
@@ -91,7 +91,7 @@ final class UIWorkflowTests: XCTestCase {
         
         // Verify disconnection
         XCTAssertTrue(mockViewModel.disconnectCalled)
-        XCTAssertEqual(mockViewModel.connectionState.status, .disconnected)
+        XCTAssertEqual(mockViewModel.connectionState.status, ConnectionStatus.disconnected)
         XCTAssertNil(mockViewModel.connectionState.selectedDevice)
     }
     
@@ -102,7 +102,7 @@ final class UIWorkflowTests: XCTestCase {
         mockViewModel.connectionState.handleError(testError)
         
         // Verify error state
-        XCTAssertEqual(mockViewModel.connectionState.status, .error)
+        XCTAssertEqual(mockViewModel.connectionState.status, ConnectionStatus.error)
         XCTAssertNotNil(mockViewModel.connectionState.lastError)
         
         // Clear error
@@ -118,9 +118,9 @@ final class UIWorkflowTests: XCTestCase {
 // MARK: - Workflow Helpers
 
 class DeviceWorkflowHelper {
-    private let viewModel: MockConnectionViewModel
+    private let viewModel: TestConnectionViewModel
     
-    init(viewModel: MockConnectionViewModel) {
+    init(viewModel: TestConnectionViewModel) {
         self.viewModel = viewModel
     }
     
@@ -134,9 +134,9 @@ class DeviceWorkflowHelper {
 }
 
 class StreamWorkflowHelper {
-    private let viewModel: MockConnectionViewModel
+    private let viewModel: TestConnectionViewModel
     
-    init(viewModel: MockConnectionViewModel) {
+    init(viewModel: TestConnectionViewModel) {
         self.viewModel = viewModel
     }
     
@@ -152,9 +152,9 @@ class SettingsWorkflowHelper {
 }
 
 class ErrorWorkflowHelper {
-    private let viewModel: MockConnectionViewModel
+    private let viewModel: TestConnectionViewModel
     
-    init(viewModel: MockConnectionViewModel) {
+    init(viewModel: TestConnectionViewModel) {
         self.viewModel = viewModel
     }
     

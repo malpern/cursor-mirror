@@ -22,6 +22,16 @@
 		86D972FE2D90E065001EE68B /* CursorMirrorClient.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = CursorMirrorClient.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8604C25A2D910F1700F5E5D6 /* Exceptions for "CursorMirrorClientTests" folder in "CursorMirrorClientTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 86D972EB2D90D45E001EE68B /* CursorMirrorClientTests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		86D972BC2D90CC9D001EE68B /* CursorMirrorClient */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -30,6 +40,9 @@
 		};
 		86D972ED2D90D45E001EE68B /* CursorMirrorClientTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8604C25A2D910F1700F5E5D6 /* Exceptions for "CursorMirrorClientTests" folder in "CursorMirrorClientTests" target */,
+			);
 			path = CursorMirrorClientTests;
 			sourceTree = "<group>";
 		};
@@ -402,10 +415,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_ENTITLEMENTS = CursorMirrorClientTests/CursorMirrorClientTests.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = X2RKZ5TG99;
-				GENERATE_INFOPLIST_FILE = YES;
+				DONT_GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CursorMirrorClientTests/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = malpern.CursorMirrorClientTests;
@@ -424,10 +440,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_ENTITLEMENTS = CursorMirrorClientTests/CursorMirrorClientTests.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = X2RKZ5TG99;
-				GENERATE_INFOPLIST_FILE = YES;
+				DONT_GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CursorMirrorClientTests/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 15.2;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = malpern.CursorMirrorClientTests;

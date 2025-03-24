@@ -1,15 +1,16 @@
 import XCTest
 import SwiftUI
 import AVKit
+import CloudKit
 @testable import CursorMirrorClient
 
 final class PlayerViewTests: XCTestCase {
     
-    var mockViewModel: MockConnectionViewModel!
+    var mockViewModel: TestConnectionViewModel!
     
     override func setUp() {
         super.setUp()
-        mockViewModel = MockConnectionViewModel()
+        mockViewModel = TestConnectionViewModel()
     }
     
     override func tearDown() {
@@ -20,7 +21,7 @@ final class PlayerViewTests: XCTestCase {
     // Test initial state with no connection
     func testNoConnection() {
         // Create the view with the mock view model
-        let view = PlayerView(viewModel: mockViewModel)
+        _ = PlayerView(viewModel: mockViewModel)
         
         // Verify no selected device/connection
         XCTAssertNil(mockViewModel.connectionState.selectedDevice)
@@ -46,7 +47,7 @@ final class PlayerViewTests: XCTestCase {
         mockViewModel.providedStreamURL = URL(string: "http://test.com/stream")
         
         // Create the player view
-        let playerView = PlayerView(viewModel: mockViewModel)
+        _ = PlayerView(viewModel: mockViewModel)
         
         // Verify connection status and stream URL
         XCTAssertEqual(mockViewModel.connectionState.status, .connected)
@@ -61,7 +62,7 @@ final class PlayerViewTests: XCTestCase {
         mockViewModel.connectionState.handleError(testError)
         
         // Create the view with the mock view model in error state
-        let view = PlayerView(viewModel: mockViewModel)
+        _ = PlayerView(viewModel: mockViewModel)
         
         // Verify error state
         XCTAssertEqual(mockViewModel.connectionState.status, .error)
@@ -82,25 +83,14 @@ final class PlayerViewTests: XCTestCase {
 // MARK: - Test Helpers
 
 class PlayerViewErrorHelper {
-    private let viewModel: MockConnectionViewModel
+    private let viewModel: TestConnectionViewModel
     
-    init(viewModel: MockConnectionViewModel) {
+    init(viewModel: TestConnectionViewModel) {
         self.viewModel = viewModel
     }
     
     func clearError() {
         // This simulates tapping the dismiss button on the error banner
         viewModel.clearError()
-    }
-}
-
-// MARK: - Mock View Model Extension
-
-extension MockConnectionViewModel {
-    var shouldProvideStreamURL = false
-    var providedStreamURL: URL?
-    
-    override func getStreamURL() -> URL? {
-        return shouldProvideStreamURL ? providedStreamURL : nil
     }
 } 

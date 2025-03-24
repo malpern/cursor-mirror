@@ -1,14 +1,15 @@
 import XCTest
 import SwiftUI
+import CloudKit
 @testable import CursorMirrorClient
 
 final class SettingsViewTests: XCTestCase {
     
-    var mockViewModel: MockConnectionViewModel!
+    var mockViewModel: TestConnectionViewModel!
     
     override func setUp() {
         super.setUp()
-        mockViewModel = MockConnectionViewModel()
+        mockViewModel = TestConnectionViewModel()
         
         // Clear any settings from previous tests
         let testDefaults = UserDefaults.standard
@@ -32,7 +33,7 @@ final class SettingsViewTests: XCTestCase {
     // Test initial state with default settings
     func testDefaultSettings() {
         // Create the view
-        let view = SettingsView(viewModel: mockViewModel)
+        _ = SettingsView(viewModel: mockViewModel)
         
         // Create a test helper to inspect settings
         let helper = SettingsTestHelper()
@@ -95,13 +96,13 @@ final class SettingsViewTests: XCTestCase {
         let recordID = CKRecord.ID(recordName: "test-id")
         let device = DeviceInfo(id: "test-id", name: "Test Device", recordID: recordID)
         mockViewModel.connectionState.selectDevice(device)
-        mockViewModel.connectionState.status = .connected
+        mockViewModel.connectionState.status = ConnectionStatus.connected
         
         // Create the view
-        let view = SettingsView(viewModel: mockViewModel)
+        _ = SettingsView(viewModel: mockViewModel)
         
         // Verify connection status
-        XCTAssertEqual(mockViewModel.connectionState.status, .connected)
+        XCTAssertEqual(mockViewModel.connectionState.status, ConnectionStatus.connected)
         XCTAssertEqual(mockViewModel.connectionState.selectedDevice?.id, "test-id")
         
         // Create helper to test disconnect action
@@ -112,7 +113,7 @@ final class SettingsViewTests: XCTestCase {
         
         // Verify disconnection
         XCTAssertTrue(mockViewModel.disconnectCalled)
-        XCTAssertEqual(mockViewModel.connectionState.status, .disconnected)
+        XCTAssertEqual(mockViewModel.connectionState.status, ConnectionStatus.disconnected)
         XCTAssertNil(mockViewModel.connectionState.selectedDevice)
     }
 }
@@ -126,9 +127,9 @@ class SettingsTestHelper {
 }
 
 class SettingsConnectionHelper {
-    private let viewModel: MockConnectionViewModel
+    private let viewModel: TestConnectionViewModel
     
-    init(viewModel: MockConnectionViewModel) {
+    init(viewModel: TestConnectionViewModel) {
         self.viewModel = viewModel
     }
     

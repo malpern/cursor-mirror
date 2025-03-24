@@ -1,4 +1,5 @@
 import SwiftUI
+import CloudKit
 
 struct ConnectionStatusView: View {
     let device: DeviceInfo
