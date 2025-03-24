@@ -76,6 +76,13 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ## Recent Improvements
 
+- Enhanced test suite reliability and coverage
+  - Fixed async/await handling in ViewportTests
+  - Improved main thread handling for UI operations
+  - Added proper test setup/teardown with async support
+  - Fixed singleton pattern issues in TouchEventController tests
+  - Added comprehensive test coverage for all components
+  - Improved test robustness with proper error handling
 - Added comprehensive test coverage for touch emulation
   - Client-side test suite for TouchEvent model and sending
   - Server-side tests for event processing and coordinate mapping
@@ -92,11 +99,6 @@ A macOS application that captures and streams a portion of your screen matching 
   - Standardized appearance handling across light and dark modes
   - Improved UI responsiveness and reliability
 - Added iOS client with model layer and connection infrastructure
-- Improved iOS client test suite reliability
-  - Fixed asynchronous test issues in device discovery tests
-  - Implemented synchronous testing patterns for CloudKit operations
-  - Enhanced mock implementations for more reliable testing
-  - Fixed build errors related to UI component implementation
 - Enhanced DeviceDiscoveryView with advanced features
   - Added search capability to filter devices by name or type
   - Improved accessibility with proper labels and hints
@@ -148,6 +150,9 @@ Sources/
 │   ├── ScreenCaptureManager.swift  # Screen capture with frame rate limiting
 │   ├── BasicFrameProcessor.swift   # Frame processing with QoS optimization
 │   ├── H264VideoEncoder.swift  # Thread-safe video encoding
+│   ├── TouchEmulation/        # Touch event handling
+│   │   ├── TouchEventController.swift  # Touch event processing
+│   │   └── TouchEventRoute.swift      # HTTP API endpoint
 │   └── HTTP/                   # HTTP server components
 │       ├── HTTPServerManager.swift
 │       ├── AuthenticationManager.swift
@@ -187,8 +192,20 @@ iOS/
 
 ### Testing
 
+Run the test suite:
+```bash
+swift test
+```
+
 ### Current Test Status
 - ✅ Core test suites are passing
+  - TouchEventController tests
+  - TouchEventRoute tests
+  - ViewportManager tests
+  - H264VideoEncoder tests
+  - HLSManager tests
+  - PlaylistGenerator tests
+  - VideoSegmentHandler tests
 - ✅ iOS client test suites are passing
 - ✅ Manual testing confirms core functionality:
   - Screen capture working
