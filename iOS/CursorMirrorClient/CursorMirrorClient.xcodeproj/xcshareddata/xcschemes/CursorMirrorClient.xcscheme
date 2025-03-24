@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme
+   LastUpgradeVersion = "1620"
+   version = "1.7">
+   <BuildAction
+      parallelizeBuildables = "YES"
+      buildImplicitDependencies = "YES"
+      buildArchitectures = "Automatic">
+      <BuildActionEntries>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "86D972B92D90CC9D001EE68B"
+               BuildableName = "CursorMirrorClient.app"
+               BlueprintName = "CursorMirrorClient"
+               ReferencedContainer = "container:CursorMirrorClient.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+      </BuildActionEntries>
+   </BuildAction>
+   <TestAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv = "YES">
+      <TestPlans>
+         <TestPlanReference
+            reference = "container:CursorMirrorClient.xctestplan"
+            default = "YES">
+         </TestPlanReference>
+      </TestPlans>
+      <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "86D972EB2D90D45E001EE68B"
+               BuildableName = "CursorMirrorClientTests.xctest"
+               BlueprintName = "CursorMirrorClientTests"
+               ReferencedContainer = "container:CursorMirrorClient.xcodeproj">
+            </BuildableReference>
+            <SkippedTests>
+               <Test
+                  Identifier = "ConnectionStateTests">
+               </Test>
+               <Test
+                  Identifier = "ConnectionStateTests/testClearError()">
+               </Test>
+               <Test
+                  Identifier = "ConnectionStateTests/testConnectionStateTransitions()">
+               </Test>
+               <Test
+                  Identifier = "ConnectionStateTests/testDeviceDiscovery()">
+               </Test>
+               <Test
+                  Identifier = "ConnectionStateTests/testDeviceSelection()">
+               </Test>
+               <Test
+                  Identifier = "ConnectionStateTests/testErrorHandling()">
+               </Test>
+               <Test
+                  Identifier = "ConnectionStateTests/testInitialState()">
+               </Test>
+               <Test
+                  Identifier = "CursorMirrorClientTests">
+               </Test>
+               <Test
+                  Identifier = "CursorMirrorClientTests/example()">
+               </Test>
+               <Test
+                  Identifier = "StreamConfigTests">
+               </Test>
+               <Test
+                  Identifier = "StreamConfigTests/testBufferSizeValidation()">
+               </Test>
+               <Test
+                  Identifier = "StreamConfigTests/testConfigurationPersistence()">
+               </Test>
+               <Test
+                  Identifier = "StreamConfigTests/testDefaultConfiguration()">
+               </Test>
+               <Test
+                  Identifier = "StreamConfigTests/testQualityAdjustment()">
+               </Test>
+               <Test
+                  Identifier = "StreamConfigTests/testQualitySelection()">
+               </Test>
+               <Test
+                  Identifier = "StreamConfigTests/testResetToDefaults()">
+               </Test>
+               <Test
+                  Identifier = "StreamConfigTests/testStreamURLGeneration()">
+               </Test>
+            </SkippedTests>
+         </TestableReference>
+      </Testables>
+   </TestAction>
+   <LaunchAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      launchStyle = "0"
+      useCustomWorkingDirectory = "NO"
+      ignoresPersistentStateOnLaunch = "NO"
+      debugDocumentVersioning = "YES"
+      debugServiceExtension = "internal"
+      allowLocationSimulation = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "86D972B92D90CC9D001EE68B"
+            BuildableName = "CursorMirrorClient.app"
+            BlueprintName = "CursorMirrorClient"
+            ReferencedContainer = "container:CursorMirrorClient.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
+   </LaunchAction>
+   <ProfileAction
+      buildConfiguration = "Release"
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      savedToolIdentifier = ""
+      useCustomWorkingDirectory = "NO"
+      debugDocumentVersioning = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "86D972B92D90CC9D001EE68B"
+            BuildableName = "CursorMirrorClient.app"
+            BlueprintName = "CursorMirrorClient"
+            ReferencedContainer = "container:CursorMirrorClient.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
+   </ProfileAction>
+   <AnalyzeAction
+      buildConfiguration = "Debug">
+   </AnalyzeAction>
+   <ArchiveAction
+      buildConfiguration = "Release"
+      revealArchiveInOrganizer = "YES">
+   </ArchiveAction>
+</Scheme>

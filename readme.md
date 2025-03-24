@@ -37,8 +37,33 @@ A macOS application that captures and streams a portion of your screen matching 
 - Custom styling/theming
 - Shortcut keys and hotkeys
 
+### Phase 4: iOS Client Implementation (🔄 In Progress)
+- Core model layer (✅ Completed)
+  - ConnectionState for managing connection status
+  - DeviceInfo for representing discovered devices
+  - StreamConfig for managing streaming configuration
+- Connection infrastructure (✅ Completed)
+  - CloudKit integration for device discovery
+  - Connection management with proper state transitions
+  - Device registration and discovery
+- ViewModels (✅ Completed)
+  - ConnectionViewModel for device discovery and connection management
+  - UI state management with proper Swift 6 concurrency
+- UI Components (⏱️ Planned)
+  - Device discovery view
+  - Connection status view
+  - Video player interface
+- Testing (✅ Completed)
+  - Comprehensive test suite for models
+  - Mocks for CloudKit and network operations
+  - Proper test isolation using dependency injection
+
 ## Recent Improvements
 
+- Added iOS client with model layer and connection infrastructure
+- Implemented CloudKit-based device discovery for iOS client
+- Created robust testing infrastructure with isolated test environment
+- Fixed persistence issues with proper UserDefaults handling
 - Added frame rate limiting to prevent frame accumulation and improve performance
 - Optimized QoS levels for frame processing (using .userInitiated instead of .userInteractive)
 - Enhanced thread safety in frame processing pipeline
@@ -66,7 +91,8 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ## Requirements
 
-- macOS 14.0 or later
+- macOS 14.0 or later (for macOS app)
+- iOS 17.0 or later (for iOS client)
 - Xcode 15.0 or later
 - Swift 6.0.3 or later
 
@@ -79,11 +105,17 @@ cd cursor-window
 swift build
 ```
 
-2. Launch and use:
+2. Launch and use macOS app:
    - Grant screen recording permission when prompted
    - Use Preview tab to position capture viewport
    - Use Encoding tab to configure and start streaming
    - Access HLS stream at the configured URL
+
+3. Launch and use iOS client:
+   - Grant necessary CloudKit permissions when prompted
+   - Discover available devices on the same iCloud account
+   - Connect to a streaming device
+   - View the streamed content
 
 ## Project Structure
 
@@ -108,6 +140,22 @@ Sources/
     └── Views/
         ├── MainView.swift
         └── DraggableViewport.swift
+
+iOS/
+└── CursorMirrorClient/        # iOS client app
+    ├── CursorMirrorClient.xcodeproj/  # Xcode project
+    └── CursorMirrorClient/     # Main app source
+        ├── Models/            # Data models for iOS client
+        │   ├── ConnectionState.swift  # Connection state management
+        │   ├── DeviceInfo.swift       # Device information
+        │   └── StreamConfig.swift     # Stream configuration
+        ├── ViewModels/        # View models for iOS client
+        │   └── ConnectionViewModel.swift  # Device discovery and connection
+        ├── Views/             # SwiftUI views (In Progress)
+        └── Tests/             # Test suite for iOS client
+            ├── ConnectionStateTests.swift
+            ├── DeviceInfoTests.swift
+            └── StreamConfigTests.swift
 ```
 
 ## Development
@@ -116,297 +164,15 @@ Sources/
 
 ### Current Test Status
 - ✅ Core test suites are passing
+- ✅ iOS client test suites are passing
 - ✅ Manual testing confirms core functionality:
   - Screen capture working
   - Frame rate limiting effective
   - QoS optimization in place
   - HTTP server operational
   - HLS streaming functional
-
-### Test Suite Status
-The following test suites are currently passing:
-
-1. Core Tests:
-   - CursorWindowTests: ✅ All tests passing
-   - H264VideoEncoderTests: ✅ All tests passing
-   - HLSManagerTests: ✅ All tests passing
-   - HLSSegmentWriterTests: ✅ All tests passing
-   - PlaylistGeneratorTests: ✅ All tests passing
-   - VideoSegmentHandlerTests: ✅ All tests passing
-
-2. Screen Capture Tests:
-   - ScreenCaptureManagerTests: ✅ All tests passing
-   - BasicFrameProcessorTests: ✅ All tests passing
-
-### Test Categories
-
-#### Core Tests (✅ Complete)
-```swift
-class ScreenCaptureManagerTests: XCTestCase {
-    func testInitialPermissionStatus()
-    func testStartCapture()
-    func testStopCapture()
-    func testFrameProcessing()
-    func testErrorHandling()
-    func testFrameRateLimiting()
-    func testQoSOptimization()
-}
-```
-
-### Next Steps
-1. Complete iOS client implementation
-2. Add test coverage reporting
-3. Streamline test setup/teardown
-4. Add more comprehensive integration tests
-
-## Development Roadmap
-
-### 1. Project Setup (✅ Complete)
-- [x] 1.1. Create macOS Xcode project
-- [x] 1.2. Configure project settings
-
-### 2. Screen Capture (✅ Complete)
-#### 2.1 Screen Capture Setup & Permissions (✅ Complete)
-- [x] 2.1.1. Add ScreenCaptureKit framework
-- [x] 2.1.2. Create ScreenCaptureManager class skeleton
-- [x] 2.1.3. Implement permission request handling
-- [x] 2.1.4. Write tests for permission states
-- [x] 2.1.5. Test permission request UI flow
-
-#### 2.2 Display Configuration (✅ Complete)
-- [x] 2.2.1. Create DisplayConfiguration model
-- [x] 2.2.2. Implement display enumeration
-- [x] 2.2.3. Write tests for display detection
-- [x] 2.2.4. Add display selection logic
-- [x] 2.2.5. Test display bounds calculations
-
-#### 2.3 Capture Region (✅ Complete)
-- [x] 2.3.1. Create CaptureRegion model
-- [x] 2.3.2. Implement viewport region tracking
-- [x] 2.3.3. Write tests for region calculations
-- [x] 2.3.4. Add region update handling
-- [x] 2.3.5. Test region bounds validation
-
-#### 2.4 Frame Capture Pipeline (✅ Complete)
-- [x] 2.4.1. Create FrameProcessor protocol
-- [x] 2.4.2. Implement basic frame capture
-- [x] 2.4.3. Write tests for frame capture
-- [x] 2.4.4. Add frame rate control and QoS optimization
-- [x] 2.4.5. Test frame delivery performance
-- [x] 2.4.6. Implement frame rate limiting
-- [x] 2.4.7. Optimize QoS levels for frame processing
-
-#### 2.5 Integration (✅ Complete)
-- [x] 2.5.1. Connect capture manager to viewport
-- [x] 2.5.2. Implement capture preview
-- [x] 2.5.3. Write integration tests
-- [x] 2.5.4. Add error handling
-  - [x] Custom `CaptureError` enum with user-friendly descriptions
-  - [x] Improved permission handling using `SCShareableContent.current`
-  - [x] Proper error propagation through the capture pipeline
-- [x] 2.5.5. Test end-to-end capture flow
-- [x] 2.5.6. Validate frame rate limiting behavior
-- [x] 2.5.7. Verify QoS optimization effectiveness
-
-### 3. Video Encoding (✅ Complete)
-- [x] 3.1. Setup AVFoundation/VideoToolbox pipeline
-  - [x] Create `VideoEncoder` protocol and H.264 implementation
-  - [x] Implement pixel format conversion
-  - [x] Add configuration options for bitrate and profile
-- [x] 3.2. Implement H.264 encoding
-  - [x] Create `EncodingFrameProcessor` to handle frame encoding
-  - [x] Implement video file writing with `VideoFileWriter`
-  - [x] Add UI controls for encoding settings
-- [x] 3.3. Test encoding performance
-  - [x] Unit tests for encoder components
-  - [x] Performance tests with frame rate limiting
-  - [x] QoS optimization validation
-
-### 4. HTTP Server (✅ Complete)
-- [x] 4.1. Setup HTTP server foundation
-  - [x] Implement HTTPServerManager
-  - [x] Create ServerConfig with customizable options
-  - [x] Add error handling with HTTPServerError
-- [x] 4.2. Implement authentication
-  - [x] Create AuthenticationManager
-  - [x] Implement session management
-  - [x] Add authentication middleware
-  - [x] Implement protected routes functionality
-- [x] 4.3. Add request logging
-  - [x] Implement RequestLog model
-  - [x] Create LoggingMiddleware
-  - [x] Add admin dashboard for logs viewing
-- [x] 4.4. Implement HLS streaming
-  - [x] Create HLS segment generator
-  - [x] Add M3U8 playlist generation
-  - [x] Implement stream endpoint
-
-### 5. HLS Implementation (✅ Complete)
-- [x] 5.1. Implement video segmentation
-  - [x] Create HLSSegmentManager for MPEG-TS segment creation
-  - [x] Add segment rotation and cleanup
-  - [x] Implement multiple quality support
-- [x] 5.2. Generate M3U8 playlists
-  - [x] Create HLSPlaylistGenerator for master and variant playlists
-  - [x] Implement playlist updating with new segments
-  - [x] Add support for different playlist types (VOD/Live)
-- [x] 5.3. Test segment generation
-  - [x] Verify segment duration and content
-  - [x] Test segment delivery and rotation
-  - [x] Validate playlist generation
-
-### 6. Integration & Testing (🚧 In Progress)
-- [x] 6.1. Core functionality testing
-- [x] 6.2. Swift 6 compatibility improvements
-  - [x] Add proper actor isolation and Sendable conformance
-  - [x] Fix unsafe async code patterns
-  - [x] Update thread-safety mechanisms
-- [ ] 6.3. iOS client testing
-
-## Development Process
-
-1. For each feature:
-   - Write failing test
-   - Implement minimal code to pass
-   - Refactor while keeping tests green
-   - Document changes
-
-2. Before merging:
-   - All tests must pass
-   - No memory leaks
-
-## Architecture
-
-The application is structured into several main components:
-
-- **CursorWindow**: Main macOS application providing the UI
-- **CursorWindowCore**: Core functionality module containing:
-  - **WindowManager**: Handles window creation and management
-  - **ViewportManager**: Manages the capture viewport
-  - **ScreenCapture**: Screen capture implementation
-  - **VideoEncoding**: H.264 encoder implementation
-  - **HTTP**: HTTP server and streaming implementation
-    - **Server**: Basic HTTP server
-    - **Authentication**: User authentication
-    - **Admin**: Admin dashboard and controls
-    - **HLS**: HLS streaming components
-      - Playlist generation
-      - Segment management
-      - Stream control
-- **CursorWindowTests**: Unit tests for core functionality
-
-### Current Test Fix Progress (🔄 In Progress)
-
-#### ScreenCaptureManagerTests Issues
-1. Permission Handling (✅ Fixed)
-   - Issue: Permission state not properly managed in test environment
-   - Status: Fixed
-   - Changes Made:
-     - [x] Updated `forceRefreshPermissionStatus` to handle test environment
-     - [x] Fixed permission state persistence in UserDefaults
-     - [x] Added test-specific permission override mechanism
-     - [x] Improved error handling and state persistence
-     - [x] Fixed initial permission state in tests
-
-2. Mock Stream Implementation (✅ Fixed)
-   - Issue: Stream initialization failures and duplicate mock declarations
-   - Status: Fixed
-   - Changes Made:
-     - [x] Fixed compilation errors in mock stream
-     - [x] Improved frame simulation mechanism
-     - [x] Fixed duplicate MockSCStream declarations
-     - [x] Fixed stream property access with async helper methods
-     - [x] Fixed actor isolation issues with frame processor
-     - [x] Added proper stream output delegation
-     - [x] Fixed async/await warnings in stream methods
-
-3. Actor Isolation (✅ Fixed)
-   - Issue: Actor isolation violations in frame processor and stream access
-   - Status: Fixed
-   - Changes Made:
-     - [x] Created `FrameProcessorStore` actor for safe state management
-     - [x] Added async helper methods for testing
-     - [x] Fixed frame processor access in tests
-     - [x] Fixed stream property access in tests
-     - [x] Fixed async/await warnings
-     - [x] Optimized actor communication patterns
-
-4. Test Cleanup (✅ Fixed)
-   - Issue: Resources not properly cleaned up between tests
-   - Status: Fixed
-   - Changes Made:
-     - [x] Added proper stream shutdown in `tearDown`
-     - [x] Added UserDefaults cleanup between tests
-     - [x] Added frame processor state reset
-     - [x] Added cleanup verification
-     - [x] Improved test isolation
-
-5. Frame Processing Tests (✅ Fixed)
-   - Issue: Missing frame processing verification
-   - Status: Fixed
-   - Changes Made:
-     - [x] Added frame processing test
-     - [x] Added thread-safe frame counting
-     - [x] Added frame simulation mechanism
-     - [x] Added proper cleanup after frame processing
-
-#### Test Suite Status
-- BasicFrameProcessorTests: ✅ All tests passing
-- CursorWindowTests: ✅ All tests passing
-- H264VideoEncoderTests: ✅ All tests passing
-- HLSManagerTests: ✅ All tests passing
-- HLSSegmentWriterTests: ✅ All tests passing
-- PlaylistGeneratorTests: ✅ All tests passing
-- ScreenCaptureManagerTests: ✅ All tests passing
-- VideoSegmentHandlerTests: ✅ All tests passing
-
-#### Next Actions
-1. ⏳ Add test coverage reporting
-2. ⏳ Streamline test setup/teardown
-
-#### Known Issues
-1. ✅ Fixed: Duplicate MockSCStream declarations
-2. ✅ Fixed: Actor isolation violations in frame processor access
-3. ✅ Fixed: Stream property access issues in test environment
-4. ✅ Fixed: Mock stream initialization missing required parameters
-5. ✅ Fixed: Async/await warnings in stream methods
-
-#### Recent Improvements
-1. Added proper actor isolation with `FrameProcessorStore`
-2. Implemented async helper methods for testing
-3. Fixed stream property access with async getters
-4. Improved mock stream initialization with required parameters
-5. Fixed frame processor state management in tests
-6. Added better error handling in stream methods
-7. Added comprehensive cleanup mechanisms
-8. Added frame processing verification
-9. Improved test isolation and state management
-10. Added descriptive assertion messages
-
-#### Next Steps
-1. Add test coverage reporting
-2. Streamline test setup/teardown
-
-## Next Steps
-
-### Phase 4: UI Integration
-The final phase will integrate the HTTP server with the main application UI:
-- Server controls in the main application interface
-- QR code generation for easy mobile connection
-- Server status indicators in the UI
-- Connection management interface
-- Improved error handling and user feedback
-
-## Known Issues and Limitations
-
-1. Proper async test execution requires macOS 14.0 or later
-2. Some test scenarios may require manual permission granting in system settings
-
-## Coming Soon
-1. iOS client app for viewing the stream
-2. Integration of real-time metrics dashboard
-3. Improved error handling and user feedback
-4. Automated permission handling in test environment
+  - Device discovery working
+  - Stream configuration persistence functioning
 
 ## Contributing
 
@@ -419,40 +185,3 @@ The final phase will integrate the HTTP server with the main application UI:
 ## License
 
 MIT License - See LICENSE file for details
-
-## iOS Client Implementation Plan (Proof of Concept)
-
-Target: iOS 17.0+ only
-
-### Phase 1: Basic Setup (1-3)
-1. Create new Xcode project with SwiftUI and iOS 17.0 target
-2. Set up basic project structure with modern Swift features
-3. Configure SwiftUI app lifecycle and navigation
-
-### Phase 2: Core Video Player (4-7)
-4. Implement HLS video player using AVKit
-5. Add basic playback controls
-6. Create error handling with modern async/await
-7. Add loading state with SwiftUI animations
-
-### Phase 3: Connection Management (8-10)
-8. Implement iCloud device discovery using CloudKit
-9. Add automatic connection to discovered devices
-10. Create connection status UI with iCloud sync state
-
-### Phase 4: Testing & Polish (11-15)
-11. Test with local network
-12. Add error messages with SwiftUI alerts
-13. Test with different network conditions
-14. Add basic app icon
-15. Test on iOS 17.0+ devices
-
-Total: 15 story points for minimal proof of concept
-
-This minimal implementation focuses on the core functionality needed to validate the concept:
-- Basic video playback using modern AVKit
-- Simple connection management with async/await
-- Essential error handling with SwiftUI
-- Basic UI/UX using latest SwiftUI features
-
-Future enhancements can be added after validating the core functionality works as expected.

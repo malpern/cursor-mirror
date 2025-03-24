@@ -1,0 +1,36 @@
+{
+  "configurations" : [
+    {
+      "id" : "6E215226-2FC5-4F4E-BA33-DDC85DFB4942",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:CursorMirrorClient.xcodeproj",
+      "identifier" : "86D972B92D90CC9D001EE68B",
+      "name" : "CursorMirrorClient"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "skippedTests" : {
+        "suites" : [
+          {
+            "name" : "CursorMirrorClientTests"
+          }
+        ]
+      },
+      "target" : {
+        "containerPath" : "container:CursorMirrorClient.xcodeproj",
+        "identifier" : "86D972EB2D90D45E001EE68B",
+        "name" : "CursorMirrorClientTests"
+      }
+    }
+  ],
+  "version" : 2
+}
