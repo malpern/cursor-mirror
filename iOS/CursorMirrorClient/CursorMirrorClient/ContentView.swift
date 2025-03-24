@@ -8,14 +8,31 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var connectionViewModel = ConnectionViewModel()
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            DeviceDiscoveryView(viewModel: connectionViewModel)
+                .tabItem {
+                    Label("Devices", systemImage: "wifi")
+                }
+            
+            PlayerView(viewModel: connectionViewModel)
+                .tabItem {
+                    Label("Player", systemImage: "play.rectangle.fill")
+                }
+            
+            SettingsView(viewModel: connectionViewModel)
+                .tabItem {
+                    Label("Settings", systemImage: "gear")
+                }
         }
-        .padding()
+        .onAppear {
+            // Register this device in CloudKit when the app starts
+            Task {
+                await connectionViewModel.registerThisDevice()
+            }
+        }
     }
 }
 
