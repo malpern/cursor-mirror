@@ -76,6 +76,11 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ## Recent Improvements
 
+- Added comprehensive test coverage for touch emulation
+  - Client-side test suite for TouchEvent model and sending
+  - Server-side tests for event processing and coordinate mapping
+  - Integration tests for HTTP API endpoint
+  - Mock implementations for reliable testing without dependencies
 - Added CloudKit Settings Sync for iOS client
   - Implemented device-specific settings storage
   - Added user preferences persistence across app restarts
