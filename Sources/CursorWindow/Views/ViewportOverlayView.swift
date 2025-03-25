@@ -7,42 +7,22 @@ struct ViewportOverlayView: View {
     @ObservedObject var viewportManager: ViewportManager
     @State private var viewUpdateCount: Int = 0
     
-    // iPhone 15 Pro dimensions and appearance
-    private let cornerRadius: CGFloat = 47 // iPhone 15 Pro corner radius
-    private let strokeWidth: CGFloat = 4 // Increased from 2 to 4
-    private let glowWidth: CGFloat = 6
-    private let glowRadius: CGFloat = 12
-    private let glowOpacity: CGFloat = 0.4
+    // Border appearance constants
+    private let normalBorderWidth: CGFloat = 5
+    private let hoveredBorderWidth: CGFloat = 10
+    private let cornerRadius: CGFloat = 55
     
     var body: some View {
-        ZStack {
-            // Transparent background
-            Color.clear
-                .onAppear {
-                    print("DEBUG: ViewportOverlayView body redraw #\(viewUpdateCount)")
-                    viewUpdateCount += 1
-                }
-            
-            // Outer glow effect
-            RoundedRectangle(cornerRadius: cornerRadius + glowWidth/2)
-                .stroke(Color.blue.opacity(glowOpacity), lineWidth: glowWidth)
-                .blur(radius: glowRadius)
-                .frame(
-                    width: ViewportManager.viewportSize.width + glowWidth,
-                    height: ViewportManager.viewportSize.height + glowWidth
-                )
-                .allowsHitTesting(false) // Make glow non-interactive
-            
-            // Main viewport border - only this should be interactive
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .strokeBorder(Color.blue, lineWidth: strokeWidth)
-                .frame(
-                    width: ViewportManager.viewportSize.width,
-                    height: ViewportManager.viewportSize.height
-                )
-        }
-        .contentShape(.interaction, RoundedRectangle(cornerRadius: cornerRadius).stroke(lineWidth: strokeWidth))
-        .background(ClickThroughHandler(viewportManager: viewportManager))
+        // iPhone outline only - no dynamic island
+        RoundedRectangle(cornerRadius: cornerRadius)
+            .strokeBorder(Color.blue, lineWidth: viewportManager.isHovering ? hoveredBorderWidth : normalBorderWidth)
+            .frame(width: ViewportManager.viewportSize.width, height: ViewportManager.viewportSize.height)
+            .background(Color.clear)
+            .animation(.easeInOut(duration: 0.2), value: viewportManager.isHovering)
+            .onAppear {
+                print("DEBUG: ViewportOverlayView body redraw #\(viewUpdateCount)")
+                viewUpdateCount += 1
+            }
     }
 }
 

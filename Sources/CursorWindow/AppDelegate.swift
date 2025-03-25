@@ -300,39 +300,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         
         let hasPermission = self.screenCaptureManager?.isScreenCapturePermissionGranted ?? false
         
-        window.title = "Cursor Window"
-        window.contentView = NSHostingView(rootView: 
-            VStack {
-                Text("Cursor Window")
-                    .font(.largeTitle)
-                Text("The app is running in your menu bar.")
-                    .font(.subheadline)
-                Text("Look for 📱CW in your menu bar at the top-right of your screen.")
-                    .font(.headline)
-                    .foregroundColor(.blue)
-                Spacer().frame(height: 20)
-                
-                if hasPermission {
-                    Text("Screen recording permission granted ✅")
-                        .foregroundColor(.green)
-                        .padding(.bottom, 8)
-                } else {
-                    Text("Screen recording permission not granted ⚠️")
-                        .foregroundColor(.orange)
-                        .padding(.bottom, 8)
-                }
-                
-                Text("You can close this window - the app will keep running in the menu bar.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Button("Quit Application") {
-                    NSApp.terminate(nil)
-                }
-                .padding(.top, 10)
-            }
-            .padding()
-        )
+        window.title = "Phone Mirror"
+        
+        // Create a SwiftUI view that observes the ViewportManager
+        if let viewportManager = self.viewportManager,
+           let screenCaptureManager = self.screenCaptureManager {
+            let contentView = MainWindowView(
+                viewportManager: viewportManager,
+                screenCaptureManager: screenCaptureManager
+            )
+            window.contentView = NSHostingView(rootView: contentView)
+        }
         
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -465,5 +443,55 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         
         // Allow the termination to proceed
         return .terminateNow
+    }
+}
+
+// Move the window content to a separate SwiftUI view for better state management
+@available(macOS 14.0, *)
+private struct MainWindowView: View {
+    @ObservedObject var viewportManager: ViewportManager
+    let screenCaptureManager: ScreenCaptureManager
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Phone Mirror")
+                .font(.largeTitle)
+            
+            Toggle("Show iPhone Frame", isOn: Binding(
+                get: { viewportManager.isVisible },
+                set: { newValue in
+                    if newValue {
+                        viewportManager.showViewport()
+                    } else {
+                        viewportManager.hideViewport()
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            
+            if screenCaptureManager.isScreenCapturePermissionGranted {
+                Text("Screen recording permission granted ✅")
+                    .foregroundColor(.green)
+                    .padding(.bottom, 8)
+            } else {
+                Text("Screen recording permission not granted ⚠️")
+                    .foregroundColor(.orange)
+                    .padding(.bottom, 8)
+            }
+            
+            Text("Look for 📱CW in your menu bar")
+                .font(.headline)
+                .foregroundColor(.blue)
+            
+            Text("You can close this window - the app will keep running in the menu bar.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Button("Quit Application") {
+                NSApp.terminate(nil)
+            }
+            .padding(.top, 10)
+        }
+        .padding()
     }
 } 
