@@ -79,6 +79,25 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ## Recent Improvements
 
+- Fixed build errors and improved encoder implementation
+  - Resolved duplicate ViewportSize implementations
+  - Fixed ambiguous VideoEncoder protocol declarations
+  - Reorganized code structure with proper file organization
+  - Updated H264VideoEncoder implementation with ObservableObject support
+  - Fixed formatDescription property and encoding initialization
+  - Improved HLSEncodingAdapter integration
+  - Fixed tests to use the new encoder interface
+- Enhanced menu bar UI with consistent styling and workflow
+  - Converted viewport toggle to a button for UI consistency
+  - Reorganized buttons to follow logical workflow sequence
+  - Made all buttons use consistent styling and behavior
+  - Added proper server state handling in the UI
+  - Improved settings gear icon appearance and placement
+- Improved server management and shutdown
+  - Added proper async/await handling for server operations
+  - Fixed server state tracking and button responsiveness
+  - Added robust shutdown process to prevent assertion errors
+  - Enhanced error handling throughout the application
 - Refactored frame processing architecture
   - Created unified `FrameProcessor` protocol for consistent frame handling
   - Improved `BasicFrameProcessor` with better performance tracking
@@ -161,12 +180,22 @@ Sources/
 │   ├── SharedTypes.swift       # Shared protocols and types
 │   ├── ScreenCaptureManager.swift  # Screen capture with frame rate limiting
 │   ├── BasicFrameProcessor.swift   # Frame processing with QoS optimization
-│   ├── H264VideoEncoder.swift  # Thread-safe video encoding
-│   ├── TouchEmulation/        # Touch event handling
+│   ├── Video/                  # Video processing components
+│   │   ├── Encoder/            # Video encoding
+│   │   │   └── H264VideoEncoder.swift  # Thread-safe video encoding
+│   │   ├── VideoEncoderTypes.swift  # Encoder protocols and interfaces
+│   │   └── ViewportTypes.swift  # Viewport definitions
+│   ├── TouchEmulation/         # Touch event handling
 │   │   ├── TouchEventController.swift  # Touch event processing
 │   │   └── TouchEventRoute.swift      # HTTP API endpoint
+│   ├── Viewport/               # Viewport management
+│   │   └── ViewportManager.swift  # Viewport positioning and visibility
 │   └── HTTP/                   # HTTP server components
-│       ├── HTTPServerManager.swift
+│       ├── HTTPServerManager.swift  # Improved server with proper shutdown
+│       ├── HLS/                # HLS streaming components
+│       │   ├── HLSEncodingAdapter.swift  # Encoder integration
+│       │   ├── HLSStreamManager.swift    # Stream management
+│       │   └── HLSStreamController.swift # Stream control endpoints
 │       ├── AuthenticationManager.swift
 │       ├── RequestLog.swift
 │       ├── ServerConfig.swift
@@ -175,8 +204,11 @@ Sources/
 │           └── AuthMiddleware.swift
 └── CursorWindow/              # Main app module
     ├── CursorWindowApp.swift
-    ├── AppDelegate.swift
+    ├── AppDelegate.swift      # Improved app lifecycle management
+    ├── StatusBar/             # Menu bar components
+    │   └── StatusBarController.swift  # Menu bar handling
     └── Views/
+        ├── MenuBarView.swift  # Improved UI with consistent styling
         ├── MainView.swift
         └── DraggableViewport.swift
 
@@ -210,11 +242,11 @@ swift test
 ```
 
 ### Current Test Status
-- ✅ Core test suites are passing
+- ✅ All tests are passing (40 tests)
+  - H264VideoEncoder tests updated to use new encoder interface
   - TouchEventController tests
   - TouchEventRoute tests
   - ViewportManager tests
-  - H264VideoEncoder tests
   - HLSManager tests
   - PlaylistGenerator tests
   - VideoSegmentHandler tests
@@ -224,14 +256,16 @@ swift test
 - ✅ iOS client test suites are passing
 - ✅ Manual testing confirms core functionality:
   - Screen capture working
+  - Video encoding fully functional with improved interface
   - Frame rate limiting effective
   - QoS optimization in place
-  - HTTP server operational
+  - HTTP server operational with improved shutdown process
   - HLS streaming functional
   - Device discovery working
   - Stream configuration persistence functioning
   - Touch event forwarding functional
   - Stream quality adjustment working
+  - UI improved with consistent styling and button workflow
 
 ## Contributing
 
