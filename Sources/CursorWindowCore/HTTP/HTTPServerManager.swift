@@ -2,6 +2,11 @@ import Foundation
 import Vapor
 import Logging
 import NIO
+import SwiftUI
+import Leaf
+import CoreMedia
+import CursorWindowCore
+import NIOFoundationCompat
 
 // No need to explicitly import types from our own module
 // import struct CursorWindowCore.H264EncoderSettings
@@ -96,7 +101,7 @@ public class HTTPServerManager {
         
         // Create the adapter for encoding
         self.encodingAdapter = HLSEncodingAdapter(
-            videoEncoder: H264VideoEncoder(),
+            videoEncoder: try! H264VideoEncoder(viewportSize: ViewportSize.defaultSize(), delegate: self),
             segmentManager: segmentManager,
             streamManager: streamManager
         )
@@ -390,6 +395,13 @@ struct ServerStatus: Content {
 }
 
 // MARK: - Extensions
+
+extension HTTPServerManager: VideoEncoderDelegate {
+    public func videoEncoder(_ encoder: VideoEncoder, didOutputSampleBuffer sampleBuffer: CMSampleBuffer) {
+        // Handle encoded video samples
+        print("Received encoded video sample")
+    }
+}
 
 extension Data {
     /// Encode this data as a response

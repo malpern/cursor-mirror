@@ -30,7 +30,7 @@
     {
       "identity" : "leaf",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/vapor/leaf.git",
+      "location" : "https://github.com/vapor/leaf",
       "state" : {
         "revision" : "bf48d2423c00292b5937c60166c7db99705cae47",
         "version" : "4.4.1"

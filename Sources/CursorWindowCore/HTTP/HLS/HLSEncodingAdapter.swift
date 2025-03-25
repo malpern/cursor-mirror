@@ -141,8 +141,18 @@ public actor HLSEncodingAdapter {
         )
         let encoderSettingsFromHLS = H264EncoderSettings.defaultSettings(for: resolution)
         
+        // Convert settings to dictionary for the encoder
+        let settingsDict: [String: Any] = [
+            "width": encoderSettingsFromHLS.resolution.width,
+            "height": encoderSettingsFromHLS.resolution.height,
+            "fps": encoderSettingsFromHLS.fps,
+            "bitrate": encoderSettingsFromHLS.bitrate,
+            "keyframeInterval": encoderSettingsFromHLS.keyframeInterval,
+            "profileLevel": encoderSettingsFromHLS.profileLevel
+        ]
+        
         // Start encoder with callback
-        try await videoEncoder.startEncoding(settings: encoderSettingsFromHLS) { [weak self] encodedData, presentationTimeStamp, isKeyFrame in
+        try await videoEncoder.startEncoding(settings: settingsDict) { [weak self] encodedData, presentationTimeStamp, isKeyFrame in
             guard let self = self else { return }
             
             Task {

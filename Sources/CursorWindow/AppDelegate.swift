@@ -364,74 +364,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     
     @MainActor
     private func cleanup() async {
-        // First cleanup all UI and capture resources
-        do {
-            // Stop screen capture
-            if let captureManager = self.screenCaptureManager {
-                try await withTimeout(seconds: 2) {
-                    try await captureManager.stopCapture()
-                }
-            }
-            
-            // Hide viewport
-            viewportManager?.hideViewport()
-            
-            // Clean up menu bar controller
-            statusBarController = nil
-            
-            // Clean up window
-            mainWindow?.close()
-            mainWindow = nil
-        } catch {
-            print("Error during cleanup: \(error)")
-        }
+        // Stop screen capture if running
+        try? await screenCaptureManager?.stopCapture()
         
-        // Release lock file
-        releaseLockFile()
+        // Stop HTTP server if running
+        if let contentView = statusBarController?.popover.contentViewController as? NSHostingController<MenuBarView>,
+           let serverManager = contentView.rootView.serverManager {
+            try? await serverManager.stop()
+        }
     }
     
     func applicationWillTerminate(_ notification: Notification) {
-        print("App will terminate, cleaning up resources...")
+        // Clean up resources
+        print("Application will terminate")
         
-        // Cancel startup task if still running
-        startupTask?.cancel()
-        
-        // Set up a cleanup task with a shorter timeout to ensure we don't hang
-        let cleanupTask = Task { [weak self] in
-            guard let self = self else { return }
-            await self.cleanup()
-        }
-        
-        // Set up a timeout (shorter than before)
-        let timeoutTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 second timeout
-            cleanupTask.cancel()
-            print("Cleanup timed out, forcing release of lock file")
-            self?.releaseLockFile() // Force release the lock file even if cleanup timed out
-        }
-        
-        // Wait for cleanup to complete with timeout
-        let group = DispatchGroup()
-        group.enter()
-        
+        // Run cleanup
         Task {
-            // Wait for cleanup to complete or be cancelled
-            _ = await cleanupTask.result
-            
-            // Cancel the timeout task
-            timeoutTask.cancel()
-            
-            group.leave()
+            await cleanup()
         }
         
-        // Wait for cleanup with a shorter timeout
-        let result = group.wait(timeout: .now() + 2.0)
-        if result == .timedOut {
-            print("Cleanup timed out after waiting, force releasing lock file")
-            releaseLockFile() // Force release the lock file if we timed out
-        } else {
-            print("Cleanup completed successfully")
-        }
+        // Release the lock file
+        releaseLockFile()
     }
     
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

@@ -1,9 +1,11 @@
 import SwiftUI
 import CursorWindowCore
 import AppKit
+import Logging
+import Vapor
 
 @available(macOS 14.0, *)
-struct MenuBarView: View {
+struct MenuBarView: SwiftUI.View {
     @EnvironmentObject var viewportManager: ViewportManager
     @EnvironmentObject private var screenCaptureManager: ScreenCaptureManager
     @State private var showEncodingSettings = false
@@ -11,8 +13,9 @@ struct MenuBarView: View {
     @StateObject private var encoder = H264VideoEncoder()
     @State private var encodingError: Error?
     @State private var showError = false
+    @State var serverManager: HTTPServerManager?
     
-    var body: some View {
+    var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 8) {
             if screenCaptureManager.isScreenCapturePermissionGranted {
                 // Show normal UI if permission granted
@@ -66,14 +69,22 @@ struct MenuBarView: View {
                             if !encoder.isEncoding {
                                 print("[MenuBarView] Starting encoding process...")
                                 print("[MenuBarView] Initializing encoder with settings - Path: \(encodingSettings.outputPath), Dimensions: \(encodingSettings.width)x\(encodingSettings.height)")
+                                
+                                // Connect encoder to HTTP server for streaming
+                                try serverManager?.connectVideoEncoder(encoder)
+                                
                                 try await encoder.startEncoding(
                                     to: URL(fileURLWithPath: encodingSettings.outputPath),
                                     width: encodingSettings.width,
                                     height: encodingSettings.height
                                 )
                                 print("[MenuBarView] Encoder started successfully")
+                                
+                                // Start streaming through HTTP server
+                                try await serverManager?.startStreaming()
                             } else {
                                 print("[MenuBarView] Stopping encoding process...")
+                                try? await serverManager?.stopStreaming()
                                 Task {
                                     await encoder.stopEncoding()
                                 }
@@ -88,6 +99,35 @@ struct MenuBarView: View {
                 .buttonStyle(.bordered)
                 .tint(encoder.isEncoding ? .red : .green)
                 .disabled(!screenCaptureManager.isCapturing)
+                
+                Divider()
+                
+                // HTTP Server Controls
+                Button(serverManager?.isRunning == true ? "Stop Server" : "Start Server") {
+                    Task {
+                        do {
+                            if serverManager?.isRunning == true {
+                                try await serverManager?.stop()
+                            } else {
+                                try await serverManager?.start()
+                            }
+                        } catch {
+                            print("Server error: \(error)")
+                            encodingError = error
+                            showError = true
+                        }
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(serverManager?.isRunning == true ? .red : .green)
+                
+                if serverManager?.isRunning == true {
+                    Text("Server running at:")
+                        .font(.caption)
+                    Text("http://localhost:8080")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                }
             } else {
                 // Show permission UI if permission not granted
                 Text("Screen Recording Permission Required")
@@ -139,6 +179,16 @@ struct MenuBarView: View {
             Text(error.localizedDescription)
         }
         .onAppear {
+            // Initialize server manager
+            if serverManager == nil {
+                serverManager = HTTPServerManager(
+                    config: ServerConfig(hostname: "localhost", port: 8080),
+                    logger: Logger(label: "com.cursor-window.server"),
+                    streamManager: HLSStreamManager(),
+                    authManager: AuthenticationManager()
+                )
+            }
+            
             // Refresh permission status when the view appears
             Task {
                 await screenCaptureManager.forceRefreshPermissionStatus()
@@ -148,7 +198,7 @@ struct MenuBarView: View {
 }
 
 struct EncodingSettings {
-    var outputPath = NSHomeDirectory() + "/Desktop/output.mp4"
+    var outputPath = NSHomeDirectory() + "/Desktop/output.mov"
     var width = 393
     var height = 852
     var frameRate = 30
