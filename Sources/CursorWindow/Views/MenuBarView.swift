@@ -17,22 +17,21 @@ struct MenuBarView: SwiftUI.View {
     @State private var isServerRunning = false
     
     var body: some SwiftUI.View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             if screenCaptureManager.isScreenCapturePermissionGranted {
-                // Show normal UI if permission granted
-                Toggle("Show Viewport", isOn: Binding(
-                    get: { viewportManager.isVisible },
-                    set: { newValue in
-                        if newValue {
-                            viewportManager.showViewport()
-                        } else {
-                            viewportManager.hideViewport()
-                        }
+                // 1. VIEWPORT BUTTON (converted from toggle)
+                Button(viewportManager.isVisible ? "Hide Viewport" : "Show Viewport") {
+                    if !viewportManager.isVisible {
+                        viewportManager.showViewport()
+                    } else {
+                        viewportManager.hideViewport()
                     }
-                ))
-                .toggleStyle(.switch)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(viewportManager.isVisible ? .red : .blue)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 
-                // 1. CAPTURE BUTTON
+                // 2. CAPTURE BUTTON
                 Button(screenCaptureManager.isCapturing ? "Stop Capture" : "Start Capture") {
                     Task {
                         do {
@@ -57,9 +56,9 @@ struct MenuBarView: SwiftUI.View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(screenCaptureManager.isCapturing ? .red : .blue)
-                .tag("captureButton")
+                .frame(maxWidth: .infinity, alignment: .leading)
                 
-                // 2. SERVER BUTTON (moved here to follow the correct sequence)
+                // 3. SERVER BUTTON
                 Button(isServerRunning ? "Stop Server" : "Start Server") {
                     Task {
                         do {
@@ -84,8 +83,9 @@ struct MenuBarView: SwiftUI.View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(isServerRunning ? .red : .green)
+                .tint(isServerRunning ? .red : .blue)
                 .disabled(encoder.isEncoding && !isServerRunning)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 
                 if isServerRunning {
                     Text("Server running at:")
@@ -98,8 +98,8 @@ struct MenuBarView: SwiftUI.View {
                         }
                 }
                 
-                // 3. ENCODING BUTTON WITH SETTINGS ICON
-                HStack {
+                // 4. ENCODING BUTTON WITH SETTINGS ICON
+                HStack(spacing: 8) {
                     Button(encoder.isEncoding ? "Stop Encoding" : "Start Encoding") {
                         Task {
                             do {
@@ -134,17 +134,19 @@ struct MenuBarView: SwiftUI.View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(encoder.isEncoding ? .red : .green)
+                    .tint(encoder.isEncoding ? .red : .blue)
                     .disabled(!screenCaptureManager.isCapturing)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     
                     // Settings gear icon
                     Button(action: {
                         showEncodingSettings.toggle()
                     }) {
                         Image(systemName: "gear")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bordered)
+                    .tint(.secondary)
                     .help("Encoding Settings")
                 }
                 
@@ -171,15 +173,20 @@ struct MenuBarView: SwiftUI.View {
                             await screenCaptureManager.forceRefreshPermissionStatus()
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 
                 Button("Open System Settings") {
                     screenCaptureManager.openSystemPreferencesScreenCapture()
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
                 .tint(.blue)
                 .disabled(screenCaptureManager.isCheckingPermission)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                
+                Divider()
             }
             
             Button("Quit") {
@@ -202,6 +209,9 @@ struct MenuBarView: SwiftUI.View {
                     NSApp.terminate(nil)
                 }
             }
+            .buttonStyle(.borderedProminent)
+            .tint(.gray)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding()
         .frame(width: 250)
