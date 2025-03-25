@@ -241,103 +241,90 @@ private class HLSSegmentWriter {
     /// Output URL
     private let outputURL: URL
     
-    /// MPEG-2 Transport Stream writer
-    private var writer: AVAssetWriter
+    /// Format description for the video stream
+    private let formatDescription: CMFormatDescription
     
-    /// Video input
-    private var videoInput: AVAssetWriterInput
+    /// Asset writer for writing media
+    private var assetWriter: AVAssetWriter?
     
-    /// Segment duration
-    private(set) var duration: Double = 0
+    /// Video input for the asset writer
+    private var assetWriterInput: AVAssetWriterInput?
     
-    /// Initialize with output URL and format description
-    /// - Parameters:
-    ///   - outputURL: Output file URL
-    ///   - formatDescription: Video format description
+    /// Whether the writer is currently writing
+    private var isWriting = false
+    
+    /// Current segment duration
+    private(set) var duration: Double = 0.0
+    
+    /// Start time of the current segment
+    private var startTime: CMTime?
+    
     init(outputURL: URL, formatDescription: CMFormatDescription) throws {
         self.outputURL = outputURL
+        self.formatDescription = formatDescription
         
-        // Create asset writer
-        let writer = try AVAssetWriter(outputURL: outputURL, fileType: AVFileType(rawValue: "org.mpegts.mpeg-ts"))
-        self.writer = writer
+        // Create asset writer with MPEG-4 format (we'll convert to TS segments later)
+        assetWriter = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
         
-        // Note: Video settings are not needed when using sourceFormatHint
-        // VideoToolbox will use the format description directly
+        // Configure writer input with video settings for HLS compatibility
+        let videoSettings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: 393,  // Match viewport size
+            AVVideoHeightKey: 852,
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: 2_000_000,
+                AVVideoMaxKeyFrameIntervalKey: 60,
+                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+                AVVideoAllowFrameReorderingKey: false,  // Important for streaming
+                AVVideoExpectedSourceFrameRateKey: 30
+            ]
+        ]
         
-        // Create input
-        let videoInput = AVAssetWriterInput(
-            mediaType: .video,
-            outputSettings: nil,
-            sourceFormatHint: formatDescription
-        )
-        videoInput.expectsMediaDataInRealTime = true
+        assetWriterInput = AVAssetWriterInput(mediaType: .video,
+                                            outputSettings: videoSettings,
+                                            sourceFormatHint: formatDescription)
+        assetWriterInput?.expectsMediaDataInRealTime = true
         
-        // Add input to writer
-        if writer.canAdd(videoInput) {
-            writer.add(videoInput)
-        } else {
-            throw NSError(domain: "HLSSegmentWriter", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "Cannot add video input to asset writer"
-            ])
+        if let input = assetWriterInput, let writer = assetWriter {
+            writer.add(input)
+            try writer.startWriting()
+            writer.startSession(atSourceTime: .zero)
+            isWriting = true
         }
-        
-        self.videoInput = videoInput
-        
-        // Start the session
-        writer.startWriting()
-        writer.startSession(atSourceTime: CMTime.zero)
     }
     
-    /// Append a sample buffer to the segment
-    /// - Parameter sampleBuffer: Video sample buffer
     func append(sampleBuffer: CMSampleBuffer) throws {
-        // Check if we can append
-        guard writer.status == .writing else {
-            throw NSError(domain: "HLSSegmentWriter", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "Writer is not in writing state: \(writer.status.rawValue)"
-            ])
-        }
-        
-        // Wait for input to be ready
-        guard videoInput.isReadyForMoreMediaData else {
-            throw NSError(domain: "HLSSegmentWriter", code: 3, userInfo: [
-                NSLocalizedDescriptionKey: "Video input is not ready for more data"
-            ])
-        }
-        
-        // Append the sample buffer
-        if !videoInput.append(sampleBuffer) {
-            throw NSError(domain: "HLSSegmentWriter", code: 4, userInfo: [
-                NSLocalizedDescriptionKey: "Failed to append sample buffer: \(writer.error?.localizedDescription ?? "unknown error")"
-            ])
+        guard let input = assetWriterInput,
+              input.isReadyForMoreMediaData else {
+            return
         }
         
         // Update duration
         let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        self.duration = CMTimeGetSeconds(presentationTime)
+        if startTime == nil {
+            startTime = presentationTime
+        }
+        
+        if let start = startTime {
+            duration = CMTimeGetSeconds(CMTimeSubtract(presentationTime, start))
+        }
+        
+        input.append(sampleBuffer)
     }
     
-    /// Finish writing and close the segment
     func finish() throws {
-        // Mark as finished
-        videoInput.markAsFinished()
+        guard let writer = assetWriter, isWriting else { return }
         
-        // Finish writing
+        assetWriterInput?.markAsFinished()
+        
         let finishGroup = DispatchGroup()
         finishGroup.enter()
         
         writer.finishWriting {
+            self.isWriting = false
             finishGroup.leave()
         }
         
-        // Wait for finish
         finishGroup.wait()
-        
-        // Check for errors
-        if writer.status == .failed {
-            throw writer.error ?? NSError(domain: "HLSSegmentWriter", code: 5, userInfo: [
-                NSLocalizedDescriptionKey: "Unknown error finishing asset writer"
-            ])
-        }
     }
 } 

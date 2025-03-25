@@ -2,6 +2,11 @@ import Foundation
 import Vapor
 import Logging
 import NIO
+import SwiftUI
+import Leaf
+import CoreMedia
+import CursorWindowCore
+import NIOFoundationCompat
 
 // No need to explicitly import types from our own module
 // import struct CursorWindowCore.H264EncoderSettings
@@ -96,7 +101,7 @@ public class HTTPServerManager {
         
         // Create the adapter for encoding
         self.encodingAdapter = HLSEncodingAdapter(
-            videoEncoder: H264VideoEncoder(),
+            videoEncoder: try! H264VideoEncoder(viewportSize: ViewportSize.defaultSize(), delegate: self),
             segmentManager: segmentManager,
             streamManager: streamManager
         )
@@ -198,15 +203,40 @@ public class HTTPServerManager {
         
         logger.info("Stopping HTTP server")
         
-        // Shutdown the application on a background thread
-        DispatchQueue.global(qos: .background).async {
-            app.shutdown()
-        }
-        
-        // Update state
-        self.app = nil
+        // Update state first to prevent additional requests
         isRunning = false
         startTime = nil
+        
+        // Ensure any active streaming is stopped first
+        if let encodingAdapter = encodingAdapter {
+            try? await encodingAdapter.stop()
+        }
+        
+        // Ensure we capture the application
+        let appRef = app
+        
+        // Use a task to await a continuation that will be resumed once shutdown completes
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            // Perform shutdown on a high-priority background thread
+            DispatchQueue.global(qos: .userInitiated).async {
+                // Force shutdown at the EventLoopGroup level to ensure Vapor's resources are released
+                appRef.eventLoopGroup.shutdownGracefully { _ in
+                    // This is a fallback signal
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        continuation.resume()
+                    }
+                }
+                
+                // Call the regular shutdown method as well
+                appRef.shutdown()
+                
+                // Resume the continuation immediately
+                continuation.resume()
+            }
+        }
+        
+        // Clear the app reference
+        self.app = nil
         
         logger.info("HTTP server stopped")
     }
@@ -390,6 +420,13 @@ struct ServerStatus: Content {
 }
 
 // MARK: - Extensions
+
+extension HTTPServerManager: VideoEncoderDelegate {
+    public func videoEncoder(_ encoder: VideoEncoder, didOutputSampleBuffer sampleBuffer: CMSampleBuffer) {
+        // Handle encoded video samples
+        print("Received encoded video sample")
+    }
+}
 
 extension Data {
     /// Encode this data as a response

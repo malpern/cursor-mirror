@@ -121,10 +121,7 @@ public enum CaptureError: Error {
 
 // FrameProcessor protocol has been moved to FrameProcessor.swift
 
-@available(macOS 14.0, *)
-public protocol VideoEncoder: Actor {
-    // ... existing code ...
-}
+// VideoEncoder protocol has been moved to VideoEncoderTypes.swift
 
 #else
 #error("SharedTypes is only available on macOS 14.0 or later")

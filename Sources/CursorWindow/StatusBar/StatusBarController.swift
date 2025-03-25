@@ -4,14 +4,12 @@ import AppKit
 @available(macOS 14.0, *)
 class StatusBarController {
     private var statusItem: NSStatusItem
-    private var popover: NSPopover
+    var popover: NSPopover
     private var eventMonitor: EventMonitor?
     
     init(popover: NSPopover) {
         self.popover = popover
-        
-        // Use a fixed length instead of square length for better visibility
-        self.statusItem = NSStatusBar.system.statusItem(withLength: 40)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         setupStatusBarItem()
         setupEventMonitor()
@@ -29,16 +27,9 @@ class StatusBarController {
         if let button = statusItem.button {
             // Use a very simple, guaranteed-to-work approach first
             button.title = "📱CW"
-            button.action = #selector(togglePopover(_:))
-            button.target = self
-            
-            // Add a tooltip to help identify the app
-            button.toolTip = "Cursor Window - Click to toggle viewport"
-            
-            print("Status bar item created with simple text: 📱CW")
             
             // Try to add an icon if available, but keep the text as backup
-            if let image = NSImage(systemSymbolName: "iphone.gen3.circle.fill", accessibilityDescription: "Cursor Mirror") {
+            if let image = NSImage(systemSymbolName: "iphone", accessibilityDescription: "Cursor Mirror") {
                 let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .bold)
                     .applying(.init(paletteColors: [.systemBlue]))
                 
@@ -47,20 +38,16 @@ class StatusBarController {
                 
                 print("Added icon to status bar item")
             }
+            
+            button.action = #selector(togglePopover(_:))
+            button.target = self
+            
+            // Add a tooltip to help identify the app
+            button.toolTip = "Cursor Window - Click to toggle viewport"
+            
+            print("Status bar item created successfully")
         } else {
-            print("Failed to get status item button")
-            
-            // Try a fallback approach - create again with a different length
-            self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            
-            if let button = statusItem.button {
-                button.title = "📱CW"
-                button.action = #selector(togglePopover(_:))
-                button.target = self
-                print("Created fallback status bar item")
-            } else {
-                print("CRITICAL ERROR: Unable to create status bar item after fallback attempt")
-            }
+            print("CRITICAL ERROR: Unable to create status bar button")
         }
     }
     
@@ -73,7 +60,7 @@ class StatusBarController {
         eventMonitor?.start()
     }
     
-    @objc private func togglePopover(_ sender: AnyObject?) {
+    @objc func togglePopover(_ sender: AnyObject?) {
         if popover.isShown {
             closePopover(sender)
         } else {
@@ -81,22 +68,16 @@ class StatusBarController {
         }
     }
     
-    private func showPopover(_ sender: AnyObject?) {
-        guard let button = statusItem.button else { return }
-        
-        NSApp.activate(ignoringOtherApps: true)
-        
-        // Use a safer way to display popover with error handling
-        DispatchQueue.main.async {
-            self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: NSRectEdge.minY)
+    func showPopover(_ sender: AnyObject?) {
+        if let button = statusItem.button {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: NSRectEdge.minY)
+            eventMonitor?.start()
         }
     }
     
-    private func closePopover(_ sender: AnyObject?) {
-        // Use a safer way to close popover with error handling
-        DispatchQueue.main.async {
-            self.popover.performClose(sender)
-        }
+    func closePopover(_ sender: AnyObject?) {
+        popover.performClose(sender)
+        eventMonitor?.stop()
     }
 }
 
