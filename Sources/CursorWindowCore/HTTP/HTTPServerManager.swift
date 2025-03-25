@@ -203,15 +203,36 @@ public class HTTPServerManager {
         
         logger.info("Stopping HTTP server")
         
-        // Shutdown the application on a background thread
-        DispatchQueue.global(qos: .background).async {
-            app.shutdown()
-        }
-        
-        // Update state
-        self.app = nil
+        // Update state first to prevent additional requests
         isRunning = false
         startTime = nil
+        
+        // Ensure any active streaming is stopped first
+        if let encodingAdapter = encodingAdapter {
+            try? await encodingAdapter.stop()
+        }
+        
+        // Create a task group to ensure proper cleanup
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            // Add a shutdown task
+            group.addTask {
+                // Use a continuation to properly wait for shutdown
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    // Perform shutdown on a background thread
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        // Capture a strong reference to app
+                        app.shutdown()
+                        continuation.resume()
+                    }
+                }
+            }
+            
+            // Wait for all tasks to complete
+            try await group.waitForAll()
+        }
+        
+        // Clear the app reference
+        self.app = nil
         
         logger.info("HTTP server stopped")
     }

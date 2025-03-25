@@ -14,6 +14,7 @@ struct MenuBarView: SwiftUI.View {
     @State private var encodingError: Error?
     @State private var showError = false
     @State var serverManager: HTTPServerManager?
+    @State private var isServerRunning = false
     
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 8) {
@@ -103,13 +104,21 @@ struct MenuBarView: SwiftUI.View {
                 Divider()
                 
                 // HTTP Server Controls
-                Button(serverManager?.isRunning == true ? "Stop Server" : "Start Server") {
+                Button(isServerRunning ? "Stop Server" : "Start Server") {
                     Task {
                         do {
-                            if serverManager?.isRunning == true {
+                            if isServerRunning {
                                 try await serverManager?.stop()
+                                // Update UI on main thread immediately
+                                await MainActor.run {
+                                    isServerRunning = false
+                                }
                             } else {
                                 try await serverManager?.start()
+                                // Update UI on main thread immediately
+                                await MainActor.run {
+                                    isServerRunning = true
+                                }
                             }
                         } catch {
                             print("Server error: \(error)")
@@ -119,10 +128,10 @@ struct MenuBarView: SwiftUI.View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(serverManager?.isRunning == true ? .red : .green)
-                .disabled(encoder.isEncoding && serverManager?.isRunning != true)
+                .tint(isServerRunning ? .red : .green)
+                .disabled(encoder.isEncoding && !isServerRunning) // Disable start when encoding but server not running
                 
-                if serverManager?.isRunning == true {
+                if isServerRunning {
                     Text("Server running at:")
                         .font(.caption)
                     Text("http://localhost:8080")
@@ -167,7 +176,24 @@ struct MenuBarView: SwiftUI.View {
             Divider()
             
             Button("Quit") {
-                NSApp.terminate(nil)
+                // First make sure the server is stopped
+                if isServerRunning {
+                    Task {
+                        do {
+                            try await serverManager?.stop()
+                        } catch {
+                            print("Error stopping server during quit: \(error)")
+                        }
+                        
+                        // Add a small delay to allow for cleanup
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        
+                        // Then terminate the app
+                        NSApp.terminate(nil)
+                    }
+                } else {
+                    NSApp.terminate(nil)
+                }
             }
         }
         .padding()
@@ -192,6 +218,9 @@ struct MenuBarView: SwiftUI.View {
                     authManager: AuthenticationManager()
                 )
             }
+            
+            // Check if server is running
+            isServerRunning = serverManager?.isRunning ?? false
             
             // Refresh permission status when the view appears
             Task {
