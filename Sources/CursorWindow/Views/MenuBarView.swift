@@ -32,6 +32,7 @@ struct MenuBarView: SwiftUI.View {
                 ))
                 .toggleStyle(.switch)
                 
+                // 1. CAPTURE BUTTON
                 Button(screenCaptureManager.isCapturing ? "Stop Capture" : "Start Capture") {
                     Task {
                         do {
@@ -58,52 +59,7 @@ struct MenuBarView: SwiftUI.View {
                 .tint(screenCaptureManager.isCapturing ? .red : .blue)
                 .tag("captureButton")
                 
-                Divider()
-                
-                Button("Encoding Settings...") {
-                    showEncodingSettings.toggle()
-                }
-                
-                Button(encoder.isEncoding ? "Stop Encoding" : "Start Encoding") {
-                    Task {
-                        do {
-                            if !encoder.isEncoding {
-                                print("[MenuBarView] Starting encoding process...")
-                                print("[MenuBarView] Initializing encoder with settings - Path: \(encodingSettings.outputPath), Dimensions: \(encodingSettings.width)x\(encodingSettings.height)")
-                                
-                                // Connect encoder to HTTP server for streaming
-                                try serverManager?.connectVideoEncoder(encoder)
-                                
-                                try await encoder.startEncoding(
-                                    to: URL(fileURLWithPath: encodingSettings.outputPath),
-                                    width: encodingSettings.width,
-                                    height: encodingSettings.height
-                                )
-                                print("[MenuBarView] Encoder started successfully")
-                                
-                                // Start streaming through HTTP server
-                                try await serverManager?.startStreaming()
-                            } else {
-                                print("[MenuBarView] Stopping encoding process...")
-                                try? await serverManager?.stopStreaming()
-                                Task {
-                                    await encoder.stopEncoding()
-                                }
-                            }
-                        } catch {
-                            print("[MenuBarView] Encoding error: \(error)")
-                            encodingError = error
-                            showError = true
-                        }
-                    }
-                }
-                .buttonStyle(.bordered)
-                .tint(encoder.isEncoding ? .red : .green)
-                .disabled(!screenCaptureManager.isCapturing)
-                
-                Divider()
-                
-                // HTTP Server Controls
+                // 2. SERVER BUTTON (moved here to follow the correct sequence)
                 Button(isServerRunning ? "Stop Server" : "Start Server") {
                     Task {
                         do {
@@ -129,7 +85,7 @@ struct MenuBarView: SwiftUI.View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(isServerRunning ? .red : .green)
-                .disabled(encoder.isEncoding && !isServerRunning) // Disable start when encoding but server not running
+                .disabled(encoder.isEncoding && !isServerRunning)
                 
                 if isServerRunning {
                     Text("Server running at:")
@@ -141,6 +97,59 @@ struct MenuBarView: SwiftUI.View {
                             NSWorkspace.shared.open(URL(string: "http://localhost:8080")!)
                         }
                 }
+                
+                // 3. ENCODING BUTTON WITH SETTINGS ICON
+                HStack {
+                    Button(encoder.isEncoding ? "Stop Encoding" : "Start Encoding") {
+                        Task {
+                            do {
+                                if !encoder.isEncoding {
+                                    print("[MenuBarView] Starting encoding process...")
+                                    print("[MenuBarView] Initializing encoder with settings - Path: \(encodingSettings.outputPath), Dimensions: \(encodingSettings.width)x\(encodingSettings.height)")
+                                    
+                                    // Connect encoder to HTTP server for streaming
+                                    try serverManager?.connectVideoEncoder(encoder)
+                                    
+                                    try await encoder.startEncoding(
+                                        to: URL(fileURLWithPath: encodingSettings.outputPath),
+                                        width: encodingSettings.width,
+                                        height: encodingSettings.height
+                                    )
+                                    print("[MenuBarView] Encoder started successfully")
+                                    
+                                    // Start streaming through HTTP server
+                                    try await serverManager?.startStreaming()
+                                } else {
+                                    print("[MenuBarView] Stopping encoding process...")
+                                    try? await serverManager?.stopStreaming()
+                                    Task {
+                                        await encoder.stopEncoding()
+                                    }
+                                }
+                            } catch {
+                                print("[MenuBarView] Encoding error: \(error)")
+                                encodingError = error
+                                showError = true
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(encoder.isEncoding ? .red : .green)
+                    .disabled(!screenCaptureManager.isCapturing)
+                    
+                    // Settings gear icon
+                    Button(action: {
+                        showEncodingSettings.toggle()
+                    }) {
+                        Image(systemName: "gear")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Encoding Settings")
+                }
+                
+                Divider()
+                
             } else {
                 // Show permission UI if permission not granted
                 Text("Screen Recording Permission Required")
@@ -172,8 +181,6 @@ struct MenuBarView: SwiftUI.View {
                 .tint(.blue)
                 .disabled(screenCaptureManager.isCheckingPermission)
             }
-            
-            Divider()
             
             Button("Quit") {
                 // First make sure the server is stopped

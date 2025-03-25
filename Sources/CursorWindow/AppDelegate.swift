@@ -399,7 +399,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         // Start pre-emptive cleanup of resources
         print("User initiated app termination")
         
-        // Perform async cleanup in the background before terminating
+         // Perform async cleanup in the background before terminating
         Task {
             print("Starting cleanup before termination")
             await cleanup()
