@@ -212,23 +212,27 @@ public class HTTPServerManager {
             try? await encodingAdapter.stop()
         }
         
-        // Create a task group to ensure proper cleanup
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            // Add a shutdown task
-            group.addTask {
-                // Use a continuation to properly wait for shutdown
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                    // Perform shutdown on a background thread
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        // Capture a strong reference to app
-                        app.shutdown()
+        // Ensure we capture the application
+        let appRef = app
+        
+        // Use a task to await a continuation that will be resumed once shutdown completes
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            // Perform shutdown on a high-priority background thread
+            DispatchQueue.global(qos: .userInitiated).async {
+                // Force shutdown at the EventLoopGroup level to ensure Vapor's resources are released
+                appRef.eventLoopGroup.shutdownGracefully { _ in
+                    // This is a fallback signal
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         continuation.resume()
                     }
                 }
+                
+                // Call the regular shutdown method as well
+                appRef.shutdown()
+                
+                // Resume the continuation immediately
+                continuation.resume()
             }
-            
-            // Wait for all tasks to complete
-            try await group.waitForAll()
         }
         
         // Clear the app reference
