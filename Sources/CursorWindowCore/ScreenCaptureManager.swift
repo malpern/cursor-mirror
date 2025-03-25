@@ -348,15 +348,24 @@ extension ScreenCaptureManager: SCStreamOutput {
     /// This method is called on the frameProcessingQueue and safely processes frames
     /// through the actor-isolated frame processor
     @preconcurrency
-    nonisolated public func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+    nonisolated public func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of outputType: SCStreamOutputType) {
         // Only process frames if we have a processor
         Task {
             if let processor = await frameProcessorActor.get() {
+                let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                print("[ScreenCaptureManager] Processing frame at time: \(timestamp.seconds)s")
+                
                 if let basicProcessor = processor as? BasicFrameProcessorProtocol {
+                    print("[ScreenCaptureManager] Using BasicFrameProcessor")
                     basicProcessor.processFrame(sampleBuffer)
                 } else if let encodingProcessor = processor as? EncodingFrameProcessorProtocol {
+                    print("[ScreenCaptureManager] Using EncodingFrameProcessor")
                     encodingProcessor.processFrame(sampleBuffer)
+                } else {
+                    print("[ScreenCaptureManager] Unknown processor type: \(String(describing: processor))")
                 }
+            } else {
+                print("[ScreenCaptureManager] No frame processor available")
             }
         }
     }

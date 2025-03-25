@@ -97,7 +97,7 @@ final class H264VideoEncoderTests: XCTestCase {
         guard let encoder = encoder, let outputURL = outputURL else { return }
         
         // Start encoding
-        try encoder.startEncoding(to: outputURL, width: 1920, height: 1080)
+        try await encoder.startEncoding(to: outputURL, width: 1920, height: 1080)
         
         // Create and encode fewer test frames (10 instead of 30)
         for frameIndex in 0..<10 {
@@ -109,7 +109,7 @@ final class H264VideoEncoderTests: XCTestCase {
         }
         
         // Stop encoding
-        encoder.stopEncoding()
+        await encoder.stopEncoding()
         
         // Wait a bit for the file to be written
         try await Task.sleep(nanoseconds: 100_000_000) // 100ms delay
@@ -128,10 +128,10 @@ final class H264VideoEncoderTests: XCTestCase {
         guard let encoder = encoder, let outputURL = outputURL else { return }
         
         // First encoding session
-        try encoder.startEncoding(to: outputURL, width: 1920, height: 1080)
+        try await encoder.startEncoding(to: outputURL, width: 1920, height: 1080)
         let frame = createTestFrame(time: 0)
         encoder.processFrame(frame)
-        encoder.stopEncoding()
+        await encoder.stopEncoding()
         
         // Try to process a frame after stopping - should be ignored
         encoder.processFrame(frame)
@@ -140,9 +140,9 @@ final class H264VideoEncoderTests: XCTestCase {
         let newOutputURL = FileManager.default.temporaryDirectory.appendingPathComponent("test_output_new.mp4")
         defer { try? FileManager.default.removeItem(at: newOutputURL) }
         
-        try encoder.startEncoding(to: newOutputURL, width: 1920, height: 1080)
+        try await encoder.startEncoding(to: newOutputURL, width: 1920, height: 1080)
         encoder.processFrame(frame)
-        encoder.stopEncoding()
+        await encoder.stopEncoding()
         
         // Verify both output files exist
         XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
@@ -152,21 +152,21 @@ final class H264VideoEncoderTests: XCTestCase {
     func testEncodingPerformance() async throws {
         guard let encoder = encoder, let outputURL = outputURL else { return }
         
-        try encoder.startEncoding(to: outputURL, width: 1920, height: 1080)
+        try await encoder.startEncoding(to: outputURL, width: 1920, height: 1080)
         
         measure {
             let frame = createTestFrame(time: 0)
             encoder.processFrame(frame)
         }
         
-        encoder.stopEncoding()
+        await encoder.stopEncoding()
     }
     
     func testConcurrentEncoding() async throws {
         guard let encoder = encoder, let outputURL = outputURL else { return }
         
         // Start encoding
-        try encoder.startEncoding(to: outputURL, width: 1920, height: 1080)
+        try await encoder.startEncoding(to: outputURL, width: 1920, height: 1080)
         
         // Create an actor to count processed frames
         actor FrameCounter {
@@ -191,7 +191,7 @@ final class H264VideoEncoderTests: XCTestCase {
         }
         
         // Stop encoding
-        encoder.stopEncoding()
+        await encoder.stopEncoding()
         
         // Verify that all frames were processed
         let processedCount = await counter.getCount()
@@ -201,7 +201,7 @@ final class H264VideoEncoderTests: XCTestCase {
     func testMemoryHandling() async throws {
         guard let encoder = encoder, let outputURL = outputURL else { return }
         
-        try encoder.startEncoding(to: outputURL, width: 640, height: 480)
+        try await encoder.startEncoding(to: outputURL, width: 640, height: 480)
         
         // Create and encode a moderate number of frames to test memory handling
         // Using 50 frames instead of 100 to prevent test hanging
@@ -214,7 +214,7 @@ final class H264VideoEncoderTests: XCTestCase {
         }
         
         // Stop encoding and wait for completion
-        encoder.stopEncoding()
+        await encoder.stopEncoding()
         
         // Wait for the file to be written
         try await Task.sleep(nanoseconds: 100_000_000) // 100ms delay

@@ -26,6 +26,9 @@ public enum HLSEncodingError: Error, CustomStringConvertible {
     /// Encoding session already active
     case encodingAlreadyActive
     
+    /// Encoding session already encoding
+    case alreadyEncoding
+    
     /// Human-readable description of the error
     public var description: String {
         switch self {
@@ -43,6 +46,8 @@ public enum HLSEncodingError: Error, CustomStringConvertible {
             return "Invalid stream quality configuration"
         case .encodingAlreadyActive:
             return "HLS encoding session is already active"
+        case .alreadyEncoding:
+            return "HLS encoding session is already encoding"
         }
     }
 }
@@ -129,8 +134,15 @@ public actor HLSEncodingAdapter {
         _ = try await segmentManager.startNewSegment(quality: streamQuality, formatDescription: formatDescription)
         logger.info("Started new segment")
         
+        // Create encoder settings from HLS settings
+        let resolution = CGSize(
+            width: encoderSettings.resolution.width,
+            height: encoderSettings.resolution.height
+        )
+        let encoderSettingsFromHLS = H264EncoderSettings.defaultSettings(for: resolution)
+        
         // Start encoder with callback
-        try await videoEncoder.startEncoding(settings: encoderSettings) { [weak self] encodedData, presentationTimeStamp, isKeyFrame in
+        try await videoEncoder.startEncoding(settings: encoderSettingsFromHLS) { [weak self] encodedData, presentationTimeStamp, isKeyFrame in
             guard let self = self else { return }
             
             Task {
@@ -153,7 +165,7 @@ public actor HLSEncodingAdapter {
         }
         
         // Stop encoder
-        videoEncoder.stopEncoding()
+        await videoEncoder.stopEncoding()
         
         // End current segment
         let segmentInfo = try await segmentManager.endSegment(quality: streamQuality)
@@ -266,5 +278,19 @@ public actor HLSEncodingAdapter {
         } catch {
             throw HLSEncodingError.appendSampleBufferFailed(reason: error.localizedDescription)
         }
+    }
+    
+    /// Start encoding with the specified settings
+    public func startEncoding(settings: HLSEncodingSettings) async throws {
+        guard !isEncoding else {
+            throw HLSEncodingError.alreadyEncoding
+        }
+        
+        // Initialize encoding with settings
+        try await videoEncoder.startEncoding(
+            to: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("temp_video.mp4"),
+            width: Int(settings.resolution.width),
+            height: Int(settings.resolution.height)
+        )
     }
 } 

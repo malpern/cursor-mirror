@@ -31,10 +31,10 @@ import AVFoundation
     ///   - width: The width of the video in pixels
     ///   - height: The height of the video in pixels
     /// - Throws: CursorWindowError if encoding initialization fails
-    nonisolated func startEncoding(to url: URL, width: Int, height: Int) throws
+    func startEncoding(to url: URL, width: Int, height: Int) async throws
     
     /// Stop the current encoding session and finalize the video file
-    nonisolated func stopEncoding()
+    func stopEncoding() async
 }
 
 /// A protocol for managing screen capture operations.

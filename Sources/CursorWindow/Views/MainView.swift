@@ -119,18 +119,24 @@ struct EncodingControlView: View {
             HStack {
                 Button(isEncoding ? "Stop Encoding" : "Start Encoding") {
                     if isEncoding {
-                        viewModel.frameProcessor.stopEncoding()
-                        isEncoding = false
+                        Task {
+                            await viewModel.frameProcessor.stopEncoding()
+                            isEncoding = false
+                        }
                     } else {
                         do {
-                            try viewModel.frameProcessor.startEncoding(
-                                to: URL(fileURLWithPath: outputPath),
-                                width: width,
-                                height: height
-                            )
-                            isEncoding = true
-                        } catch {
-                            print("Error starting encoding: \(error)")
+                            Task {
+                                do {
+                                    try await viewModel.frameProcessor.startEncoding(
+                                        to: URL(fileURLWithPath: outputPath),
+                                        width: width,
+                                        height: height
+                                    )
+                                    isEncoding = true
+                                } catch {
+                                    print("Error starting encoding: \(error)")
+                                }
+                            }
                         }
                     }
                 }

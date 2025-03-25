@@ -6,13 +6,14 @@ import AppKit
 struct MenuBarView: View {
     @EnvironmentObject var viewportManager: ViewportManager
     @EnvironmentObject private var screenCaptureManager: ScreenCaptureManager
-    @State private var isEncoding = false
-    @State private var outputPath = NSHomeDirectory() + "/Desktop/output.mp4"
     @State private var showEncodingSettings = false
     @State private var encodingSettings = EncodingSettings()
+    @StateObject private var encoder = H264VideoEncoder()
+    @State private var encodingError: Error?
+    @State private var showError = false
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
             if screenCaptureManager.isScreenCapturePermissionGranted {
                 // Show normal UI if permission granted
                 Toggle("Show Viewport", isOn: Binding(
@@ -44,6 +45,8 @@ struct MenuBarView: View {
                             }
                         } catch {
                             print("Capture error: \(error)")
+                            encodingError = error
+                            showError = true
                         }
                     }
                 }
@@ -57,23 +60,34 @@ struct MenuBarView: View {
                     showEncodingSettings.toggle()
                 }
                 
-                Button(isEncoding ? "Stop Encoding" : "Start Encoding") {
-                    isEncoding.toggle()
-                    if isEncoding {
-                        let encoder = H264VideoEncoder()
-                        Task {
-                            try? encoder.startEncoding(
-                                to: URL(fileURLWithPath: encodingSettings.outputPath),
-                                width: encodingSettings.width,
-                                height: encodingSettings.height
-                            )
+                Button(encoder.isEncoding ? "Stop Encoding" : "Start Encoding") {
+                    Task {
+                        do {
+                            if !encoder.isEncoding {
+                                print("[MenuBarView] Starting encoding process...")
+                                print("[MenuBarView] Initializing encoder with settings - Path: \(encodingSettings.outputPath), Dimensions: \(encodingSettings.width)x\(encodingSettings.height)")
+                                try await encoder.startEncoding(
+                                    to: URL(fileURLWithPath: encodingSettings.outputPath),
+                                    width: encodingSettings.width,
+                                    height: encodingSettings.height
+                                )
+                                print("[MenuBarView] Encoder started successfully")
+                            } else {
+                                print("[MenuBarView] Stopping encoding process...")
+                                Task {
+                                    await encoder.stopEncoding()
+                                }
+                            }
+                        } catch {
+                            print("[MenuBarView] Encoding error: \(error)")
+                            encodingError = error
+                            showError = true
                         }
-                    } else {
-                        // Stop encoding
                     }
                 }
                 .buttonStyle(.bordered)
-                .tint(isEncoding ? .red : .green)
+                .tint(encoder.isEncoding ? .red : .green)
+                .disabled(!screenCaptureManager.isCapturing)
             } else {
                 // Show permission UI if permission not granted
                 Text("Screen Recording Permission Required")
@@ -116,6 +130,13 @@ struct MenuBarView: View {
         .frame(width: 250)
         .sheet(isPresented: $showEncodingSettings) {
             EncodingSettingsView(settings: $encodingSettings)
+        }
+        .alert("Encoding Error", isPresented: $showError, presenting: encodingError) { _ in
+            Button("OK") {
+                showError = false
+            }
+        } message: { error in
+            Text(error.localizedDescription)
         }
         .onAppear {
             // Refresh permission status when the view appears

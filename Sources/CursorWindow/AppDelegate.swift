@@ -298,7 +298,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
             defer: false
         )
         
-        let hasPermission = self.screenCaptureManager?.isScreenCapturePermissionGranted ?? false
+        _ = self.screenCaptureManager?.isScreenCapturePermissionGranted ?? false
         
         window.title = "Phone Mirror"
         
