@@ -370,7 +370,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         // Stop HTTP server if running
         if let contentView = statusBarController?.popover.contentViewController as? NSHostingController<MenuBarView>,
            let serverManager = contentView.rootView.serverManager {
+            // First stop streaming if active
+            try? await serverManager.stopStreaming()
+            
+            // Then stop the server completely
             try? await serverManager.stop()
+            print("HTTP server stopped during cleanup")
         }
     }
     
@@ -378,9 +383,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         // Clean up resources
         print("Application will terminate")
         
-        // Run cleanup
+        // Run cleanup synchronously to ensure it completes before app exits
         Task {
             await cleanup()
+            
+            // Add a small delay to ensure cleanup tasks complete
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         }
         
         // Release the lock file
@@ -391,11 +399,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         // Start pre-emptive cleanup of resources
         print("User initiated app termination")
         
-        // First ensure the lock file will be released
+        // Perform async cleanup in the background before terminating
+        Task {
+            print("Starting cleanup before termination")
+            await cleanup()
+            
+            print("Cleanup complete, proceeding with termination")
+            // Allow a small delay for tasks to complete
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            // Actually terminate the app after cleanup
+            DispatchQueue.main.async {
+                NSApp.reply(toApplicationShouldTerminate: true)
+            }
+        }
+        
+        // Release the lock file
         releaseLockFile()
         
-        // Allow the termination to proceed
-        return .terminateNow
+        // Return .terminateLater to allow our async cleanup to complete
+        return .terminateLater
     }
 }
 

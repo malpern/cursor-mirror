@@ -118,8 +118,9 @@ struct MenuBarView: SwiftUI.View {
                         }
                     }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
                 .tint(serverManager?.isRunning == true ? .red : .green)
+                .disabled(encoder.isEncoding && serverManager?.isRunning != true)
                 
                 if serverManager?.isRunning == true {
                     Text("Server running at:")
@@ -127,6 +128,9 @@ struct MenuBarView: SwiftUI.View {
                     Text("http://localhost:8080")
                         .font(.caption)
                         .foregroundColor(.blue)
+                        .onTapGesture {
+                            NSWorkspace.shared.open(URL(string: "http://localhost:8080")!)
+                        }
                 }
             } else {
                 // Show permission UI if permission not granted
