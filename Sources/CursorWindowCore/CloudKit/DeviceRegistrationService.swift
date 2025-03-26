@@ -12,9 +12,9 @@ public actor DeviceRegistrationActor {
     }
 }
 
-public actor DeviceRegistrationService {
+open class DeviceRegistrationService: DeviceRegistrationServiceProtocol {
     // CloudKit container
-    private let container: CKContainer
+    private let container: CloudKitContainerProtocol
     
     // Device information
     private let deviceName: String
@@ -24,7 +24,7 @@ public actor DeviceRegistrationService {
     /// Initialize the device registration service
     /// - Parameter container: CloudKit container to use
     public init(
-        container: CKContainer = CKContainer(identifier: "iCloud.com.cursormirror.client"),
+        container: CloudKitContainerProtocol = CloudKitContainerWrapper(CKContainer(identifier: "iCloud.com.cursormirror.client")),
         deviceName: String = Host.current().localizedName ?? "MacBook",
         deviceID: String = UUID().uuidString,
         deviceType: String = "Mac"
@@ -38,11 +38,14 @@ public actor DeviceRegistrationService {
     /// Register this device to CloudKit
     /// - Parameter serverIP: The IP address of the server
     /// - Returns: Success or failure
-    public func registerDevice(serverIP: String = ServerConfig.getLocalIPAddress()) async throws -> Bool {
+    open func registerDevice(serverIP: String = ServerConfig.getLocalIPAddress()) async throws -> Bool {
         print("Registering device with server IP: \(serverIP)")
         
-        // Check iCloud account status
-        let status = try await checkiCloudAccountStatus()
+        // Check iCloud account status with retry
+        let status = try await withRetry(maxAttempts: 3, delay: 0.5) {
+            try await checkiCloudAccountStatus()
+        }
+        
         guard status == .available else {
             print("iCloud account unavailable with status: \(status.rawValue)")
             return false
@@ -55,13 +58,15 @@ public actor DeviceRegistrationService {
         )
         
         do {
-            // Check if device already exists
-            let (results, _) = try await container.privateCloudDatabase.records(
-                matching: query,
-                inZoneWith: nil,
-                desiredKeys: nil,
-                resultsLimit: 1
-            )
+            // Check if device already exists with retry
+            let (results, _) = try await withRetry(maxAttempts: 3, delay: 0.5) {
+                try await container.privateCloudDatabase.records(
+                    matching: query,
+                    inZoneWith: nil,
+                    desiredKeys: nil,
+                    resultsLimit: 1
+                )
+            }
             
             // If device exists, update it
             if let recordResult = results.first?.1 {
@@ -74,31 +79,59 @@ public actor DeviceRegistrationService {
                     existingRecord["lastSeen"] = Date()
                     existingRecord["serverAddress"] = serverIP
                     
-                    _ = try await container.privateCloudDatabase.save(existingRecord)
+                    // Save with retry
+                    _ = try await withRetry(maxAttempts: 3, delay: 0.5) {
+                        try await container.privateCloudDatabase.save(existingRecord)
+                    }
                     print("Updated existing device record with server IP: \(serverIP)")
                     return true
                 } catch {
                     print("Error updating device record: \(error.localizedDescription)")
                     throw error
                 }
-            } else {
-                // Create a new device record
-                let newRecord = CKRecord(recordType: "Device")
-                newRecord["id"] = deviceID
-                newRecord["name"] = deviceName
-                newRecord["type"] = deviceType
-                newRecord["isOnline"] = 1
-                newRecord["lastSeen"] = Date()
-                newRecord["serverAddress"] = serverIP
-                
-                _ = try await container.privateCloudDatabase.save(newRecord)
-                print("Created new device record with server IP: \(serverIP)")
-                return true
             }
+            
+            // Create a new device record
+            let newRecord = CKRecord(recordType: "Device")
+            newRecord["id"] = deviceID
+            newRecord["name"] = deviceName
+            newRecord["type"] = deviceType
+            newRecord["isOnline"] = 1
+            newRecord["lastSeen"] = Date()
+            newRecord["serverAddress"] = serverIP
+            
+            // Save with retry
+            _ = try await withRetry(maxAttempts: 3, delay: 0.5) {
+                try await container.privateCloudDatabase.save(newRecord)
+            }
+            print("Created new device record with server IP: \(serverIP)")
+            return true
         } catch {
             print("Error registering device: \(error.localizedDescription)")
             throw error
         }
+    }
+    
+    /// Helper function to retry an operation with exponential backoff
+    private func withRetry<T>(maxAttempts: Int, delay: TimeInterval, operation: () async throws -> T) async throws -> T {
+        var attempts = 0
+        var lastError: Error?
+        
+        while attempts < maxAttempts {
+            do {
+                return try await operation()
+            } catch {
+                attempts += 1
+                lastError = error
+                print("Operation failed (attempt \(attempts)/\(maxAttempts)): \(error.localizedDescription)")
+                
+                if attempts < maxAttempts {
+                    try await Task.sleep(nanoseconds: UInt64(delay * Double(attempts) * 1_000_000_000))
+                }
+            }
+        }
+        
+        throw lastError ?? NSError(domain: "DeviceRegistrationService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Operation failed after \(maxAttempts) attempts"])
     }
     
     /// Check iCloud account status
@@ -108,8 +141,8 @@ public actor DeviceRegistrationService {
     
     /// Mark this device as offline in CloudKit
     /// - Returns: Success or failure
-    public static func markOffline(deviceID: String? = nil) async throws -> Bool {
-        let container = CKContainer(identifier: "iCloud.com.cursormirror.client")
+    open class func markOffline(deviceID: String? = nil) async throws -> Bool {
+        let container = CloudKitContainerWrapper(CKContainer(identifier: "iCloud.com.cursormirror.client"))
         let deviceID = deviceID ?? Host.current().localizedName ?? "MacBook"
         
         // Check the account status first
@@ -165,20 +198,20 @@ public actor DeviceRegistrationService {
     /// - Returns: True if registration was successful, false otherwise
     public func registerDeviceSync(serverIP: String) -> Bool {
         let semaphore = DispatchSemaphore(value: 0)
-        var result = false
+        var success = false
         
         Task {
             do {
-                result = try await registerDevice(serverIP: serverIP)
+                success = try await registerDevice(serverIP: serverIP)
                 semaphore.signal()
             } catch {
-                print("Error in registerDeviceSync: \(error)")
+                print("Error registering device: \(error.localizedDescription)")
                 semaphore.signal()
             }
         }
         
-        _ = semaphore.wait(timeout: .now() + 10) // Wait up to 10 seconds
-        return result
+        _ = semaphore.wait(timeout: .now() + 5.0)
+        return success
     }
 }
 #endif 
