@@ -81,9 +81,10 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ### March 2025 Update
 - **UI and UX Enhancements**:
-  - Fixed Start/Stop Capture button toggle state reactivity
-  - Made UI buttons change color immediately when pressed
+  - Fixed Start/Stop Capture button toggle state reactivity with local state management
+  - Made UI buttons change color immediately when pressed using a dual-state approach
   - Added proper state synchronization between main window and menu bar
+  - Improved local state feedback for all interactive elements
   - Start Server button is now disabled until capture is started
   - Start Capture button turns red immediately when pressed
   - Server button enables automatically when capture is active
@@ -93,12 +94,14 @@ A macOS application that captures and streams a portion of your screen matching 
   - Added failsafe mechanisms to prevent application hang during shutdown
   - Implemented proper cleanup of resources during application termination
   - Fixed CloudKit-related issues that could cause shutdown delays
+  - Added CloudKit operation timeouts to prevent hangs during server shutdown
 
 - **State Management and Persistence**:
   - Better handling of capture state throughout the application
   - Added UserDefaults persistence for app state
   - Improved error handling and recovery for failed operations
   - Enhanced synchronization between UI components
+  - Added notification-based state propagation for consistent UI updates
 
 ### Previous Updates
 - **CloudKit and Connectivity**:
