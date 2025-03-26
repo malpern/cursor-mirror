@@ -228,4 +228,18 @@ public struct ServerAuthConfig: Codable, Equatable, Sendable {
         methods: [],
         sessionDuration: 0
     )
+    
+    /// Convert to AuthenticationConfig
+    public func toAuthConfig() -> AuthenticationConfig {
+        AuthenticationConfig(
+            enabled: enabled,
+            sessionDuration: Int(sessionDuration),
+            methods: Set(methods.map { method in
+                switch method {
+                case .basic: return .basic
+                case .token: return .apiKey
+                }
+            })
+        )
+    }
 } 

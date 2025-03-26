@@ -57,6 +57,21 @@ public class HTTPServerManager {
         let app = Application(.development)
         app.http.server.configuration.port = config.port
         app.http.server.configuration.hostname = config.hostname
+        
+        // Create and set up admin controller if admin dashboard is enabled
+        if config.enableAdmin {
+            let streamManager = HLSStreamManager(timeoutInterval: 300) // 5 minutes timeout
+            let authManager = AuthenticationManager(config: config.authentication.toAuthConfig())
+            
+            let adminController = AdminController(
+                serverManager: self,
+                streamManager: streamManager,
+                authManager: authManager
+            )
+            app.adminController = adminController
+            await adminController.setupRoutes(app)
+        }
+        
         try await app.startup()
         self.server = app
         isRunning = true
@@ -116,6 +131,15 @@ public class HTTPServerManager {
     /// This is called when the application is terminating
     public func emergencyShutdown() {
         stop(skipCloudKit: true)
+    }
+    
+    /// Record a request log
+    /// - Parameter log: Request log to record
+    public func recordRequest(_ log: RequestLog) async {
+        // Forward to admin controller if available
+        if let adminController = server?.adminController {
+            await adminController.recordRequest(log)
+        }
     }
 }
 
