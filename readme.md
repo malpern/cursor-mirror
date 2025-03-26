@@ -79,13 +79,38 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ## Recent Improvements
 
-- Added CloudKit Device Registration with IP Address
+### March 2025 Update
+- **UI and UX Enhancements**:
+  - Fixed Start/Stop Capture button toggle state reactivity
+  - Made UI buttons change color immediately when pressed
+  - Added proper state synchronization between main window and menu bar
+  - Start Server button is now disabled until capture is started
+  - Start Capture button turns red immediately when pressed
+  - Server button enables automatically when capture is active
+
+- **Application Lifecycle Improvements**:
+  - Enhanced quit functionality with reliable application termination
+  - Added failsafe mechanisms to prevent application hang during shutdown
+  - Implemented proper cleanup of resources during application termination
+  - Fixed CloudKit-related issues that could cause shutdown delays
+
+- **State Management and Persistence**:
+  - Better handling of capture state throughout the application
+  - Added UserDefaults persistence for app state
+  - Improved error handling and recovery for failed operations
+  - Enhanced synchronization between UI components
+
+### Previous Updates
+- **CloudKit and Connectivity**:
+  - Added CloudKit Device Registration with IP Address
   - Implemented automatic server IP registration in CloudKit
   - Added server status tracking (online/offline)
   - Enhanced iOS client to use server's actual IP address
   - Improved connection reliability across different networks
   - Added proper error handling for CloudKit operations
-- Fixed build errors and improved encoder implementation
+
+- **Core Architecture Improvements**:
+  - Fixed build errors and improved encoder implementation
   - Resolved duplicate ViewportSize implementations
   - Fixed ambiguous VideoEncoder protocol declarations
   - Reorganized code structure with proper file organization
@@ -93,60 +118,51 @@ A macOS application that captures and streams a portion of your screen matching 
   - Fixed formatDescription property and encoding initialization
   - Improved HLSEncodingAdapter integration
   - Fixed tests to use the new encoder interface
-- Enhanced menu bar UI with consistent styling and workflow
+
+- **UI Enhancements**:
+  - Enhanced menu bar UI with consistent styling and workflow
   - Converted viewport toggle to a button for UI consistency
   - Reorganized buttons to follow logical workflow sequence
   - Made all buttons use consistent styling and behavior
   - Added proper server state handling in the UI
   - Improved settings gear icon appearance and placement
-- Improved server management and shutdown
+
+- **Server and Performance**:
+  - Improved server management and shutdown
   - Added proper async/await handling for server operations
   - Fixed server state tracking and button responsiveness
   - Added robust shutdown process to prevent assertion errors
   - Enhanced error handling throughout the application
-- Refactored frame processing architecture
+  - Refactored frame processing architecture
   - Created unified `FrameProcessor` protocol for consistent frame handling
   - Improved `BasicFrameProcessor` with better performance tracking
   - Added thread-safe statistics collection with exponential moving average
   - Enhanced frame dropping detection for better performance monitoring
-- Fixed circular dependencies
+
+- **Code Quality and Testing**:
+  - Fixed circular dependencies
   - Moved shared types to appropriate modules
   - Improved code organization and modularity
   - Reduced coupling between core components
-- Enhanced test suite reliability and coverage
+  - Enhanced test suite reliability and coverage
   - Fixed async/await handling in ViewportTests
   - Improved main thread handling for UI operations
   - Added proper test setup/teardown with async support
   - Fixed singleton pattern issues in TouchEventController tests
   - Added comprehensive test coverage for all components
   - Improved test robustness with proper error handling
-- Added comprehensive test coverage for touch emulation
-  - Client-side test suite for TouchEvent model and sending
-  - Server-side tests for event processing and coordinate mapping
-  - Integration tests for HTTP API endpoint
-  - Mock implementations for reliable testing without dependencies
-- Added CloudKit Settings Sync for iOS client
-  - Implemented device-specific settings storage
-  - Added user preferences persistence across app restarts
-  - Created CloudKit integration for settings synchronization
-  - Added UI for managing sync settings
-- Simplified and fixed iOS client Settings screen
+
+- **iOS Client Improvements**:
+  - Added comprehensive test coverage for touch emulation
+  - Added CloudKit Settings Sync for iOS client
+  - Simplified and fixed iOS client Settings screen
   - Replaced complex NavigationSplitView with more reliable NavigationStack
   - Fixed UI component rendering issues with proper color handling
   - Standardized appearance handling across light and dark modes
   - Improved UI responsiveness and reliability
-- Added iOS client with model layer and connection infrastructure
-- Enhanced DeviceDiscoveryView with advanced features
-  - Added search capability to filter devices by name or type
-  - Improved accessibility with proper labels and hints
-  - Added retry connection mechanism for error recovery
-  - Created comprehensive help interface for troubleshooting
-- Enhanced PlayerView with advanced streaming features
-  - Implemented stream quality selection with adaptive bitrate
-  - Added fullscreen mode with double-tap gesture control
-  - Created touch overlay for input capture and remote control
-  - Added real-time stream statistics monitoring
-  - Improved error handling and connection recovery
+  - Added iOS client with model layer and connection infrastructure
+  - Enhanced DeviceDiscoveryView with advanced features
+  - Enhanced PlayerView with advanced streaming features
 
 ## Requirements
 
@@ -278,27 +294,3 @@ swift test
 ## License
 
 MIT License - See LICENSE file for details
-
-## Recent Improvements (March 26, 2025)
-
-1. **UI Reactivity Improvements**:
-   - Fixed Start/Stop Capture button toggle state reactivity
-   - Made UI buttons change color immediately when pressed
-   - Added proper state synchronization between main window and menu bar
-
-2. **Application Flow Enhancements**:
-   - Start Server button is now disabled until capture is started
-   - Start Capture button turns red immediately when pressed
-   - Server button enables automatically when capture is active
-
-3. **Application Lifecycle Fixes**:
-   - Improved quit functionality with reliable application termination
-   - Added failsafe mechanisms to prevent application hang during shutdown
-   - Properly release resources during application termination
-
-4. **State Management**:
-   - Better handling of capture state throughout the application
-   - Added UserDefaults persistence for app state
-   - Implemented proper error handling and recovery for failed operations
-
-The application now provides immediate visual feedback for all actions and manages state transitions more reliably. The quit functionality has been fixed to ensure the application always exits cleanly, even when CloudKit or other background processes might hang.
