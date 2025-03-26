@@ -11,10 +11,11 @@ struct MenuBarView: SwiftUI.View {
     @State private var showEncodingSettings = false
     @State private var encodingSettings = EncodingSettings()
     @StateObject private var encoder = H264VideoEncoder()
+    @State private var serverManager = HTTPServerManager.shared
+    @State private var isServerRunning = false
+    @State private var isEncoding = false
     @State private var encodingError: Error?
     @State private var showError = false
-    @State var serverManager: HTTPServerManager?
-    @State private var isServerRunning = false
     
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 12) {
@@ -32,59 +33,76 @@ struct MenuBarView: SwiftUI.View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
                 // 2. CAPTURE BUTTON
-                Button(screenCaptureManager.isCapturing ? "Stop Capture" : "Start Capture") {
+                Button {
                     Task {
-                        do {
-                            if !screenCaptureManager.isCapturing {
+                        if !screenCaptureManager.isCapturing {
+                            // Set the capturing state immediately for UI feedback
+                            screenCaptureManager.setManualCapturingState(true)
+                            
+                            do {
                                 print("Starting capture...")
                                 try await screenCaptureManager.startCaptureForViewport(
                                     frameProcessor: BasicFrameProcessor(),
                                     viewportManager: viewportManager
                                 )
                                 print("Capture started successfully")
-                            } else {
+                            } catch {
+                                // Revert on error
+                                screenCaptureManager.setManualCapturingState(false)
+                                print("Capture error: \(error)")
+                                encodingError = error
+                                showError = true
+                            }
+                        } else {
+                            // Set the capturing state immediately for UI feedback
+                            screenCaptureManager.setManualCapturingState(false)
+                            
+                            do {
                                 print("Stopping capture...")
                                 try await screenCaptureManager.stopCapture()
                                 print("Capture stopped successfully")
+                            } catch {
+                                // Revert on error
+                                screenCaptureManager.setManualCapturingState(true)
+                                print("Capture error: \(error)")
+                                encodingError = error
+                                showError = true
                             }
-                        } catch {
-                            print("Capture error: \(error)")
-                            encodingError = error
-                            showError = true
                         }
                     }
+                } label: {
+                    Text(screenCaptureManager.isCapturing ? "Stop Capture" : "Start Capture")
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(screenCaptureManager.isCapturing ? .red : .blue)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
                 // 3. SERVER BUTTON
-                Button(isServerRunning ? "Stop Server" : "Start Server") {
+                Button(action: {
                     Task {
                         do {
                             if isServerRunning {
-                                try await serverManager?.stop()
-                                // Update UI on main thread immediately
-                                await MainActor.run {
-                                    isServerRunning = false
-                                }
+                                try await serverManager.stop()
+                                isServerRunning = false
                             } else {
-                                try await serverManager?.start()
-                                // Update UI on main thread immediately
-                                await MainActor.run {
-                                    isServerRunning = true
-                                }
+                                try await serverManager.start()
+                                isServerRunning = true
                             }
                         } catch {
-                            print("Server error: \(error)")
-                            encodingError = error
-                            showError = true
+                            print("Error toggling server: \(error)")
+                            await MainActor.run {
+                                self.encodingError = error
+                                self.showError = true
+                            }
                         }
                     }
+                }) {
+                    Text(isServerRunning ? "Stop Server" : "Start Server")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(isServerRunning ? .red : .blue)
-                .disabled(encoder.isEncoding && !isServerRunning)
+                .disabled(!screenCaptureManager.isCapturing) // Direct check against the screenCaptureManager.isCapturing property
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
                 if isServerRunning {
@@ -108,7 +126,7 @@ struct MenuBarView: SwiftUI.View {
                                     print("[MenuBarView] Initializing encoder with settings - Path: \(encodingSettings.outputPath), Dimensions: \(encodingSettings.width)x\(encodingSettings.height)")
                                     
                                     // Connect encoder to HTTP server for streaming
-                                    try serverManager?.connectVideoEncoder(encoder)
+                                    try serverManager.connectVideoEncoder(encoder)
                                     
                                     try await encoder.startEncoding(
                                         to: URL(fileURLWithPath: encodingSettings.outputPath),
@@ -118,10 +136,10 @@ struct MenuBarView: SwiftUI.View {
                                     print("[MenuBarView] Encoder started successfully")
                                     
                                     // Start streaming through HTTP server
-                                    try await serverManager?.startStreaming()
+                                    try await serverManager.startStreaming()
                                 } else {
                                     print("[MenuBarView] Stopping encoding process...")
-                                    try? await serverManager?.stopStreaming()
+                                    try? await serverManager.stopStreaming()
                                     Task {
                                         await encoder.stopEncoding()
                                     }
@@ -190,28 +208,23 @@ struct MenuBarView: SwiftUI.View {
             }
             
             Button("Quit") {
-                // First make sure the server is stopped
-                if isServerRunning {
-                    Task {
-                        do {
-                            try await serverManager?.stop()
-                        } catch {
-                            print("Error stopping server during quit: \(error)")
-                        }
-                        
-                        // Add a small delay to allow for cleanup
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        
-                        // Then terminate the app
-                        NSApp.terminate(nil)
-                    }
-                } else {
+                Task { @MainActor in
+                    print("User initiated quit from menu bar")
+                    
+                    // First try a normal termination
                     NSApp.terminate(nil)
+                    
+                    // If terminate gets stuck due to CloudKit, force quit after 1.5 seconds
+                    DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 1.5) {
+                        print("Termination taking too long, forcing exit...")
+                        AppDelegate.immediateForceQuit()
+                    }
                 }
             }
             .buttonStyle(.borderedProminent)
             .tint(.gray)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .keyboardShortcut("q", modifiers: [.command])
         }
         .padding()
         .frame(width: 250)
@@ -226,18 +239,8 @@ struct MenuBarView: SwiftUI.View {
             Text(error.localizedDescription)
         }
         .onAppear {
-            // Initialize server manager
-            if serverManager == nil {
-                serverManager = HTTPServerManager(
-                    config: ServerConfig(hostname: "localhost", port: 8080),
-                    logger: Logger(label: "com.cursor-window.server"),
-                    streamManager: HLSStreamManager(),
-                    authManager: AuthenticationManager()
-                )
-            }
-            
-            // Check if server is running
-            isServerRunning = serverManager?.isRunning ?? false
+            // Refresh server status when the view appears
+            isServerRunning = serverManager.isRunning
             
             // Refresh permission status when the view appears
             Task {
@@ -245,12 +248,4 @@ struct MenuBarView: SwiftUI.View {
             }
         }
     }
-}
-
-struct EncodingSettings {
-    var outputPath = NSHomeDirectory() + "/Desktop/output.mov"
-    var width = 393
-    var height = 852
-    var frameRate = 30
-    var quality: Double = 0.8
 } 

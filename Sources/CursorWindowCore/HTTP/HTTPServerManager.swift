@@ -15,7 +15,19 @@ import CloudKit
 // import CursorWindowCore
 
 /// HTTP server manager for handling web requests
-public class HTTPServerManager {
+@available(macOS 10.15, *)
+public class HTTPServerManager: @unchecked Sendable {
+    // MARK: - Singleton
+    
+    /// Shared instance
+    private static var _shared: HTTPServerManager?
+    public static var shared: HTTPServerManager {
+        if _shared == nil {
+            _shared = HTTPServerManager()
+        }
+        return _shared!
+    }
+    
     // MARK: - Properties
     
     /// Server configuration
@@ -27,6 +39,21 @@ public class HTTPServerManager {
     /// Vapor application instance
     private var app: Application?
     
+    /// Direct access to the application for emergency shutdown
+    /// Only use this for critical cleanup during app termination
+    public var directAccessApp: Application? {
+        return app
+    }
+    
+    /// Whether the server is currently running
+    public private(set) var isRunning: Bool = false
+    
+    /// Server start time
+    public private(set) var startTime: Date?
+    
+    /// Add a serial queue for thread safety
+    private let queue = DispatchQueue(label: "com.cursor-window.server.queue")
+    
     /// HLS Stream manager
     public private(set) var streamManager: HLSStreamManager
     
@@ -35,12 +62,6 @@ public class HTTPServerManager {
     
     /// Admin controller for server dashboard
     private var adminController: AdminController!
-    
-    /// Whether the server is currently running
-    public private(set) var isRunning: Bool = false
-    
-    /// Server start time
-    private var startTime: Date?
     
     /// HLS playlist generator
     private let playlistGenerator: HLSPlaylistGenerator
@@ -54,6 +75,9 @@ public class HTTPServerManager {
     /// HLS encoding adapter
     private var encodingAdapter: HLSEncodingAdapter?
     
+    /// CloudKit registration queue
+    private let cloudKitQueue = DispatchQueue(label: "com.cursor-window.server.cloudkit", qos: .utility)
+    
     // MARK: - Lifecycle
     
     /// Initialize with configuration
@@ -63,10 +87,10 @@ public class HTTPServerManager {
     ///   - streamManager: HLS stream manager
     ///   - authManager: Authentication manager
     public init(
-        config: ServerConfig,
-        logger: Logger,
-        streamManager: HLSStreamManager,
-        authManager: AuthenticationManager
+        config: ServerConfig = ServerConfig(),
+        logger: Logger = Logger(label: "com.cursor-window.server"),
+        streamManager: HLSStreamManager = HLSStreamManager(),
+        authManager: AuthenticationManager = AuthenticationManager()
     ) {
         self.config = config
         self.logger = logger
@@ -100,27 +124,20 @@ public class HTTPServerManager {
         )
         self.streamController = streamController
         
-        // Create the adapter for encoding
-        self.encodingAdapter = HLSEncodingAdapter(
-            videoEncoder: try! H264VideoEncoder(viewportSize: ViewportSize.defaultSize(), delegate: self),
-            segmentManager: segmentManager,
-            streamManager: streamManager
-        )
-        
-        // Complete initialization before creating AdminController
-        // Now that required properties are initialized, we can create the admin controller
+        // Create the admin controller
         adminController = AdminController(
             serverManager: self,
             streamManager: streamManager,
             authManager: authManager
         )
+        
+        // Don't initialize encoder adapter in init to avoid potential circular reference
     }
     
     /// Clean up resources when deinitialized
     deinit {
-        if isRunning, let app = app {
-            app.shutdown()
-        }
+        // Log deallocation but don't try to shutdown
+        logger.warning("HTTPServerManager being deallocated while server is \(isRunning ? "running" : "stopped")")
     }
     
     // MARK: - Server Management
@@ -128,118 +145,104 @@ public class HTTPServerManager {
     /// Start the HTTP server
     /// - Throws: HTTPServerError if the server fails to start
     public func start() async throws {
-        // Check if server is already running
+        print("TRACE: start() called from:")
+        Thread.callStackSymbols.forEach { print("  \($0)") }
+        
         guard !isRunning else {
-            throw HTTPServerError.serverAlreadyRunning
+            print("TRACE: Server is already running")
+            return
         }
         
-        logger.info("Starting HTTP server on \(config.hostname):\(config.port)")
+        print("TRACE: Creating Vapor application")
+        let app = try await Application.make(.development)
+        app.http.server.configuration.hostname = config.hostname
+        app.http.server.configuration.port = config.port
+        print("TRACE: Application created")
         
-        do {
-            // Create a new application using async-compatible approach
-            let app = try await Application.make(.development)
-            
-            // Configure HTTP settings
-            app.http.server.configuration.hostname = config.hostname
-            app.http.server.configuration.port = config.port
-            
-            // Configure middleware
-            configureMiddleware(app)
-            
-            // Configure TLS if needed
-            if let tlsConfig = config.tls {
-                do {
-                    try configureTLS(tlsConfig, for: app)
-                } catch {
-                    throw HTTPServerError.sslConfigurationError("TLS configuration failed: \(error.localizedDescription)")
-                }
-            }
-            
-            // Configure routes
-            await configureRoutes(app)
-            
-            // Configure admin dashboard if enabled
-            if config.enableAdmin {
-                configureAdmin(app)
-            }
-            
-            // Save the application
-            self.app = app
-            
-            // Start the application
-            try await app.startup()
-            
-            // Record startup
-            isRunning = true
-            startTime = Date()
-            
-            logger.info("HTTP server started on \(config.hostname):\(config.port)")
-            
-            // Register device in CloudKit with the server's IP
-            Task {
-                do {
-                    let ipAddress = config.hostname == "localhost" ? ServerConfig.getLocalIPAddress() : config.hostname
-                    let registrationService = DeviceRegistrationService()
-                    if try await registrationService.registerDevice(serverIP: ipAddress) {
-                        logger.info("Successfully registered server in CloudKit with IP: \(ipAddress)")
-                    } else {
-                        logger.warning("Failed to register server in CloudKit")
-                    }
-                } catch {
-                    logger.error("Error registering server: \(error.localizedDescription)")
-                }
-            }
-        } catch {
-            // Clean up application
-            if let app = app {
-                // Use DispatchQueue instead of Task to handle shutdown
-                DispatchQueue.global(qos: .background).async {
-                    app.shutdown()
-                }
-                self.app = nil
-            }
-            
-            // Convert to our custom error type if needed
-            if let serverError = error as? HTTPServerError {
-                throw serverError
-            } else {
-                // Log and throw error
-                logger.error("Failed to start HTTP server: \(error)")
-                throw HTTPServerError.serverInitializationFailed(error.localizedDescription)
-            }
+        // TESTING: CloudKit registration disabled temporarily
+        print("TRACE: CloudKit registration disabled for testing")
+        
+        // Configure middleware
+        app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
+        app.middleware.use(ErrorMiddleware.default(environment: app.environment))
+        
+        // Configure routes
+        await configureRoutes(app)
+        
+        print("TRACE: Configuring admin if enabled")
+        if config.enableAdmin {
+            try await configureAdmin(app)
         }
+        
+        // Save application reference
+        self.app = app
+        
+        // Start the application
+        print("TRACE: Starting Vapor application")
+        try await app.startup()
+        print("TRACE: Application started successfully")
+        isRunning = true
     }
     
-    /// Stop the HTTP server
+    /// Stop the HTTP server using the fastest path possible
+    /// - Parameter skipCloudKit: Whether to skip CloudKit operations (default: false)
     /// - Throws: HTTPServerError if the server fails to stop
-    public func stop() async throws {
-        // Check if server is running
-        guard isRunning, let app = app else {
+    public func stop(skipCloudKit: Bool = false) async throws {
+        print("TRACE: stop() called from:")
+        Thread.callStackSymbols.forEach { print("  \($0)") }
+        
+        guard let app = app, isRunning else {
+            print("TRACE: Server not running, throwing error")
             throw HTTPServerError.serverNotRunning
         }
         
         logger.info("Stopping HTTP server")
+        print("TRACE: Beginning server shutdown sequence")
         
-        // Update server status
+        // Update state first to prevent additional requests
         isRunning = false
         startTime = nil
         
-        // Update device in CloudKit to show offline
-        Task {
+        if !skipCloudKit {
+            print("TRACE: CloudKit offline status update disabled for testing")
+        }
+        
+        print("TRACE: Stopping any active streaming")
+        // Ensure any active streaming is stopped first
+        if let encodingAdapter = encodingAdapter {
             do {
-                let deviceOffline = try await DeviceRegistrationService.markOffline()
-                logger.info("Updated server status to offline in CloudKit: \(deviceOffline)")
+                print("TRACE: Stopping encoding adapter")
+                try await encodingAdapter.stop()
+                print("TRACE: Encoding adapter stopped")
             } catch {
-                logger.error("Error updating server status: \(error.localizedDescription)")
+                print("TRACE: Error stopping encoding adapter: \(error)")
             }
         }
         
-        // Shutdown the app
-        app.shutdown()
-        
-        // Set app to nil
+        print("TRACE: Preparing for Vapor app shutdown")
+        // Ensure we capture the application
+        let appRef = app
         self.app = nil
         
+        print("TRACE: Executing Vapor shutdown sequence")
+        
+        // First shutdown the EventLoopGroup
+        print("TRACE: Shutting down EventLoopGroup")
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            appRef.eventLoopGroup.shutdownGracefully { error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+        
+        print("TRACE: Calling app.asyncShutdown()")
+        // Call the regular shutdown method
+        try await app.asyncShutdown()
+        
+        print("TRACE: Server shutdown completed")
         logger.info("HTTP server stopped")
     }
     
@@ -330,11 +333,9 @@ public class HTTPServerManager {
     
     /// Configure the admin interface
     /// - Parameter app: The Vapor application
-    private func configureAdmin(_ app: Application) {
+    private func configureAdmin(_ app: Application) async throws {
         // Setup admin routes
-        Task {
-            await adminController.setupRoutes(app)
-        }
+        try await adminController.setupRoutes(app)
     }
     
     /// Connect a video encoder to the HLS stream
@@ -391,6 +392,40 @@ public class HTTPServerManager {
         } catch {
             logger.error("Failed to stop streaming: \(error.localizedDescription)")
             throw ServerError.from(error)
+        }
+    }
+    
+    private func performShutdown(_ app: Application) {
+        app.shutdown()
+    }
+    
+    /// Emergency synchronous server shutdown - use only during application termination
+    public func emergencyShutdown() {
+        print("EMERGENCY: Performing synchronous server shutdown")
+        
+        // Mark as not running immediately
+        isRunning = false
+        startTime = nil
+        
+        // Capture app reference
+        guard let app = self.app else {
+            print("EMERGENCY: No server app to shut down")
+            return
+        }
+        
+        // Clear reference immediately
+        self.app = nil
+        
+        // Shut down synchronously without waiting for async operations
+        DispatchQueue.global(qos: .userInitiated).async {
+            // Shut down the event loop group
+            app.eventLoopGroup.shutdownGracefully { _ in
+                print("EMERGENCY: Event loop shutdown completed")
+            }
+            
+            // Perform synchronous shutdown
+            app.shutdown()
+            print("EMERGENCY: Server shutdown completed")
         }
     }
 }

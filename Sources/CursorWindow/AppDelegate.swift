@@ -141,6 +141,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     
     private func terminateImmediately() {
         // Clean exit without using NSApp.terminate which might trigger multiple termination events
+        releaseLockFile()
         exit(0)
     }
     
@@ -300,7 +301,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     @MainActor
     private func createMainWindow() async throws {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 500),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -372,23 +373,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     
     @MainActor
     private func cleanup() async {
+        print("Starting emergency cleanup before app termination")
+        
         // Stop screen capture if running
         try? await screenCaptureManager?.stopCapture()
         
         // Stop HTTP server if running
-        if let contentView = statusBarController?.popover.contentViewController as? NSHostingController<MenuBarView>,
-           let serverManager = contentView.rootView.serverManager {
-            // First stop streaming if active
-            try? await serverManager.stopStreaming()
-            
-            // Then stop the server completely
-            try? await serverManager.stop()
-            print("HTTP server stopped during cleanup")
+        let serverManager = HTTPServerManager.shared
+        if serverManager.isRunning {
+            do {
+                // First stop streaming if active
+                try await serverManager.stopStreaming()
+                
+                // Perform direct server shutdown without CloudKit
+                if let app = serverManager.directAccessApp {
+                    // First shutdown the EventLoopGroup safely
+                    app.eventLoopGroup.shutdownGracefully { _ in
+                        print("Event loop group shutdown completed")
+                    }
+                    
+                    // Use synchronous shutdown for reliability during app termination
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        app.shutdown()
+                        print("Server application shutdown completed")
+                    }
+                }
+                
+                print("HTTP server cleanup performed")
+            } catch {
+                print("Error during server shutdown: \(error)")
+            }
         }
+        
+        print("Cleanup completed")
     }
     
     func applicationWillTerminate(_ notification: Notification) {
-        // Clean up resources
         print("Application will terminate")
         
         // Save viewport state explicitly
@@ -410,9 +430,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         // Start pre-emptive cleanup of resources
         print("User initiated app termination")
         
-         // Perform async cleanup in the background before terminating
+        // Release the lock file synchronously first to prevent multiple instances issues
+        releaseLockFile()
+        
+        // Set a timeout that will force kill the app if termination takes too long
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 3.0) {
+            print("Termination is taking too long, force exiting in 3 seconds")
+            // Give visible feedback to the user
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = "Application Is Taking Too Long To Quit"
+                alert.informativeText = "The application will force exit in 3 seconds."
+                alert.addButton(withTitle: "Force Quit Now")
+                
+                if alert.runModal() == .alertFirstButtonReturn {
+                    print("User selected immediate force quit")
+                    exit(0)
+                }
+            }
+            
+            // Final fallback
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 3.0) {
+                print("Final fallback force exit")
+                exit(0)
+            }
+        }
+        
+        // Perform async cleanup in the background before terminating
         Task {
             print("Starting cleanup before termination")
+            HTTPServerManager.shared.emergencyShutdown()
             await cleanup()
             
             print("Cleanup complete, proceeding with termination")
@@ -425,11 +472,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
             }
         }
         
-        // Release the lock file
-        releaseLockFile()
-        
         // Return .terminateLater to allow our async cleanup to complete
         return .terminateLater
+    }
+    
+    /// Force exit the application safely after emergency cleanup
+    @objc public func forceExit() {
+        print("Force exit requested")
+        AppDelegate.immediateForceQuit()
+    }
+    
+    /// Force exit the application immediately, bypassing all cleanup
+    @objc public static func immediateForceQuit() {
+        print("EMERGENCY QUIT: Forcing immediate application exit")
+        // Release any global resources to avoid corrupting files
+        let appDelegate = NSApp.delegate as? AppDelegate
+        appDelegate?.releaseLockFile()
+        
+        // Force exit with clean code
+        exit(0)
     }
 }
 
@@ -438,47 +499,252 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 private struct MainWindowView: View {
     @ObservedObject var viewportManager: ViewportManager
     let screenCaptureManager: ScreenCaptureManager
+    @State private var showEncodingSettings = false
+    @State private var encodingSettings = EncodingSettings()
+    @StateObject private var encoder = H264VideoEncoder()
+    @State private var serverManager = HTTPServerManager.shared
+    @State private var isServerRunning = false
+    @State private var isEncoding = false
+    @State private var encodingError: Error?
+    @State private var showError = false
     
     var body: some View {
         VStack(spacing: 16) {
             Text("Phone Mirror")
                 .font(.largeTitle)
             
-            Toggle("Show iPhone Frame", isOn: Binding(
-                get: { viewportManager.isVisible },
-                set: { newValue in
-                    if newValue {
-                        viewportManager.showViewport()
-                    } else {
-                        viewportManager.hideViewport()
-                    }
-                }
-            ))
-            .toggleStyle(.switch)
-            
             if screenCaptureManager.isScreenCapturePermissionGranted {
-                Text("Screen recording permission granted ✅")
-                    .foregroundColor(.green)
-                    .padding(.bottom, 8)
+                // 1. VIEWPORT TOGGLE
+                Toggle("Show iPhone Frame", isOn: Binding(
+                    get: { viewportManager.isVisible },
+                    set: { newValue in
+                        if newValue {
+                            viewportManager.showViewport()
+                        } else {
+                            viewportManager.hideViewport()
+                        }
+                    }
+                ))
+                .toggleStyle(.switch)
+                .padding(.bottom, 8)
+                
+                // 2. CAPTURE BUTTON
+                Button {
+                    Task {
+                        if !screenCaptureManager.isCapturing {
+                            // Set the capturing state immediately for UI feedback
+                            screenCaptureManager.setManualCapturingState(true)
+                            
+                            do {
+                                print("Starting capture...")
+                                try await screenCaptureManager.startCaptureForViewport(
+                                    frameProcessor: BasicFrameProcessor(),
+                                    viewportManager: viewportManager
+                                )
+                                print("Capture started successfully")
+                            } catch {
+                                // Revert on error
+                                screenCaptureManager.setManualCapturingState(false)
+                                print("Capture error: \(error)")
+                                encodingError = error
+                                showError = true
+                            }
+                        } else {
+                            // Set the capturing state immediately for UI feedback
+                            screenCaptureManager.setManualCapturingState(false)
+                            
+                            do {
+                                print("Stopping capture...")
+                                try await screenCaptureManager.stopCapture()
+                                print("Capture stopped successfully")
+                            } catch {
+                                // Revert on error
+                                screenCaptureManager.setManualCapturingState(true)
+                                print("Capture error: \(error)")
+                                encodingError = error
+                                showError = true
+                            }
+                        }
+                    }
+                } label: {
+                    Text(screenCaptureManager.isCapturing ? "Stop Capture" : "Start Capture")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(screenCaptureManager.isCapturing ? .red : .blue)
+                .frame(maxWidth: .infinity)
+                
+                // 3. SERVER BUTTON
+                Button(action: {
+                    Task {
+                        do {
+                            if isServerRunning {
+                                try await serverManager.stop()
+                                isServerRunning = false
+                            } else {
+                                try await serverManager.start()
+                                isServerRunning = true
+                            }
+                        } catch {
+                            print("Error toggling server: \(error)")
+                            await MainActor.run {
+                                self.encodingError = error
+                                self.showError = true
+                            }
+                        }
+                    }
+                }) {
+                    Text(isServerRunning ? "Stop Server" : "Start Server")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(isServerRunning ? .red : .blue)
+                .disabled(!screenCaptureManager.isCapturing) // Direct check against the screenCaptureManager.isCapturing property
+                .frame(maxWidth: .infinity)
+                
+                if isServerRunning {
+                    Text("Server running at:")
+                        .font(.caption)
+                    Text("http://localhost:8080")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                        .onTapGesture {
+                            NSWorkspace.shared.open(URL(string: "http://localhost:8080")!)
+                        }
+                }
+                
+                // 4. ENCODING BUTTON WITH SETTINGS
+                HStack(spacing: 8) {
+                    Button(encoder.isEncoding ? "Stop Encoding" : "Start Encoding") {
+                        Task {
+                            do {
+                                if !encoder.isEncoding {
+                                    print("[MainWindowView] Starting encoding process...")
+                                    print("[MainWindowView] Initializing encoder with settings - Path: \(encodingSettings.outputPath), Dimensions: \(encodingSettings.width)x\(encodingSettings.height)")
+                                    
+                                    // Connect encoder to HTTP server for streaming
+                                    try serverManager.connectVideoEncoder(encoder)
+                                    
+                                    try await encoder.startEncoding(
+                                        to: URL(fileURLWithPath: encodingSettings.outputPath),
+                                        width: encodingSettings.width,
+                                        height: encodingSettings.height
+                                    )
+                                    print("[MainWindowView] Encoder started successfully")
+                                    
+                                    // Start streaming through HTTP server
+                                    try await serverManager.startStreaming()
+                                } else {
+                                    print("[MainWindowView] Stopping encoding process...")
+                                    try? await serverManager.stopStreaming()
+                                    Task {
+                                        await encoder.stopEncoding()
+                                    }
+                                }
+                            } catch {
+                                print("[MainWindowView] Encoding error: \(error)")
+                                encodingError = error
+                                showError = true
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(encoder.isEncoding ? .red : .blue)
+                    .disabled(!screenCaptureManager.isCapturing)
+                    .frame(maxWidth: .infinity)
+                    
+                    // Settings gear icon
+                    Button(action: {
+                        showEncodingSettings.toggle()
+                    }) {
+                        Image(systemName: "gear")
+                            .font(.system(size: 14))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.secondary)
+                    .help("Encoding Settings")
+                }
+                
+                Divider()
+                    .padding(.vertical, 8)
+                
+                Text("You can close this window - the app will keep running in the menu bar.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
             } else {
-                Text("Screen recording permission not granted ⚠️")
-                    .foregroundColor(.orange)
+                // Show permission UI if permission not granted
+                Text("Screen Recording Permission Required")
+                    .font(.headline)
+                
+                Text("Cursor Window needs permission to capture your screen.")
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
                     .padding(.bottom, 8)
+                
+                if screenCaptureManager.isCheckingPermission {
+                    ProgressView()
+                        .padding(.vertical, 8)
+                    Text("Checking permission status...")
+                        .font(.caption)
+                } else {
+                    Button("Check Permission Status") {
+                        Task {
+                            await screenCaptureManager.forceRefreshPermissionStatus()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .frame(maxWidth: .infinity)
+                }
+                
+                Button("Open System Settings") {
+                    screenCaptureManager.openSystemPreferencesScreenCapture()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .disabled(screenCaptureManager.isCheckingPermission)
+                .frame(maxWidth: .infinity)
             }
-            
-            Text("Look for 📱CW in your menu bar")
-                .font(.headline)
-                .foregroundColor(.blue)
-            
-            Text("You can close this window - the app will keep running in the menu bar.")
-                .font(.caption)
-                .foregroundColor(.secondary)
             
             Button("Quit Application") {
-                NSApp.terminate(nil)
+                Task { @MainActor in
+                    print("User initiated quit from main window")
+                    
+                    // First try a normal termination
+                    NSApp.terminate(nil)
+                    
+                    // If terminate gets stuck due to CloudKit, force quit after 1.5 seconds
+                    DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 1.5) {
+                        print("Termination taking too long, forcing exit...")
+                        AppDelegate.immediateForceQuit()
+                    }
+                }
             }
-            .padding(.top, 10)
+            .buttonStyle(.borderedProminent)
+            .tint(.gray)
+            .frame(maxWidth: .infinity)
+            .keyboardShortcut("q", modifiers: [.command])
         }
         .padding()
+        .frame(minWidth: 300)
+        .sheet(isPresented: $showEncodingSettings) {
+            EncodingSettingsView(settings: $encodingSettings)
+        }
+        .alert("Encoding Error", isPresented: $showError, presenting: encodingError) { _ in
+            Button("OK") {
+                showError = false
+            }
+        } message: { error in
+            Text(error.localizedDescription)
+        }
+        .onAppear {
+            // Refresh server status when the view appears
+            isServerRunning = serverManager.isRunning
+            
+            // Refresh permission status when the view appears
+            Task {
+                await screenCaptureManager.forceRefreshPermissionStatus()
+            }
+        }
     }
 } 

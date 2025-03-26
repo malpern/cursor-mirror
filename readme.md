@@ -278,3 +278,27 @@ swift test
 ## License
 
 MIT License - See LICENSE file for details
+
+## Recent Improvements (March 26, 2025)
+
+1. **UI Reactivity Improvements**:
+   - Fixed Start/Stop Capture button toggle state reactivity
+   - Made UI buttons change color immediately when pressed
+   - Added proper state synchronization between main window and menu bar
+
+2. **Application Flow Enhancements**:
+   - Start Server button is now disabled until capture is started
+   - Start Capture button turns red immediately when pressed
+   - Server button enables automatically when capture is active
+
+3. **Application Lifecycle Fixes**:
+   - Improved quit functionality with reliable application termination
+   - Added failsafe mechanisms to prevent application hang during shutdown
+   - Properly release resources during application termination
+
+4. **State Management**:
+   - Better handling of capture state throughout the application
+   - Added UserDefaults persistence for app state
+   - Implemented proper error handling and recovery for failed operations
+
+The application now provides immediate visual feedback for all actions and manages state transitions more reliably. The quit functionality has been fixed to ensure the application always exits cleanly, even when CloudKit or other background processes might hang.

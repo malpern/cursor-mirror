@@ -104,10 +104,16 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
     /// The viewport manager for the current capture session
     private var viewportManager: ViewportManager?
     
+    /// Published notifications to ensure all views stay in sync
+    public static let stateChangedNotification = Notification.Name("CursorWindow.ScreenCaptureStateChanged")
+    
     /// Initialize the screen capture manager and check initial permission status
     public override init() {
         // Load cached permission status from UserDefaults
         isScreenCapturePermissionGranted = UserDefaults.standard.bool(forKey: UserDefaultsKeys.lastKnownPermissionStatus)
+        
+        // Load cached capturing state
+        isCapturing = UserDefaults.standard.bool(forKey: "com.cursor-window.isCapturing")
         
         super.init()
         
@@ -297,7 +303,12 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         print("Starting stream capture...")
         try await stream?.startCapture()
         print("Stream capture started successfully")
-        isCapturing = true
+        
+        // The view already updated isCapturing, just persist the state
+        await MainActor.run {
+            // Persist to UserDefaults
+            UserDefaults.standard.set(true, forKey: "com.cursor-window.isCapturing")
+        }
     }
     
     public func stopCapture() async throws {
@@ -305,7 +316,25 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         stream = nil
         frameProcessor = nil
         viewportManager = nil
-        isCapturing = false
+        
+        // The view already updated isCapturing, just persist the state
+        await MainActor.run {
+            // Persist to UserDefaults
+            UserDefaults.standard.set(false, forKey: "com.cursor-window.isCapturing")
+        }
+    }
+    
+    /// Manually set the capturing state for immediate UI feedback
+    /// This should only be used for UI responsiveness, not to control actual capturing
+    @MainActor
+    public func setManualCapturingState(_ capturing: Bool) {
+        // Set the state with animation for UI responsiveness
+        withAnimation {
+            isCapturing = capturing
+        }
+        
+        // Persist to UserDefaults for state restoration
+        UserDefaults.standard.set(capturing, forKey: "com.cursor-window.isCapturing")
     }
     
     deinit {

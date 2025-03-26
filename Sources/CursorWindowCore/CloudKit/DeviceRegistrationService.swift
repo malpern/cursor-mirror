@@ -3,7 +3,16 @@ import CloudKit
 
 #if os(macOS)
 /// Service to register this device with CloudKit
-public class DeviceRegistrationService {
+@globalActor
+public actor DeviceRegistrationActor {
+    static public let shared = DeviceRegistrationActor()
+    
+    public func createService() -> DeviceRegistrationService {
+        return DeviceRegistrationService()
+    }
+}
+
+public actor DeviceRegistrationService {
     // CloudKit container
     private let container: CKContainer
     
@@ -94,15 +103,7 @@ public class DeviceRegistrationService {
     
     /// Check iCloud account status
     private func checkiCloudAccountStatus() async throws -> CKAccountStatus {
-        return try await withCheckedThrowingContinuation { continuation in
-            container.accountStatus { status, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                continuation.resume(returning: status)
-            }
-        }
+        try await container.accountStatus()
     }
     
     /// Mark this device as offline in CloudKit
@@ -111,29 +112,20 @@ public class DeviceRegistrationService {
         let container = CKContainer(identifier: "iCloud.com.cursormirror.client")
         let deviceID = deviceID ?? Host.current().localizedName ?? "MacBook"
         
+        // Check the account status first
+        let status = try await container.accountStatus()
+        guard status == .available else {
+            print("iCloud account unavailable with status: \(status.rawValue)")
+            return false
+        }
+        
+        // Create a query to find this device
+        let query = CKQuery(
+            recordType: "Device",
+            predicate: NSPredicate(format: "id == %@", deviceID)
+        )
+        
         do {
-            // Check the account status first
-            let status: CKAccountStatus = try await withCheckedThrowingContinuation { continuation in
-                container.accountStatus { status, error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                        return
-                    }
-                    continuation.resume(returning: status)
-                }
-            }
-            
-            guard status == .available else {
-                print("iCloud account unavailable with status: \(status.rawValue)")
-                return false
-            }
-            
-            // Create a query to find this device
-            let query = CKQuery(
-                recordType: "Device",
-                predicate: NSPredicate(format: "id == %@", deviceID)
-            )
-            
             // Look for the device record
             let (results, _) = try await container.privateCloudDatabase.records(
                 matching: query,
@@ -166,6 +158,27 @@ public class DeviceRegistrationService {
             print("Error marking device offline: \(error.localizedDescription)")
             throw error
         }
+    }
+    
+    /// Register the device with CloudKit
+    /// - Parameter serverIP: The IP address of the server
+    /// - Returns: True if registration was successful, false otherwise
+    public func registerDeviceSync(serverIP: String) -> Bool {
+        let semaphore = DispatchSemaphore(value: 0)
+        var result = false
+        
+        Task {
+            do {
+                result = try await registerDevice(serverIP: serverIP)
+                semaphore.signal()
+            } catch {
+                print("Error in registerDeviceSync: \(error)")
+                semaphore.signal()
+            }
+        }
+        
+        _ = semaphore.wait(timeout: .now() + 10) // Wait up to 10 seconds
+        return result
     }
 }
 #endif 
