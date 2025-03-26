@@ -203,8 +203,31 @@ public class HTTPServerManager: @unchecked Sendable {
         isRunning = false
         startTime = nil
         
+        // If we're asked to make CloudKit updates, place a timeout on them
         if !skipCloudKit {
-            print("TRACE: CloudKit offline status update disabled for testing")
+            print("TRACE: Will attempt CloudKit offline registration with timeout")
+            let cloudKitTask = Task {
+                do {
+                    // Attempt to perform CloudKit update with a timeout
+                    _ = try await withTimeout(seconds: 2.0) {
+                        try await DeviceRegistrationService.markOffline()
+                    }
+                    print("TRACE: Successfully marked device as offline in CloudKit")
+                } catch {
+                    print("TRACE: CloudKit update timed out or failed: \(error.localizedDescription)")
+                    // Continue shutdown even if CloudKit fails
+                }
+            }
+            
+            // Only wait a maximum of 2 seconds for CloudKit
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 2.0) {
+                if !cloudKitTask.isCancelled {
+                    print("TRACE: Cancelling CloudKit task after timeout")
+                    cloudKitTask.cancel()
+                }
+            }
+        } else {
+            print("TRACE: Skipping CloudKit offline status update per request")
         }
         
         print("TRACE: Stopping any active streaming")
@@ -244,6 +267,29 @@ public class HTTPServerManager: @unchecked Sendable {
         
         print("TRACE: Server shutdown completed")
         logger.info("HTTP server stopped")
+    }
+    
+    /// Timeout helper for async operations
+    private func withTimeout<T>(seconds: Double, operation: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            // Add the main operation
+            group.addTask {
+                return try await operation()
+            }
+            
+            // Add a timeout task
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw NSError(domain: "com.cursor-window", code: 408, 
+                             userInfo: [NSLocalizedDescriptionKey: "Operation timed out after \(seconds) seconds"])
+            }
+            
+            // Return the first task to complete (operation or timeout)
+            let result = try await group.next()!
+            // Cancel the remaining task
+            group.cancelAll()
+            return result
+        }
     }
     
     /// Record a request log

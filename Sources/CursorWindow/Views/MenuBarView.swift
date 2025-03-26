@@ -17,6 +17,9 @@ struct MenuBarView: SwiftUI.View {
     @State private var encodingError: Error?
     @State private var showError = false
     
+    // Add a local state variable to force UI updates
+    @State private var captureButtonPressed = false
+    
     var body: some SwiftUI.View {
         VStack(alignment: .leading, spacing: 12) {
             if screenCaptureManager.isScreenCapturePermissionGranted {
@@ -34,48 +37,45 @@ struct MenuBarView: SwiftUI.View {
                 
                 // 2. CAPTURE BUTTON
                 Button {
+                    // Toggle local state immediately for UI update
+                    captureButtonPressed.toggle()
+                    
+                    // This value will be used for the actual capture operation
+                    let shouldStartCapture = !screenCaptureManager.isCapturing
+                    
                     Task {
-                        if !screenCaptureManager.isCapturing {
-                            // Set the capturing state immediately for UI feedback
-                            screenCaptureManager.setManualCapturingState(true)
-                            
-                            do {
+                        do {
+                            if shouldStartCapture {
                                 print("Starting capture...")
                                 try await screenCaptureManager.startCaptureForViewport(
                                     frameProcessor: BasicFrameProcessor(),
                                     viewportManager: viewportManager
                                 )
                                 print("Capture started successfully")
-                            } catch {
-                                // Revert on error
-                                screenCaptureManager.setManualCapturingState(false)
-                                print("Capture error: \(error)")
-                                encodingError = error
-                                showError = true
-                            }
-                        } else {
-                            // Set the capturing state immediately for UI feedback
-                            screenCaptureManager.setManualCapturingState(false)
-                            
-                            do {
+                            } else {
                                 print("Stopping capture...")
                                 try await screenCaptureManager.stopCapture()
                                 print("Capture stopped successfully")
-                            } catch {
-                                // Revert on error
-                                screenCaptureManager.setManualCapturingState(true)
-                                print("Capture error: \(error)")
-                                encodingError = error
-                                showError = true
                             }
+                        } catch {
+                            // On error, revert the visual state
+                            await MainActor.run {
+                                captureButtonPressed.toggle()
+                            }
+                            print("Capture error: \(error)")
+                            encodingError = error
+                            showError = true
                         }
                     }
                 } label: {
-                    Text(screenCaptureManager.isCapturing ? "Stop Capture" : "Start Capture")
+                    // Use XOR (^) to compute the visual state based on both the model state and the button press state
+                    // This will toggle visually as soon as the button is pressed
+                    let visuallyCapturing = screenCaptureManager.isCapturing != captureButtonPressed
+                    Text(visuallyCapturing ? "Stop Capture" : "Start Capture")
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(screenCaptureManager.isCapturing ? .red : .blue)
+                .tint(screenCaptureManager.isCapturing != captureButtonPressed ? .red : .blue)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 
                 // 3. SERVER BUTTON

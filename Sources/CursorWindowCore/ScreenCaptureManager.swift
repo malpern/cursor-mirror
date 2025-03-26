@@ -96,7 +96,28 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
     )
     
     /// Indicates whether the screen capture is currently active
-    @Published public private(set) var isCapturing = false
+    @Published public var isCapturing: Bool = false {
+        didSet {
+            // Log state changes to help with debugging
+            print("DEBUG: isCapturing changed from \(oldValue) to \(isCapturing)")
+            
+            // Persist the state change to UserDefaults
+            UserDefaults.standard.set(isCapturing, forKey: "com.cursor-window.isCapturing")
+            
+            // Ensure UI updates on the main thread
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                print("DEBUG: Broadcasting state change to: \(self.isCapturing)")
+                
+                // Post notification for any observers
+                NotificationCenter.default.post(
+                    name: Self.stateChangedNotification,
+                    object: self,
+                    userInfo: ["isCapturing": self.isCapturing]
+                )
+            }
+        }
+    }
     
     /// The frame processor for the current capture session
     private var frameProcessor: FrameProcessor?
@@ -116,6 +137,8 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         isCapturing = UserDefaults.standard.bool(forKey: "com.cursor-window.isCapturing")
         
         super.init()
+        
+        print("DEBUG: ScreenCaptureManager initialized with isCapturing = \(isCapturing)")
         
         // Check permission on startup using a strong reference
         // This is safe because we're in init and the object can't be deallocated yet
@@ -304,10 +327,12 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         try await stream?.startCapture()
         print("Stream capture started successfully")
         
-        // The view already updated isCapturing, just persist the state
+        // Update the isCapturing property on the main actor
         await MainActor.run {
-            // Persist to UserDefaults
-            UserDefaults.standard.set(true, forKey: "com.cursor-window.isCapturing")
+            // This will trigger the property observer which handles persistence
+            withAnimation {
+                self.isCapturing = true
+            }
         }
     }
     
@@ -317,10 +342,12 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
         frameProcessor = nil
         viewportManager = nil
         
-        // The view already updated isCapturing, just persist the state
+        // Update the isCapturing property on the main actor
         await MainActor.run {
-            // Persist to UserDefaults
-            UserDefaults.standard.set(false, forKey: "com.cursor-window.isCapturing")
+            // This will trigger the property observer which handles persistence
+            withAnimation {
+                self.isCapturing = false
+            }
         }
     }
     
@@ -328,13 +355,25 @@ public final class ScreenCaptureManager: NSObject, ObservableObject, FrameCaptur
     /// This should only be used for UI responsiveness, not to control actual capturing
     @MainActor
     public func setManualCapturingState(_ capturing: Bool) {
-        // Set the state with animation for UI responsiveness
-        withAnimation {
-            isCapturing = capturing
-        }
+        print("DEBUG: Setting manual capture state to \(capturing ? "ON" : "OFF")")
         
-        // Persist to UserDefaults for state restoration
-        UserDefaults.standard.set(capturing, forKey: "com.cursor-window.isCapturing")
+        // Set the state directly, which will trigger the didSet observer
+        // that handles persistence and notifications
+        withAnimation(.easeInOut(duration: 0.2)) {
+            self.isCapturing = capturing
+        }
+    }
+    
+    /// Force SwiftUI to refresh by explicitly sending objectWillChange
+    /// Call this if you suspect the UI isn't reflecting the current state
+    @MainActor
+    public func forceUIRefresh() {
+        print("DEBUG: Forcing UI refresh for capture state: \(isCapturing ? "ON" : "OFF")")
+        
+        // Trigger a state change notification without changing the value
+        // This will force SwiftUI to recheck the isCapturing property
+        let currentState = isCapturing
+        isCapturing = currentState
     }
     
     deinit {
