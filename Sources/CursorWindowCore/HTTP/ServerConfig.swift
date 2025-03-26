@@ -238,6 +238,7 @@ public struct ServerAuthConfig: Codable, Equatable, Sendable {
                 switch method {
                 case .basic: return .basic
                 case .token: return .apiKey
+                case .session: return .jwt
                 }
             })
         )
