@@ -79,6 +79,12 @@ A macOS application that captures and streams a portion of your screen matching 
 
 ## Recent Improvements
 
+- Added CloudKit Device Registration with IP Address
+  - Implemented automatic server IP registration in CloudKit
+  - Added server status tracking (online/offline)
+  - Enhanced iOS client to use server's actual IP address
+  - Improved connection reliability across different networks
+  - Added proper error handling for CloudKit operations
 - Fixed build errors and improved encoder implementation
   - Resolved duplicate ViewportSize implementations
   - Fixed ambiguous VideoEncoder protocol declarations
@@ -180,16 +186,10 @@ Sources/
 │   ├── SharedTypes.swift       # Shared protocols and types
 │   ├── ScreenCaptureManager.swift  # Screen capture with frame rate limiting
 │   ├── BasicFrameProcessor.swift   # Frame processing with QoS optimization
-│   ├── Video/                  # Video processing components
-│   │   ├── Encoder/            # Video encoding
-│   │   │   └── H264VideoEncoder.swift  # Thread-safe video encoding
-│   │   ├── VideoEncoderTypes.swift  # Encoder protocols and interfaces
-│   │   └── ViewportTypes.swift  # Viewport definitions
-│   ├── TouchEmulation/         # Touch event handling
+│   ├── H264VideoEncoder.swift  # Thread-safe video encoding
+│   ├── TouchEmulation/        # Touch event handling
 │   │   ├── TouchEventController.swift  # Touch event processing
 │   │   └── TouchEventRoute.swift      # HTTP API endpoint
-│   ├── Viewport/               # Viewport management
-│   │   └── ViewportManager.swift  # Viewport positioning and visibility
 │   └── HTTP/                   # HTTP server components
 │       ├── HTTPServerManager.swift  # Improved server with proper shutdown
 │       ├── HLS/                # HLS streaming components

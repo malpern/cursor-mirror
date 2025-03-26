@@ -1,4 +1,5 @@
 import SwiftUI
+import CloudKit
 
 struct DeviceDiscoveryView: View {
     @Bindable var viewModel: ConnectionViewModel
@@ -117,6 +118,23 @@ struct DeviceDiscoveryView: View {
         }
         .onAppear {
             refreshDevices()
+            
+            // Set up notification observer
+            NotificationCenter.default.addObserver(
+                forName: Notification.Name("ShowHelpSheet"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                showingHelpSheet = true
+            }
+        }
+        .onDisappear {
+            // Remove notification observer
+            NotificationCenter.default.removeObserver(
+                self,
+                name: Notification.Name("ShowHelpSheet"),
+                object: nil
+            )
         }
     }
     
@@ -268,13 +286,13 @@ struct ErrorBannerView: View {
     
     var body: some View {
         if let error = error {
-            VStack {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.white)
                     
-                    Text(error.localizedDescription)
-                        .font(.subheadline)
+                    Text(errorTitle)
+                        .font(.headline)
                         .foregroundStyle(.white)
                     
                     Spacer()
@@ -285,12 +303,82 @@ struct ErrorBannerView: View {
                     }
                     .accessibilityLabel("Dismiss error")
                 }
-                .padding()
+                
+                Text(errorMessage)
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                
+                if let nsError = error as NSError? {
+                    Text("Error details: \(nsError.domain) code \(nsError.code)")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                
+                if isCloudKitAuthError {
+                    HStack {
+                        Button("Open iCloud Settings") {
+                            openICloudSettings()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.white)
+                        .controlSize(.small)
+                        
+                        Button("Show Help") {
+                            // Need to add a way to show help sheet from here
+                            NotificationCenter.default.post(name: Notification.Name("ShowHelpSheet"), object: nil)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white)
+                        .controlSize(.small)
+                    }
+                    .padding(.top, 4)
+                }
             }
+            .padding()
             .background(Color.red.opacity(0.9))
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.horizontal)
             .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+    
+    // MARK: - Helper Properties
+    
+    private var errorTitle: String {
+        if isCloudKitAuthError {
+            return "iCloud Authentication Error"
+        } else {
+            return "Error"
+        }
+    }
+    
+    private var errorMessage: String {
+        if isCloudKitAuthError {
+            return "iCloud access issue detected. This may happen if iCloud Drive is disabled or if the app doesn't have permission to use CloudKit."
+        } else {
+            return error?.localizedDescription ?? "An unknown error occurred"
+        }
+    }
+    
+    private var isCloudKitAuthError: Bool {
+        if let nsError = error as NSError? {
+            // Check if it's a CKErrorDomain with code 15 (CKErrorNotAuthenticated)
+            return nsError.domain == CKErrorDomain && nsError.code == 15
+        }
+        return false
+    }
+    
+    private func openICloudSettings() {
+        // Use URL scheme to go directly to iCloud settings instead of app settings
+        if let url = URL(string: "App-prefs:root=CASTLE") {
+            UIApplication.shared.open(url) { success in
+                // If the direct URL scheme fails, fall back to general Settings
+                if !success, let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsURL)
+                }
+            }
+        } else if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(settingsURL)
         }
     }
 }
@@ -321,6 +409,91 @@ struct HelpView: View {
                             Label("Restart the Cursor Mirror app on both devices", systemImage: "5.circle")
                         }
                         .padding(.bottom, 4)
+                    }
+                }
+                
+                Section(header: Text("iCloud Authentication Error")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Troubleshooting CKErrorDomain error 15:")
+                            .font(.headline)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label("This error indicates an issue with CloudKit access", systemImage: "exclamationmark.triangle")
+                                .foregroundColor(.orange)
+                            
+                            Text("Possible causes:")
+                                .font(.subheadline)
+                                .bold()
+                                .padding(.top, 4)
+                            
+                            Label("iCloud account status issue", systemImage: "1.circle")
+                            Label("iCloud Drive might be disabled", systemImage: "2.circle")
+                            Label("App permissions for CloudKit not granted", systemImage: "3.circle")
+                            Label("CloudKit container misconfiguration", systemImage: "4.circle")
+                            Label("Network connectivity problems", systemImage: "5.circle")
+                        }
+                        .padding(.vertical, 4)
+                        
+                        Text("Resolution steps:")
+                            .font(.subheadline)
+                            .bold()
+                            .padding(.top, 4)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label("Verify you're signed into iCloud", systemImage: "1.circle")
+                            Label("Enable iCloud Drive in Settings > [your name] > iCloud", systemImage: "2.circle")
+                            Label("Ensure app has proper permissions", systemImage: "3.circle")
+                            Label("Check internet connection", systemImage: "4.circle")
+                            Label("Delete and reinstall the app if the problem persists", systemImage: "5.circle")
+                        }
+                    }
+                    
+                    VStack(spacing: 8) {
+                        Button("Open iCloud Settings") {
+                            if let url = URL(string: "App-prefs:root=CASTLE") {
+                                UIApplication.shared.open(url) { success in
+                                    if !success, let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                                        UIApplication.shared.open(settingsURL)
+                                    }
+                                }
+                            } else if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(settingsURL)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .buttonStyle(.borderedProminent)
+                        
+                        Button("Check iCloud Container Status") {
+                            // This will just re-trigger discovery which will test the container status
+                            NotificationCenter.default.post(name: Notification.Name("RefreshDevicesList"), object: nil)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .buttonStyle(.bordered)
+                    }
+                    .padding(.top, 8)
+                }
+                
+                Section(header: Text("Developer Information")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Debugging Information")
+                            .font(.headline)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Container ID: iCloud.com.cursormirror.client")
+                                .font(.caption)
+                                .textSelection(.enabled)
+                            
+                            Text("App Bundle ID: \(Bundle.main.bundleIdentifier ?? "Unknown")")
+                                .font(.caption)
+                                .textSelection(.enabled)
+                            
+                            Text("iOS Version: \(UIDevice.current.systemVersion)")
+                                .font(.caption)
+                            
+                            Text("Device: \(UIDevice.current.model)")
+                                .font(.caption)
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
                 

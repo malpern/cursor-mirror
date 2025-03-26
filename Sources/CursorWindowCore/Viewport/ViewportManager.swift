@@ -26,6 +26,14 @@ private class DraggableWindow: NSWindow {
         
         // Set up mouse monitoring
         setupMouseMonitoring()
+        
+        // Add notification observer for window movement
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowDidMove),
+            name: NSWindow.didMoveNotification,
+            object: self
+        )
     }
     
     deinit {
@@ -35,6 +43,15 @@ private class DraggableWindow: NSWindow {
         if let monitor = localMouseMonitor {
             NSEvent.removeMonitor(monitor)
         }
+        
+        // Remove notification observer
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc private func windowDidMove(_ notification: Notification) {
+        // Notify the viewport manager that the window position changed
+        let newPosition = self.frame.origin
+        viewportManager?.windowPositionChanged(to: newPosition)
     }
     
     private func setupMouseMonitoring() {
@@ -106,13 +123,16 @@ private class DraggableWindow: NSWindow {
     }
     
     override func mouseUp(with event: NSEvent) {
-        if !isDragging && !isPointOnOutline(event.locationInWindow) {
+        if isDragging {
+            // Notify the viewport manager when drag ends
+            viewportManager?.windowPositionChanged(to: self.frame.origin)
+            isDragging = false
+        } else if !isPointOnOutline(event.locationInWindow) {
             // Pass through clicks in the center area
             if let nextWindow = NSApp.windows.first(where: { $0 != self && $0.frame.contains(NSEvent.mouseLocation) }) {
                 nextWindow.sendEvent(event)
             }
         }
-        isDragging = false
     }
     
     // Check if a point is on the outline of the rounded rectangle
@@ -164,50 +184,92 @@ public class ViewportManager: ObservableObject, ViewportManagerProtocol {
     public init(viewFactory: @escaping () -> AnyView) {
         self.viewFactory = viewFactory
         
+        print("DEBUG: Initializing ViewportManager, checking saved position")
+        
         // Restore position from UserDefaults if available
         if UserDefaults.standard.object(forKey: UserDefaultsKeys.viewportPositionX) != nil {
             let positionX = UserDefaults.standard.double(forKey: UserDefaultsKeys.viewportPositionX)
             let positionY = UserDefaults.standard.double(forKey: UserDefaultsKeys.viewportPositionY)
             self.position = CGPoint(x: positionX, y: positionY)
+            print("DEBUG: Restored position from UserDefaults: \(positionX), \(positionY)")
+        } else {
+            print("DEBUG: No saved position found in UserDefaults")
         }
         
-        // Always start with viewport hidden
-        self.isVisible = false
-        // Clear any previous visibility state
-        UserDefaults.standard.set(false, forKey: UserDefaultsKeys.viewportWasVisible)
+        // Check if viewport was visible before app quit
+        let wasVisible = UserDefaults.standard.bool(forKey: UserDefaultsKeys.viewportWasVisible)
+        self.isVisible = wasVisible
+        print("DEBUG: Restored visibility from UserDefaults: \(wasVisible)")
+        
+        // Register for app termination notification to save state
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(saveViewportState),
+            name: NSApplication.willTerminateNotification,
+            object: nil
+        )
+        
+        // Also register for periodic saves during use
+        Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+            self?.saveViewportState()
+        }
+    }
+    
+    deinit {
+        // Save state on deinit as well
+        saveViewportState()
+        
+        // Remove notification observer
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc public func saveViewportState() {
+        // Save current position and visibility
+        print("DEBUG: Saving viewport state - position: \(position), visible: \(isVisible)")
+        
+        // Get current window position if available (most accurate)
+        if let window = self.window {
+            let currentPosition = window.frame.origin
+            UserDefaults.standard.set(currentPosition.x, forKey: UserDefaultsKeys.viewportPositionX)
+            UserDefaults.standard.set(currentPosition.y, forKey: UserDefaultsKeys.viewportPositionY)
+            print("DEBUG: Saved actual window position: \(currentPosition)")
+        } else {
+            // Fall back to stored position if window not available
+            UserDefaults.standard.set(position.x, forKey: UserDefaultsKeys.viewportPositionX)
+            UserDefaults.standard.set(position.y, forKey: UserDefaultsKeys.viewportPositionY)
+            print("DEBUG: Saved stored position: \(position)")
+        }
+        
+        UserDefaults.standard.set(isVisible, forKey: UserDefaultsKeys.viewportWasVisible)
+        UserDefaults.standard.synchronize() // Force immediate write
     }
     
     public func showViewport() {
-        print("DEBUG: showViewport() called")
-        // Ensure we're on the main thread for UI operations
+        print("DEBUG: Showing viewport")
+        isVisible = true
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else {
-                print("DEBUG: self was deallocated in showViewport")
-                return
-            }
-            
+            guard let self = self else { return }
             self.createWindow()
             
-            self.isVisible = true
-            print("DEBUG: isVisible set to true")
-            
-            // Save state - explicitly persist position
-            UserDefaults.standard.set(true, forKey: UserDefaultsKeys.viewportWasVisible)
-            UserDefaults.standard.set(self.position.x, forKey: UserDefaultsKeys.viewportPositionX)
-            UserDefaults.standard.set(self.position.y, forKey: UserDefaultsKeys.viewportPositionY)
-            print("DEBUG: State saved to UserDefaults")
+            // Save state after creating window
+            self.saveViewportState()
         }
     }
     
     public func hideViewport() {
-        print("DEBUG: hideViewport() called")
+        print("DEBUG: Hiding viewport")
+        
+        // Save position before hiding
+        if let window = self.window {
+            let currentPosition = window.frame.origin
+            position = currentPosition
+        }
+        
         window?.orderOut(nil)
         isVisible = false
-        print("DEBUG: Window hidden and isVisible set to false")
         
         // Save state
-        UserDefaults.standard.set(false, forKey: UserDefaultsKeys.viewportWasVisible)
-        print("DEBUG: State saved to UserDefaults")
+        saveViewportState()
     }
     
     public func updateWindowPosition(to point: CGPoint, useAnimation: Bool = false) {
@@ -263,6 +325,17 @@ public class ViewportManager: ObservableObject, ViewportManagerProtocol {
         }
     }
     
+    // Add a window position changed handler for the DraggableWindow to call
+    public func windowPositionChanged(to newPosition: CGPoint) {
+        position = newPosition
+        
+        // Save position after user dragging
+        print("DEBUG: Window position changed to \(newPosition)")
+        UserDefaults.standard.set(position.x, forKey: UserDefaultsKeys.viewportPositionX)
+        UserDefaults.standard.set(position.y, forKey: UserDefaultsKeys.viewportPositionY)
+        UserDefaults.standard.synchronize()
+    }
+    
     private func createWindow() {
         print("DEBUG: Creating window if needed. Current window: \(String(describing: window))")
         
@@ -291,7 +364,7 @@ public class ViewportManager: ObservableObject, ViewportManagerProtocol {
                 window.viewportManager = self
                 
                 self.window = window
-                print("DEBUG: Window created successfully")
+                print("DEBUG: Window created successfully at position \(position)")
             }
         }
         

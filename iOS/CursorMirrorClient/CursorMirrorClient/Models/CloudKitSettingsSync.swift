@@ -13,11 +13,14 @@ class CloudKitSettingsSync: CloudKitSettingsSyncProtocol {
     private let recordType = "DeviceSettings"
     
     init(database: CloudKitDatabaseProtocol? = nil) {
-        self.database = database ?? CloudKitDatabaseWrapper(CKContainer.default().privateCloudDatabase)
+        self.database = database ?? CloudKitDatabaseWrapper(CKContainer(identifier: "iCloud.com.cursormirror.client").privateCloudDatabase)
     }
     
     /// Synchronize settings to CloudKit
     func syncSettings(_ settings: [String: Any], forDeviceID deviceID: String) async throws {
+        // Check iCloud account status first
+        try await checkiCloudAccountStatus()
+        
         // Create a query to find existing settings record for this device
         let predicate = NSPredicate(format: "deviceID == %@", deviceID)
         let query = CKQuery(recordType: recordType, predicate: predicate)
@@ -60,6 +63,9 @@ class CloudKitSettingsSync: CloudKitSettingsSyncProtocol {
     
     /// Load settings from CloudKit for a specific device
     func loadSettings(forDeviceID deviceID: String) async throws -> [String: Any]? {
+        // Check iCloud account status first
+        try await checkiCloudAccountStatus()
+        
         // Create a query to find settings for this device
         let predicate = NSPredicate(format: "deviceID == %@", deviceID)
         let query = CKQuery(recordType: recordType, predicate: predicate)
@@ -95,6 +101,9 @@ class CloudKitSettingsSync: CloudKitSettingsSyncProtocol {
     
     /// Delete settings from CloudKit
     func deleteSettings(forDeviceID deviceID: String) async throws {
+        // Check iCloud account status first
+        try await checkiCloudAccountStatus()
+        
         // Create a query to find settings for this device
         let predicate = NSPredicate(format: "deviceID == %@", deviceID)
         let query = CKQuery(recordType: recordType, predicate: predicate)
@@ -109,7 +118,31 @@ class CloudKitSettingsSync: CloudKitSettingsSyncProtocol {
         // If we found a record, delete it
         if let recordResult = results.first,
            let recordID = try? recordResult.1.get().recordID {
-            try await CKContainer.default().privateCloudDatabase.deleteRecord(withID: recordID)
+            try await CKContainer(identifier: "iCloud.com.cursormirror.client").privateCloudDatabase.deleteRecord(withID: recordID)
+        }
+    }
+    
+    /// Check iCloud account status
+    private func checkiCloudAccountStatus() async throws {
+        return try await withCheckedThrowingContinuation { continuation in
+            CKContainer(identifier: "iCloud.com.cursormirror.client").accountStatus { status, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                if status != .available {
+                    let error = NSError(
+                        domain: "CursorMirrorErrorDomain",
+                        code: 1001,
+                        userInfo: [NSLocalizedDescriptionKey: "iCloud account not available. Please sign in to iCloud in Settings."]
+                    )
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                continuation.resume()
+            }
         }
     }
 } 

@@ -214,8 +214,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
                     // Ensure app is active and visible
                     NSApp.activate()
                     
-                    // Remove the automatic viewport restoration
-                    // The viewport will now only show when the user explicitly enables it
+                    // Restore viewport if it was visible previously
+                    if UserDefaults.standard.bool(forKey: "com.cursor-window.viewport.wasVisible") {
+                        print("DEBUG: Restoring viewport from previous session")
+                        // Delay the restoration slightly to ensure everything is initialized
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            self.viewportManager?.showViewport()
+                        }
+                    } else {
+                        print("DEBUG: Viewport was not visible in previous session")
+                    }
                 }
                 
                 // Create the main window - always show it at startup for better visibility
@@ -382,6 +390,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     func applicationWillTerminate(_ notification: Notification) {
         // Clean up resources
         print("Application will terminate")
+        
+        // Save viewport state explicitly
+        viewportManager?.saveViewportState()
         
         // Run cleanup synchronously to ensure it completes before app exits
         Task {

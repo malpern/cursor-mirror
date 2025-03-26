@@ -68,12 +68,27 @@ class ConnectionViewModel {
          database: CloudKitDatabaseProtocol? = nil) {
         self.connectionState = connectionState
         self.streamConfig = streamConfig
-        self.database = database ?? CloudKitDatabaseWrapper(CKContainer.default().privateCloudDatabase)
+        self.database = database ?? CloudKitDatabaseWrapper(CKContainer(identifier: "iCloud.com.cursormirror.client").privateCloudDatabase)
+        
+        // Register for the refresh notification
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRefreshNotification),
+            name: Notification.Name("RefreshDevicesList"),
+            object: nil
+        )
     }
     
     deinit {
         // Cancel any ongoing discovery
         cancelDiscovery()
+        
+        // Remove notification observer
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc private func handleRefreshNotification() {
+        startDeviceDiscovery()
     }
     
     // MARK: - Public Methods
@@ -87,6 +102,16 @@ class ConnectionViewModel {
         
         discoveryTask = Task {
             do {
+                // Check iCloud account status first
+                let accountStatus = try await checkiCloudAccountStatus()
+                if accountStatus != .available {
+                    throw NSError(
+                        domain: "CursorMirrorErrorDomain",
+                        code: 1001,
+                        userInfo: [NSLocalizedDescriptionKey: "iCloud account not available. Please sign in to iCloud in Settings."]
+                    )
+                }
+                
                 // Set up the query for devices
                 let query = CKQuery(recordType: "Device", predicate: NSPredicate(value: true))
                 query.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
@@ -181,6 +206,13 @@ class ConnectionViewModel {
     /// Register this device in CloudKit for discovery by other devices
     func registerThisDevice() async {
         do {
+            // Check iCloud account status first
+            let accountStatus = try await checkiCloudAccountStatus()
+            guard accountStatus == .available else {
+                print("iCloud account not available. Status: \(accountStatus)")
+                return
+            }
+            
             // Create a unique identifier for this device
             let deviceID = await UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
             
@@ -235,8 +267,9 @@ class ConnectionViewModel {
             return nil
         }
         
-        // Base URL would typically come from the device record or a service discovery
-        let baseURL = "http://localhost:8080" // Default for testing
+        // Get the server address from the device record, defaulting to localhost if not available
+        let baseURL = "http://\(device.serverAddress ?? "localhost:8080")"
+        print("Using server URL: \(baseURL)")
         
         return streamConfig.generateStreamURL(forDevice: device.id, baseURL: baseURL)
     }
@@ -283,6 +316,43 @@ class ConnectionViewModel {
             }
         } catch {
             print("Error sending touch event: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Check iCloud account status
+    private func checkiCloudAccountStatus() async throws -> CKAccountStatus {
+        let container = CKContainer(identifier: "iCloud.com.cursormirror.client")
+        
+        // First verify the container is available
+        print("DEBUG: Checking CloudKit container availability: \(container.containerIdentifier ?? "unknown")")
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            container.accountStatus { status, error in
+                if let error = error {
+                    print("DEBUG: CloudKit container error: \(error.localizedDescription)")
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                print("DEBUG: CloudKit container status: \(status.rawValue)")
+                
+                // Check for restrictions on the container as well
+                container.fetchUserRecordID { recordID, recordError in
+                    if let recordError = recordError {
+                        print("DEBUG: CloudKit user record error: \(recordError.localizedDescription)")
+                        // We don't throw this error, but log it for debugging
+                    }
+                    
+                    if let recordID = recordID {
+                        print("DEBUG: CloudKit user record ID: \(recordID.recordName)")
+                    }
+                    
+                    // We still return the original status
+                    continuation.resume(returning: status)
+                }
+            }
         }
     }
 } 

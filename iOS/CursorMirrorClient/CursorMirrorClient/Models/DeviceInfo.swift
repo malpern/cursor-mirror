@@ -8,6 +8,7 @@ struct DeviceInfo: Identifiable, Hashable {
     let recordID: CKRecord.ID
     var isOnline: Bool
     var lastSeen: Date
+    var serverAddress: String?
     
     init(
         id: String = UUID().uuidString,
@@ -15,7 +16,8 @@ struct DeviceInfo: Identifiable, Hashable {
         type: String = "Mac",
         recordID: CKRecord.ID,
         isOnline: Bool = false,
-        lastSeen: Date = Date()
+        lastSeen: Date = Date(),
+        serverAddress: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -23,6 +25,7 @@ struct DeviceInfo: Identifiable, Hashable {
         self.recordID = recordID
         self.isOnline = isOnline
         self.lastSeen = lastSeen
+        self.serverAddress = serverAddress
     }
     
     // MARK: - Hashable
@@ -53,7 +56,8 @@ extension DeviceInfo {
             type: type,
             recordID: record.recordID,
             isOnline: isOnline == 1,
-            lastSeen: lastSeen
+            lastSeen: lastSeen,
+            serverAddress: record["serverAddress"] as? String
         )
     }
     

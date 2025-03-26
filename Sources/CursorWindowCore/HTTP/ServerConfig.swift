@@ -50,6 +50,45 @@ public struct ServerConfig: Codable, Equatable, Sendable {
         self.enableAdmin = enableAdmin
         self.enableCORS = enableCORS
     }
+    
+    /// Get the device's local network IP address
+    public static func getLocalIPAddress() -> String {
+        var address: String = "localhost"
+        
+        // Get list of all interfaces
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
+            return address
+        }
+        
+        // Find a suitable IP address
+        for ifptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
+            let interface = ifptr.pointee
+            
+            // Check for IPv4 or IPv6 interface
+            let addrFamily = interface.ifa_addr.pointee.sa_family
+            if addrFamily == UInt8(AF_INET) || addrFamily == UInt8(AF_INET6) {
+                // Check if interface is en0 which is the primary interface on macOS
+                let name = String(cString: interface.ifa_name)
+                if name == "en0" {
+                    // Convert interface address to a string (IPv4)
+                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                               &hostname, socklen_t(hostname.count),
+                               nil, socklen_t(0), NI_NUMERICHOST)
+                    address = String(cString: hostname)
+                    
+                    // Use the first IPv4 address from en0 interface
+                    if addrFamily == UInt8(AF_INET) {
+                        break
+                    }
+                }
+            }
+        }
+        
+        freeifaddrs(ifaddr)
+        return address
+    }
 }
 
 /// Configuration for Cross-Origin Resource Sharing (CORS)

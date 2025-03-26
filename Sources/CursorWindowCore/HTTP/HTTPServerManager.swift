@@ -7,6 +7,7 @@ import Leaf
 import CoreMedia
 import CursorWindowCore
 import NIOFoundationCompat
+import CloudKit
 
 // No need to explicitly import types from our own module
 // import struct CursorWindowCore.H264EncoderSettings
@@ -140,9 +141,9 @@ public class HTTPServerManager {
             
             // Configure HTTP settings
             app.http.server.configuration.hostname = config.hostname
-        app.http.server.configuration.port = config.port
-        
-        // Configure middleware
+            app.http.server.configuration.port = config.port
+            
+            // Configure middleware
             configureMiddleware(app)
             
             // Configure TLS if needed
@@ -153,8 +154,8 @@ public class HTTPServerManager {
                     throw HTTPServerError.sslConfigurationError("TLS configuration failed: \(error.localizedDescription)")
                 }
             }
-        
-        // Configure routes
+            
+            // Configure routes
             await configureRoutes(app)
             
             // Configure admin dashboard if enabled
@@ -166,13 +167,28 @@ public class HTTPServerManager {
             self.app = app
             
             // Start the application
-        try await app.startup()
+            try await app.startup()
             
             // Record startup
             isRunning = true
             startTime = Date()
             
             logger.info("HTTP server started on \(config.hostname):\(config.port)")
+            
+            // Register device in CloudKit with the server's IP
+            Task {
+                do {
+                    let ipAddress = config.hostname == "localhost" ? ServerConfig.getLocalIPAddress() : config.hostname
+                    let registrationService = DeviceRegistrationService()
+                    if try await registrationService.registerDevice(serverIP: ipAddress) {
+                        logger.info("Successfully registered server in CloudKit with IP: \(ipAddress)")
+                    } else {
+                        logger.warning("Failed to register server in CloudKit")
+                    }
+                } catch {
+                    logger.error("Error registering server: \(error.localizedDescription)")
+                }
+            }
         } catch {
             // Clean up application
             if let app = app {
@@ -197,45 +213,31 @@ public class HTTPServerManager {
     /// Stop the HTTP server
     /// - Throws: HTTPServerError if the server fails to stop
     public func stop() async throws {
-        guard let app = app, isRunning else {
+        // Check if server is running
+        guard isRunning, let app = app else {
             throw HTTPServerError.serverNotRunning
         }
         
         logger.info("Stopping HTTP server")
         
-        // Update state first to prevent additional requests
+        // Update server status
         isRunning = false
         startTime = nil
         
-        // Ensure any active streaming is stopped first
-        if let encodingAdapter = encodingAdapter {
-            try? await encodingAdapter.stop()
-        }
-        
-        // Ensure we capture the application
-        let appRef = app
-        
-        // Use a task to await a continuation that will be resumed once shutdown completes
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            // Perform shutdown on a high-priority background thread
-            DispatchQueue.global(qos: .userInitiated).async {
-                // Force shutdown at the EventLoopGroup level to ensure Vapor's resources are released
-                appRef.eventLoopGroup.shutdownGracefully { _ in
-                    // This is a fallback signal
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        continuation.resume()
-                    }
-                }
-                
-                // Call the regular shutdown method as well
-                appRef.shutdown()
-                
-                // Resume the continuation immediately
-                continuation.resume()
+        // Update device in CloudKit to show offline
+        Task {
+            do {
+                let deviceOffline = try await DeviceRegistrationService.markOffline()
+                logger.info("Updated server status to offline in CloudKit: \(deviceOffline)")
+            } catch {
+                logger.error("Error updating server status: \(error.localizedDescription)")
             }
         }
         
-        // Clear the app reference
+        // Shutdown the app
+        app.shutdown()
+        
+        // Set app to nil
         self.app = nil
         
         logger.info("HTTP server stopped")
