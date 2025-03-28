@@ -9,9 +9,10 @@ import CoreVideo
 public protocol FrameProcessor: Sendable {
     /// Process a frame from the screen capture stream
     /// - Parameters:
-    ///   - frame: The frame to process
+    ///   - frame: The captured frame as a CVPixelBuffer
     ///   - timestamp: The timestamp of the frame
-    /// - Returns: The processed frame data
+    /// - Returns: Optional encoded data
+    /// - Throws: Error if frame processing fails
     func processFrame(_ frame: CVPixelBuffer, timestamp: CMTime) async throws -> Data?
 }
 #endif 

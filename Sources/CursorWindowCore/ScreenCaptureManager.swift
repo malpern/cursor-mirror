@@ -417,23 +417,37 @@ extension ScreenCaptureManager: SCStreamOutput {
     /// through the actor-isolated frame processor
     @preconcurrency
     nonisolated public func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of outputType: SCStreamOutputType) {
-        // Only process frames if we have a processor
+        // Only process video frames
+        guard outputType == .screen else { return }
+        
+        // Get the timestamp
+        let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        
+        // Handle the sample buffer based on processor type
         Task {
-            if let processor = await frameProcessorActor.get() {
-                let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-                print("[ScreenCaptureManager] Processing frame at time: \(timestamp.seconds)s")
-                
+            // Check if isCapturing on main actor
+            if await !MainActor.run(body: { self.isCapturing }) {
+                print("[ScreenCaptureManager] Capturing stopped during stream")
+                return
+            }
+            
+            if let processor = await self.frameProcessor {
                 if let basicProcessor = processor as? BasicFrameProcessorProtocol {
                     print("[ScreenCaptureManager] Using BasicFrameProcessor")
-                    basicProcessor.processFrame(sampleBuffer)
+                    if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+                        try? await basicProcessor.processFrame(pixelBuffer, timestamp: timestamp)
+                    }
                 } else if let encodingProcessor = processor as? EncodingFrameProcessorProtocol {
                     print("[ScreenCaptureManager] Using EncodingFrameProcessor")
-                    encodingProcessor.processFrame(sampleBuffer)
+                    // Extract CVPixelBuffer from the sample buffer
+                    if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+                        await encodingProcessor.processFrame(pixelBuffer, timestamp: timestamp)
+                    } else {
+                        print("[ScreenCaptureManager] Unable to get CVPixelBuffer from sample buffer")
+                    }
                 } else {
                     print("[ScreenCaptureManager] Unknown processor type: \(String(describing: processor))")
                 }
-            } else {
-                print("[ScreenCaptureManager] No frame processor available")
             }
         }
     }

@@ -13,6 +13,19 @@ public struct LogFilter: Content {
     public let status: Int?
 }
 
+/// Storage key for admin controller
+private struct AdminControllerKey: StorageKey {
+    typealias Value = AdminController
+}
+
+extension Application {
+    /// Get or set the admin controller for this application
+    var adminController: AdminController? {
+        get { storage[AdminControllerKey.self] }
+        set { storage[AdminControllerKey.self] = newValue }
+    }
+}
+
 /// Controller for admin dashboard
 public actor AdminController {
     /// HTTP server manager

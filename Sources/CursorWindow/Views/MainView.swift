@@ -7,29 +7,31 @@ import AVFoundation
 import CursorWindowCore
 
 struct MainView: View {
-    @Environment(\.capturePreviewViewModel) private var capturePreviewViewModel: CapturePreviewViewModel?
-    @Environment(\.encodingControlViewModel) private var encodingControlViewModel: EncodingControlViewModel?
-    @State private var selectedTab = 0
+    @Environment(\.encodingControlViewModel) private var viewModel
+    @State private var localSettings: EncodingSettings?
+    @State private var isLoading = true
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            if let previewVM = capturePreviewViewModel {
-                CapturePreviewView(viewModel: previewVM)
-                    .tabItem {
-                        Label("Preview", systemImage: "video")
+        VStack {
+            if isLoading {
+                ProgressView("Loading settings...")
+            } else if let settings = localSettings {
+                EncodingSettingsFormView(
+                    settings: settings,
+                    onUpdate: { update in
+                        await settings.apply(update)
                     }
-                    .tag(0)
-            }
-            
-            if let encodingVM = encodingControlViewModel {
-                EncodingControlView(viewModel: encodingVM)
-                    .tabItem {
-                        Label("Encoding", systemImage: "gear")
-                    }
-                    .tag(1)
+                )
             }
         }
-        .frame(minWidth: 600, minHeight: 700)
+        .task {
+            do {
+                localSettings = await viewModel?.encodingSettings
+                isLoading = false
+            } catch {
+                print("Error loading settings: \(error)")
+            }
+        }
     }
 }
 
@@ -77,90 +79,15 @@ struct CapturePreviewView: View {
     }
 }
 
-struct EncodingControlView: View {
-    let viewModel: EncodingControlViewModel
-    @State private var outputPath: String = NSHomeDirectory() + "/Desktop/output.mp4"
-    @State private var isEncoding: Bool = false
-    @State private var width: Int = 393
-    @State private var height: Int = 852
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Encoding Settings")
-                .font(.headline)
-                .padding(.bottom)
-            
-            HStack {
-                Text("Output File:")
-                TextField("Output Path", text: $outputPath)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                Button("Browse") {
-                    let panel = NSSavePanel()
-                    panel.allowedContentTypes = [.mpeg4Movie]
-                    panel.canCreateDirectories = true
-                    
-                    if panel.runModal() == .OK, let url = panel.url {
-                        outputPath = url.path
-                    }
-                }
-            }
-            
-            HStack {
-                Text("Resolution:")
-                TextField("Width", value: $width, formatter: NumberFormatter())
-                    .frame(width: 80)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                Text("x")
-                TextField("Height", value: $height, formatter: NumberFormatter())
-                    .frame(width: 80)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-            }
-            
-            HStack {
-                Button(isEncoding ? "Stop Encoding" : "Start Encoding") {
-                    if isEncoding {
-                        Task {
-                            await viewModel.frameProcessor.stopEncoding()
-                            isEncoding = false
-                        }
-                    } else {
-                        do {
-                            Task {
-                                do {
-                                    try await viewModel.frameProcessor.startEncoding(
-                                        to: URL(fileURLWithPath: outputPath),
-                                        width: width,
-                                        height: height
-                                    )
-                                    isEncoding = true
-                                } catch {
-                                    print("Error starting encoding: \(error)")
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding()
-                .background(isEncoding ? Color.red : Color.green)
-                .foregroundColor(.white)
-                .cornerRadius(8)
-            }
-            
-            Spacer()
-        }
-        .padding()
-    }
-}
-
 // MARK: - Preview Helpers
 class MockFrameProcessor: BasicFrameProcessorProtocol {
-    func processFrame(_ frame: CMSampleBuffer) {}
-}
-
-class MockEncodingProcessor: EncodingFrameProcessorProtocol {
-    func processFrame(_ frame: CMSampleBuffer) {}
-    func startEncoding(to url: URL, width: Int, height: Int) throws {}
-    func stopEncoding() {}
+    func processFrame(_ frame: CMSampleBuffer) async throws -> Data? {
+        return nil
+    }
+    
+    func processFrame(_ pixelBuffer: CVPixelBuffer, timestamp: CMTime) async throws -> Data? {
+        return nil
+    }
 }
 
 class MockCaptureManager: FrameCaptureManagerProtocol {
@@ -173,16 +100,16 @@ struct MockCapturePreviewViewModel: CapturePreviewViewModel {
     let captureManager: FrameCaptureManagerProtocol = MockCaptureManager()
 }
 
-struct MockEncodingControlViewModel: EncodingControlViewModel {
-    let frameProcessor: EncodingFrameProcessorProtocol = MockEncodingProcessor()
+#if DEBUG
+struct MainView_Previews: PreviewProvider {
+    static var previews: some View {
+        MainView()
+            .environment(\.capturePreviewViewModel, MockCapturePreviewViewModel())
+            .environment(\.encodingControlViewModel, MockEncodingControlViewModel.shared)
+    }
 }
-
-#Preview {
-    MainView()
-        .environment(\.capturePreviewViewModel, MockCapturePreviewViewModel())
-        .environment(\.encodingControlViewModel, MockEncodingControlViewModel())
-}
+#endif
 
 #else
 #error("MainView is only available on macOS 14.0 or later")
-#endif 
+#endif

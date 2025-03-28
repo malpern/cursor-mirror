@@ -11,14 +11,25 @@ import NIOFoundationCompat
 
 /// Manages the HTTP server for cursor window
 @MainActor
-public class HTTPServerManager {
+public class HTTPServerManager: ObservableObject {
+    // MARK: - Types
+    
+    public enum HTTPServerError: Error {
+        case initializationFailed
+        case serverNotRunning
+        case encoderNotConnected
+    }
+    
     // MARK: - Properties
+    
+    /// Shared instance
+    public static let shared = HTTPServerManager()
     
     /// The HTTP server instance
     private var server: Application?
     
     /// The device registration service for CloudKit integration
-    private var deviceRegistrationService: (any DeviceRegistrationServiceProtocol)?
+    private var deviceRegistrationService: DeviceRegistrationService?
     
     /// The server configuration
     var config: ServerConfig
@@ -27,7 +38,14 @@ public class HTTPServerManager {
     private var cloudKitEnabled: Bool
     
     /// Whether the server is currently running
-    public private(set) var isRunning: Bool = false
+    @Published public private(set) var isRunning: Bool = false
+    
+    /// Whether the server is currently streaming
+    @Published public private(set) var isStreaming: Bool = false
+    
+    private var app: Application?
+    private var adminController: AdminController?
+    private var videoEncoder: (any VideoEncoder)?
     
     // MARK: - Initialization
     
@@ -39,7 +57,7 @@ public class HTTPServerManager {
     public init(
         config: ServerConfig = ServerConfig(),
         cloudKitEnabled: Bool = true,
-        deviceRegistrationService: (any DeviceRegistrationServiceProtocol)? = nil
+        deviceRegistrationService: DeviceRegistrationService? = nil
     ) {
         self.config = config
         self.cloudKitEnabled = cloudKitEnabled
@@ -50,87 +68,97 @@ public class HTTPServerManager {
     
     /// Start the HTTP server
     /// - Returns: True if server started successfully, false otherwise
-    public func start() async throws -> Bool {
-        print("Starting HTTP server on port \(config.port)")
+    public func start() async throws {
+        guard !isRunning else { return }
         
-        // Create and start the server
-        let app = Application(.development)
-        app.http.server.configuration.port = config.port
-        app.http.server.configuration.hostname = config.hostname
+        // Initialize deviceRegistrationService if needed
+        if deviceRegistrationService == nil {
+            deviceRegistrationService = await DeviceRegistrationService()
+        }
         
-        // Create and set up admin controller if admin dashboard is enabled
+        // Initialize Vapor application
+        app = try await Application.make(.development)
+        guard let app = app else {
+            throw HTTPServerError.initializationFailed
+        }
+        
+        // Configure admin dashboard if enabled
         if config.enableAdmin {
-            let streamManager = HLSStreamManager(timeoutInterval: 300) // 5 minutes timeout
+            let streamManager = HLSStreamManager()
             let authManager = AuthenticationManager(config: config.authentication.toAuthConfig())
-            
+            adminController = AdminController(
+                serverManager: self,
+                streamManager: streamManager,
+                authManager: authManager
+            )
+            try await adminController?.setupRoutes(app)
+        }
+        
+        // Start the server
+        try app.server.start()  // Remove await as it's not an async operation
+        isRunning = true
+    }
+    
+    /// Stop the HTTP server
+    public func stop() async throws {
+        guard isRunning, let app = server else { return }
+        
+        // Stop streaming if active
+        if isStreaming {
+            try await stopStreaming()
+        }
+        
+        // Shutdown server in background to avoid blocking
+        DispatchQueue.global(qos: .userInitiated).async {
+            app.shutdown()
+        }
+        
+        // Wait a bit for server to shut down
+        try await Task.sleep(nanoseconds: 500_000_000)
+        server = nil
+        isRunning = false
+    }
+    
+    public func startStreaming() async throws {
+        guard isRunning, !isStreaming else { return }
+        isStreaming = true
+    }
+    
+    public func stopStreaming() async throws {
+        guard isRunning, isStreaming else { return }
+        isStreaming = false
+    }
+    
+    // MARK: - Private Methods
+    
+    /// Configure the Vapor server
+    private func configureServer(_ app: Application) async throws {
+        // Configure server settings
+        app.http.server.configuration.hostname = config.hostname
+        app.http.server.configuration.port = config.port
+        
+        // Configure middleware
+        app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
+        
+        // Configure routes
+        try await configureRoutes(app)
+    }
+    
+    /// Configure server routes
+    private func configureRoutes(_ app: Application) async throws {
+        // Configure admin routes if enabled
+        if config.enableAdmin {
+            let streamManager = HLSStreamManager()
+            let authManager = AuthenticationManager(config: config.authentication.toAuthConfig())
             let adminController = AdminController(
                 serverManager: self,
                 streamManager: streamManager,
                 authManager: authManager
             )
-            app.adminController = adminController
             await adminController.setupRoutes(app)
         }
         
-        try await app.startup()
-        self.server = app
-        isRunning = true
-        
-        // Register with CloudKit if enabled
-        if cloudKitEnabled {
-            return try await registerWithCloudKit()
-        }
-        
-        return true
-    }
-    
-    /// Register the device with CloudKit
-    /// - Returns: True if registration was successful, false otherwise
-    private func registerWithCloudKit() async throws -> Bool {
-        guard let deviceService = deviceRegistrationService else {
-            print("CloudKit enabled but no device registration service provided")
-            return false
-        }
-        
-        do {
-            return try await deviceService.registerDevice(serverIP: ServerConfig.getLocalIPAddress())
-        } catch {
-            print("Failed to register with CloudKit: \(error.localizedDescription)")
-            throw HTTPServerError.internalError("CloudKit registration failed: \(error.localizedDescription)")
-        }
-    }
-    
-    /// Stop the HTTP server
-    /// - Parameter skipCloudKit: Whether to skip updating CloudKit status
-    public func stop(skipCloudKit: Bool = false) {
-        print("Stopping HTTP server")
-        
-        // Stop the server first
-        if let app = server {
-            app.shutdown()
-        }
-        server = nil
-        isRunning = false
-        
-        // Update CloudKit status if enabled and not skipped
-        if cloudKitEnabled && !skipCloudKit {
-            // Use a background queue to avoid blocking
-            DispatchQueue.global(qos: .background).async {
-                Task {
-                    do {
-                        _ = try await DeviceRegistrationService.markOffline()
-                    } catch {
-                        print("Failed to mark device as offline in CloudKit: \(error.localizedDescription)")
-                    }
-                }
-            }
-        }
-    }
-    
-    /// Emergency shutdown of the server
-    /// This is called when the application is terminating
-    public func emergencyShutdown() {
-        stop(skipCloudKit: true)
+        // Add other routes here
     }
     
     /// Record a request log
@@ -172,7 +200,7 @@ struct ServerStatus: Content {
 // MARK: - Extensions
 
 extension HTTPServerManager: VideoEncoderDelegate {
-    public func videoEncoder(_ encoder: VideoEncoder, didOutputSampleBuffer sampleBuffer: CMSampleBuffer) {
+    nonisolated public func videoEncoder(_ encoder: VideoEncoder, didOutputSampleBuffer sampleBuffer: CMSampleBuffer) async {
         // Handle encoded video samples
         print("Received encoded video sample")
     }

@@ -1,13 +1,6 @@
 import SwiftUI
 import CursorWindowCore
 
-public struct ViewportSize {
-    public static let width: CGFloat = 393
-    public static let height: CGFloat = 852
-    public static let strokeWidth: CGFloat = 5
-    public static let cornerRadius: CGFloat = 55  // iPhone 15 Pro corner radius
-}
-
 struct DraggableViewport: View {
     @StateObject var viewportState = ViewportState()
     @EnvironmentObject var screenCaptureManager: ScreenCaptureManager
@@ -74,42 +67,32 @@ struct DraggableViewport: View {
                 .shadow(radius: 5)
             }
             
-            // Invisible hit testing area that extends inside and outside
-            RoundedRectangle(cornerRadius: ViewportSize.cornerRadius)
-                .fill(Color.clear)
-                .frame(
-                    width: ViewportSize.width + hitTestingBuffer * 2,
-                    height: ViewportSize.height + hitTestingBuffer * 2
-                )
+            // The draggable container
+            // Significantly larger than the viewport to make it easier to grab
+            Rectangle()
+                .foregroundColor(.clear)
                 .contentShape(Rectangle())
+                .frame(
+                    width: ViewportSize.defaultSize().width + hitTestingBuffer * 2,
+                    height: ViewportSize.defaultSize().height + hitTestingBuffer * 2
+                )
                 .offset(viewportState.offset)
             
-            // Center area that allows click-through
+            // White glow layer
             RoundedRectangle(cornerRadius: ViewportSize.cornerRadius)
-                .fill(Color.clear)
+                .fill(Color.white.opacity(glowOpacity))
                 .frame(
-                    width: ViewportSize.width - hitTestingBuffer * 2,
-                    height: ViewportSize.height - hitTestingBuffer * 2
+                    width: ViewportSize.defaultSize().width + glowWidth * 2,
+                    height: ViewportSize.defaultSize().height + glowWidth * 2
                 )
-                .contentShape(Rectangle())
-                .allowsHitTesting(false)
-                .offset(viewportState.offset)
-            
-            // Glow effect
-            RoundedRectangle(cornerRadius: ViewportSize.cornerRadius)
-                .strokeBorder(Color.blue.opacity(glowOpacity), lineWidth: glowWidth)
                 .blur(radius: glowRadius)
-                .frame(
-                    width: ViewportSize.width + glowRadius * 2,
-                    height: ViewportSize.height + glowRadius * 2
-                )
                 .offset(viewportState.offset)
                 .allowsHitTesting(false)
             
-            // Main viewport border
+            // Blue border
             RoundedRectangle(cornerRadius: ViewportSize.cornerRadius)
                 .strokeBorder(Color.blue, lineWidth: ViewportSize.strokeWidth)
-                .frame(width: ViewportSize.width, height: ViewportSize.height)
+                .frame(width: ViewportSize.defaultSize().width, height: ViewportSize.defaultSize().height)
                 .offset(viewportState.offset)
                 .allowsHitTesting(false)
         }
@@ -139,7 +122,7 @@ struct DraggableViewport: View {
     
     /// Update the TouchEventController with the current viewport bounds
     private func updateTouchControllerBounds() {
-        let size = CGSize(width: ViewportSize.width, height: ViewportSize.height)
+        let size = CGSize(width: ViewportSize.defaultSize().width, height: ViewportSize.defaultSize().height)
         let origin = NSPoint(
             x: NSScreen.main?.frame.width ?? 0 / 2 + viewportState.offset.width - size.width / 2,
             y: NSScreen.main?.frame.height ?? 0 / 2 + viewportState.offset.height - size.height / 2
@@ -169,8 +152,8 @@ final class ViewportState: ObservableObject {
         )
         
         // Calculate the viewport bounds
-        let viewportWidth = ViewportSize.width
-        let viewportHeight = ViewportSize.height
+        let viewportWidth = ViewportSize.defaultSize().width
+        let viewportHeight = ViewportSize.defaultSize().height
         
         // Calculate maximum allowed offsets to keep viewport on screen
         let maxX = (screenBounds.width - viewportWidth) / 2

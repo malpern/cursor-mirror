@@ -7,11 +7,12 @@ import CloudKit
 public actor DeviceRegistrationActor {
     static public let shared = DeviceRegistrationActor()
     
-    public func createService() -> DeviceRegistrationService {
-        return DeviceRegistrationService()
+    public func createService() async -> DeviceRegistrationService {
+        return await DeviceRegistrationService()
     }
 }
 
+@DeviceRegistrationActor
 open class DeviceRegistrationService: DeviceRegistrationServiceProtocol {
     // CloudKit container
     private let container: CloudKitContainerProtocol

@@ -29,6 +29,9 @@ public enum HTTPServerError: Error, CustomStringConvertible, Sendable {
     /// Authentication error
     case authenticationError(String)
     
+    /// Internal error
+    case internalError(String)
+    
     /// Human-readable description of the error
     public var description: String {
         switch self {
@@ -50,6 +53,8 @@ public enum HTTPServerError: Error, CustomStringConvertible, Sendable {
             return "Server error: \(message)"
         case .authenticationError(let message):
             return "Authentication error: \(message)"
+        case .internalError(let message):
+            return "Internal error: \(message)"
         }
     }
 } 

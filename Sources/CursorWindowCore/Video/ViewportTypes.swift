@@ -2,7 +2,7 @@ import Foundation
 import CoreGraphics
 
 /// Represents the dimensions of a viewport
-public struct ViewportSize {
+public struct ViewportSize: Sendable {
     public let width: CGFloat
     public let height: CGFloat
     public static let cornerRadius: CGFloat = 55  // iPhone 15 Pro corner radius

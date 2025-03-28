@@ -7,7 +7,7 @@ import CoreVideo
 /// A basic implementation of frame processing that can be used as a starting point
 /// for more complex frame processing operations.
 @available(macOS 14.0, *)
-public final class BasicFrameProcessor: FrameProcessor, @unchecked Sendable {
+public final class BasicFrameProcessor: BasicFrameProcessorProtocol, FrameProcessor, @unchecked Sendable {
     /// Configuration options for frame processing
     public struct Configuration: Sendable {
         /// Target frame rate for processing
@@ -84,11 +84,12 @@ public final class BasicFrameProcessor: FrameProcessor, @unchecked Sendable {
         self.ciContext = CIContext()
     }
     
-    public func processFrame(_ frame: CVPixelBuffer, timestamp: CMTime) async throws -> Data? {
+    // Add compatibility for the protocol
+    public func processFrame(_ pixelBuffer: CVPixelBuffer, timestamp: CMTime) async throws -> Data? {
         let startTime = Date()
         
         // Create CIImage from pixel buffer
-        let ciImage = CIImage(cvPixelBuffer: frame)
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
         
         // Apply basic image processing if enabled
         let processedImage = configuration.enableImageProcessing ? applyImageProcessing(to: ciImage) : ciImage
@@ -97,9 +98,9 @@ public final class BasicFrameProcessor: FrameProcessor, @unchecked Sendable {
         var processedBuffer: CVPixelBuffer?
         CVPixelBufferCreate(
             kCFAllocatorDefault,
-            CVPixelBufferGetWidth(frame),
-            CVPixelBufferGetHeight(frame),
-            CVPixelBufferGetPixelFormatType(frame),
+            CVPixelBufferGetWidth(pixelBuffer),
+            CVPixelBufferGetHeight(pixelBuffer),
+            CVPixelBufferGetPixelFormatType(pixelBuffer),
             nil,
             &processedBuffer
         )
@@ -118,6 +119,16 @@ public final class BasicFrameProcessor: FrameProcessor, @unchecked Sendable {
         }
         
         return nil
+    }
+    
+    // Add a compatibility method for CMSampleBuffer
+    public func processFrame(_ sampleBuffer: CMSampleBuffer) async throws -> Data? {
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            throw NSError(domain: "BasicFrameProcessor", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to extract pixel buffer from sample buffer"])
+        }
+        
+        let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        return try await processFrame(pixelBuffer, timestamp: timestamp)
     }
     
     private func applyImageProcessing(to image: CIImage) -> CIImage {

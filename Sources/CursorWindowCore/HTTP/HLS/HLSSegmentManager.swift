@@ -234,6 +234,28 @@ public actor HLSSegmentManager {
             withIntermediateDirectories: true
         )
     }
+    
+    // Comment out these methods until we can properly implement them
+    /*
+    // Add method to check if we should create a new segment
+    public func shouldCreateNewSegment() async -> Bool {
+        guard let currentDuration = try? await getCurrentSegmentDuration() else {
+            return true
+        }
+        
+        return currentDuration >= targetSegmentDuration
+    }
+    
+    // Get the current segment duration
+    public func getCurrentSegmentDuration() async throws -> Double {
+        guard isWriting, let assetWriter = assetWriter else {
+            return 0
+        }
+        
+        let currentDuration = CMTimeGetSeconds(assetWriter.duration)
+        return currentDuration > 0 ? currentDuration : 0
+    }
+    */
 }
 
 /// Writes HLS compatible MPEG-TS segments from sample buffers

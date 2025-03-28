@@ -1,4 +1,5 @@
 #if os(macOS)
+#if compiler(>=5.9) && canImport(AppKit)
 import Foundation
 import SwiftUI
 import ScreenCaptureKit
@@ -13,28 +14,43 @@ import AVFoundation
 @preconcurrency public protocol BasicFrameProcessorProtocol: AnyObject {
     /// Process a single frame from the screen capture stream
     /// - Parameter frame: A CMSampleBuffer containing the captured frame data
-    nonisolated func processFrame(_ frame: CMSampleBuffer)
+    func processFrame(_ sampleBuffer: CMSampleBuffer) async throws -> Data?
+    
+    /// Process a single pixel buffer from the screen capture stream
+    /// - Parameters:
+    ///   - pixelBuffer: A CVPixelBuffer containing the captured frame data
+    ///   - timestamp: The presentation timestamp of the frame
+    func processFrame(_ pixelBuffer: CVPixelBuffer, timestamp: CMTime) async throws -> Data?
 }
 
 /// A protocol for frame processors that handle video encoding.
 /// Implementations should manage both frame processing and encoding operations.
 /// This is used for saving or streaming video content.
 @available(macOS 14.0, *)
-@preconcurrency public protocol EncodingFrameProcessorProtocol: AnyObject {
+@preconcurrency public protocol EncodingFrameProcessorProtocol: AnyObject, Sendable {
     /// Process and encode a single frame
     /// - Parameter frame: A CMSampleBuffer containing the captured frame data
-    nonisolated func processFrame(_ frame: CMSampleBuffer)
+    nonisolated func processFrame(_ pixelBuffer: CVPixelBuffer, timestamp: CMTime) async
     
     /// Start encoding video to a specified URL
     /// - Parameters:
-    ///   - url: The destination URL for the encoded video file
+    ///   - outputURL: The destination URL for the encoded video file
     ///   - width: The width of the video in pixels
     ///   - height: The height of the video in pixels
     /// - Throws: CursorWindowError if encoding initialization fails
-    func startEncoding(to url: URL, width: Int, height: Int) async throws
+    nonisolated func startEncoding(to outputURL: URL, width: Int, height: Int) async throws
+    
+    /// Start encoding video to a specified URL with a completion handler
+    /// - Parameters:
+    ///   - outputURL: The destination URL for the encoded video file
+    ///   - width: The width of the video in pixels
+    ///   - height: The height of the video in pixels
+    ///   - completionHandler: A closure to handle the result of the encoding operation
+    /// - Throws: CursorWindowError if encoding initialization fails
+    nonisolated func startEncoding(to outputURL: URL, width: Int, height: Int, completionHandler: @escaping (CMSampleBuffer, Error?, Bool) -> Void) async throws
     
     /// Stop the current encoding session and finalize the video file
-    func stopEncoding() async
+    nonisolated func stopEncoding() async
 }
 
 /// A protocol for managing screen capture operations.
@@ -70,6 +86,15 @@ import AVFoundation
 @preconcurrency public protocol EncodingControlViewModel {
     /// The frame processor responsible for encoding frames to video
     nonisolated var frameProcessor: EncodingFrameProcessorProtocol { get }
+    
+    /// The encoding settings for the video
+    nonisolated var encodingSettings: EncodingSettings { get async }
+    
+    /// Start encoding with current settings
+    func startEncoding() async throws
+    
+    /// Stop encoding and clean up resources
+    func stopEncoding() async
 }
 
 /// A protocol for managing viewport positioning and visibility.
@@ -125,4 +150,5 @@ public enum CaptureError: Error {
 
 #else
 #error("SharedTypes is only available on macOS 14.0 or later")
+#endif
 #endif 

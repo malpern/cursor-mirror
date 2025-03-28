@@ -297,3 +297,192 @@ swift test
 ## License
 
 MIT License - See LICENSE file for details
+
+## Development Roadmap (April 2025)
+
+### Issue Assessment and Remediation Plan
+
+#### Current Issues
+
+##### Critical Issues
+1. **Actor Isolation Conflicts**: 
+   - `H264VideoEncoder` has inconsistent isolation patterns
+   - `EncodingSettings` access patterns mix direct and async approaches
+   - Multiple compiler warnings about actor isolation
+
+2. **Inconsistent State Management**:
+   - Multiple independently managed copies of settings
+   - Asynchronous updates not properly propagated
+
+3. **Build Failures**:
+   - Type mismatches when passing settings between components
+   - Missing or outdated method references
+
+##### Major Issues
+1. **UI Architecture Problems**:
+   - Duplicate UI implementation between views
+   - Inconsistent binding patterns
+   - Mixed state management approaches
+
+2. **View Model Integration**:
+   - Improper initialization of view models
+   - Inconsistent usage of environment objects
+
+3. **Error Handling Gaps**:
+   - Inconsistent error propagation
+   - Missing user feedback for failures
+
+##### Minor Issues
+1. **Code Redundancy**:
+   - Multiple overlapping view components
+   - Duplicate initialization logic
+
+2. **Documentation Gaps**:
+   - Missing inline documentation
+   - Unclear architecture explanation
+
+3. **Test Coverage**:
+   - Outdated tests that use old patterns
+   - Missing tests for error cases
+
+#### Prioritized Issue List
+
+##### Priority 1 (Must Fix)
+1. ✅ Fix actor isolation conflicts in `H264VideoEncoder` and related components
+2. ✅ Resolve build failures from type mismatches
+3. ✅ Consolidate state management pattern for encoding settings
+4. ✅ Fix HLSEncodingAdapter interface mismatch with H264VideoEncoder
+5. ✅ Fix FrameProcessor protocol conformance issues
+6. ✅ Fix async Task handling in SwiftUI views
+
+##### Priority 2 (Important)
+1. ✅ Unify UI architecture across view components
+2. ✅ Fix view model initialization and integration
+3. 🔄 Implement consistent error handling
+4. ✅ Fix duplicate UI component declarations
+5. ✅ Fix async initialization in preview contexts
+
+##### Priority 3 (Necessary)
+1. 🔄 Remove code redundancies
+2. ⏳ Update and expand documentation
+3. ⏳ Fix and expand test coverage
+4. ✅ Fix mock implementation protocol conformance
+
+#### Remediation Plan
+
+##### Phase 1: Critical Fixes (Estimated: 4-6 hours)
+1. **Fix Actor Isolation**: ✅
+   - ✅ Update `H264VideoEncoder` to consistently use isolated properties
+   - ✅ Implement proper nonisolated access patterns
+   - ✅ Add clear actor boundaries with MainActor annotations
+
+2. **Resolve Type Mismatches**: ✅
+   - ✅ Standardize on async property access for actor-isolated objects
+   - ✅ Update all binding patterns to handle async access
+   - ✅ Fix initialization patterns for view models
+
+3. **Unify State Management**: ✅
+   - ✅ Consolidate `EncodingSettings` usage to a single source of truth
+   - ✅ Implement proper propagation of settings changes
+   - ✅ Add atomic update functions for settings
+
+4. **Fix Interface Mismatches**: ✅
+   - ✅ Update `HLSEncodingAdapter` to use new H264VideoEncoder interface
+   - ✅ Fix ViewportSize.defaultSize access in AppDelegate
+   - ✅ Update duplicate ViewportSize definitions
+   - ✅ Implement FrameProcessor protocol in processors
+
+5. **Fix Async Task Handling**: ✅
+   - ✅ Fix `Task` usage in SwiftUI views
+   - ✅ Use appropriate MainActor annotations to prevent isolation issues
+   - ✅ Implement proper state tracking with onChange for async UI updates
+
+##### Phase 2: Architecture Improvements (Estimated: 3-5 hours)
+1. **Unify UI Components**: ✅
+   - ✅ Create a single settings form component
+   - ✅ Implement proper async bindings
+   - ✅ Remove duplicate view implementations
+
+2. **Refactor View Models**: ✅
+   - ✅ Standardize initialization patterns
+   - ✅ Implement proper environment object usage
+   - ✅ Fix preview providers
+
+3. **Error Handling**: 🔄
+   - 🔄 Implement consistent error flow
+   - ⏳ Add user feedback for failures
+   - ⏳ Handle edge cases properly
+
+4. **Fix Duplicate Declarations**: ✅
+   - ✅ Resolve duplicate implementations of EncodingControlView
+   - ✅ Fix conflicting mock class declarations
+   - ✅ Ensure proper optional handling for environment objects
+
+5. **Improve Asynchronous Preview Support**: ✅
+   - ✅ Add shared instances for view models to avoid async initialization in previews
+   - ✅ Use factory methods for preview providers
+
+##### Phase 3: Cleanup and Documentation (Estimated: 2-3 hours)
+1. **Code Cleanup**: 🔄
+   - 🔄 Remove redundant components
+   - ⏳ Fix naming inconsistencies
+   - ⏳ Improve code organization
+
+2. **Documentation**: ⏳
+   - ⏳ Add comprehensive inline documentation
+   - ⏳ Update architecture explanation
+   - ⏳ Document known limitations
+
+3. **Testing**: ⏳
+   - ⏳ Update tests for new patterns
+   - ⏳ Add missing test cases
+   - ⏳ Validate all user flows
+
+4. **Mock Implementations**: ✅
+   - ✅ Fix MockFrameProcessor to properly implement BasicFrameProcessorProtocol
+   - ✅ Fix MockEncodingProcessor to implement EncodingFrameProcessorProtocol
+   - ✅ Update preview providers to handle async initialization
+
+#### Implementation Progress
+
+- **Phase 1.1**: ✅ Fixed primary actor isolation issues in `EncodingSettings` and `H264VideoEncoder`
+- **Phase 1.2**: ✅ Updated binding patterns to use async access with Task-based updates
+- **Phase 1.3**: ✅ Implemented unified settings form component with proper actor isolation
+- **Phase 1.4**: ✅ Fixed HLSEncodingAdapter to use new H264VideoEncoder interface
+- **Phase 1.5**: ✅ Fixed FrameProcessor protocol implementation in processors
+- **Phase 1.6**: ✅ Fixed Task usage in SwiftUI views to prevent mutating self errors
+- **Phase 2.1**: ✅ Consolidated UI architecture with shared EncodingSettingsFormView
+- **Phase 2.2**: ✅ Standardized view model initialization with proper MainActor annotations
+- **Phase 2.3**: 🔄 In progress - Error handling improvements
+- **Phase 2.4**: ✅ Fixed duplicate view declarations (EncodingControlView)
+- **Phase 2.5**: ✅ Added shared instances for view models to avoid async initialization in previews
+- **Phase 3.1**: 🔄 In progress - Code cleanup (removed duplicate code in BasicFrameProcessor)
+- **Phase 3.2**: ⏳ Not started - Documentation updates
+- **Phase 3.3**: ⏳ Not started - Test updates
+- **Phase 3.4**: ✅ Fixed mock implementation protocol conformance
+
+**Current Build Status**: 🎉 **SUCCESS!** The application now builds successfully. We've addressed all the critical issues:
+
+1. ✅ Fixed the HLSEncodingAdapter to use the new H264VideoEncoder interface
+2. ✅ Resolved ambiguous method calls in H264VideoEncoder by renaming methods
+3. ✅ Removed duplicate EncodingControlView implementation from MainView.swift
+4. ✅ Fixed ViewportSize usage in DraggableViewport.swift to use the proper ViewportSize.defaultSize() method
+5. ✅ Fixed mock implementations to conform to their protocols
+6. ✅ Fixed the environment object optional unwrapping in MainView
+7. ✅ Fixed preview providers to handle async initialization properly
+8. ✅ Made processors conform to FrameProcessor protocol
+9. ✅ Added shared instances for view models to avoid async initialization issues
+10. ✅ Fixed Task usage in SwiftUI views to prevent mutating self errors
+11. ✅ Applied @MainActor where needed to ensure proper actor isolation
+
+There are still several warnings about 'await' expressions with no async operations, but these do not prevent building and are not critical issues. They can be addressed in the cleanup phase.
+
+The next steps should focus on:
+1. Cleaning up the remaining warnings
+2. Improving error handling
+3. Expanding test coverage
+4. Updating documentation to reflect all the architectural changes
+
+
+
+

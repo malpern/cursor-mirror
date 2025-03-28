@@ -134,35 +134,64 @@ public actor HLSEncodingAdapter {
         _ = try await segmentManager.startNewSegment(quality: streamQuality, formatDescription: formatDescription)
         logger.info("Started new segment")
         
-        // Create encoder settings from HLS settings
-        let resolution = CGSize(
-            width: encoderSettings.resolution.width,
-            height: encoderSettings.resolution.height
-        )
-        let encoderSettingsFromHLS = H264EncoderSettings.defaultSettings(for: resolution)
+        // Create a temporary URL for the encoder
+        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("temp_hls_stream.mp4")
         
-        // Convert settings to dictionary for the encoder
-        let settingsDict: [String: Any] = [
-            "width": encoderSettingsFromHLS.resolution.width,
-            "height": encoderSettingsFromHLS.resolution.height,
-            "fps": encoderSettingsFromHLS.fps,
-            "bitrate": encoderSettingsFromHLS.bitrate,
-            "keyframeInterval": encoderSettingsFromHLS.keyframeInterval,
-            "profileLevel": encoderSettingsFromHLS.profileLevel
-        ]
-        
-        // Start encoder with callback
-        try await videoEncoder.startEncoding(settings: settingsDict) { [weak self] encodedData, presentationTimeStamp, isKeyFrame in
-            guard let self = self else { return }
-            
-            Task {
-                try await self.processEncodedData(
-                    data: encodedData,
-                    presentationTimeStamp: presentationTimeStamp,
-                    isKeyFrame: isKeyFrame
+        // Start encoder with callback using the new method signature
+        try await videoEncoder.startEncoding(
+            to: tempURL,
+            width: Int(encoderSettings.resolution.width),
+            height: Int(encoderSettings.resolution.height),
+            completionHandler: { [weak self] sampleBuffer, error, isComplete in
+                guard let self = self, error == nil else {
+                    self?.logger.error("Error in encoding callback: \(error?.localizedDescription ?? "unknown error")")
+                    return
+                }
+                
+                // Extract CMBlockBuffer and create Data from it
+                guard let dataBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+                    return
+                }
+                
+                var dataLength = 0
+                var dataPointer: UnsafeMutablePointer<Int8>?
+                let status = CMBlockBufferGetDataPointer(
+                    dataBuffer,
+                    atOffset: 0,
+                    lengthAtOffsetOut: nil,
+                    totalLengthOut: &dataLength,
+                    dataPointerOut: &dataPointer
                 )
+                
+                guard status == kCMBlockBufferNoErr, let ptr = dataPointer else {
+                    return
+                }
+                
+                let data = Data(bytes: ptr, count: dataLength)
+                let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                
+                // Determine if frame is a keyframe
+                var isKeyFrame = false
+                if let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, createIfNecessary: false) as? [[CFString: Any]] {
+                    if let notSync = attachments.first?[kCMSampleAttachmentKey_NotSync] as? Bool {
+                        isKeyFrame = !notSync
+                    }
+                }
+                
+                // Process the encoded data
+                Task {
+                    do {
+                        try await self.processEncodedData(
+                            data: data,
+                            presentationTimeStamp: presentationTime,
+                            isKeyFrame: isKeyFrame
+                        )
+                    } catch {
+                        self.logger.error("Failed to process encoded data: \(error)")
+                    }
+                }
             }
-        }
+        )
         
         isEncoding = true
         logger.info("Started encoding for HLS streaming at quality \(self.streamQuality.rawValue)")
@@ -289,18 +318,5 @@ public actor HLSEncodingAdapter {
             throw HLSEncodingError.appendSampleBufferFailed(reason: error.localizedDescription)
         }
     }
-    
-    /// Start encoding with the specified settings
-    public func startEncoding(settings: HLSEncodingSettings) async throws {
-        guard !isEncoding else {
-            throw HLSEncodingError.alreadyEncoding
-        }
-        
-        // Initialize encoding with settings
-        try await videoEncoder.startEncoding(
-            to: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("temp_video.mp4"),
-            width: Int(settings.resolution.width),
-            height: Int(settings.resolution.height)
-        )
-    }
-} 
+}
+

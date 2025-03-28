@@ -124,10 +124,18 @@ private final class MockBasicFrameProcessor: BasicFrameProcessorProtocol {
         return _processedFrameCount
     }
     
-    nonisolated func processFrame(_ frame: CMSampleBuffer) {
+    nonisolated func processFrame(_ sampleBuffer: CMSampleBuffer) async throws -> Data? {
         lock.lock()
         defer { lock.unlock() }
         _processedFrameCount += 1
+        return nil
+    }
+    
+    nonisolated func processFrame(_ pixelBuffer: CVPixelBuffer, timestamp: CMTime) async throws -> Data? {
+        lock.lock()
+        defer { lock.unlock() }
+        _processedFrameCount += 1
+        return nil
     }
 }
 
@@ -139,5 +147,39 @@ final class MockViewportManager: ViewportManagerProtocol {
     var bounds: CGRect {
         get { mockBounds }
         set { mockBounds = newValue }
+    }
+}
+
+class MockFrameProcessor: BasicFrameProcessorProtocol, FrameProcessor {
+    // Use an actor for thread-safe counter access
+    private actor Counter {
+        var count = 0
+        
+        func increment() {
+            count += 1
+        }
+        
+        func getCount() -> Int {
+            return count
+        }
+    }
+    
+    private let counter = Counter()
+    
+    // Async-safe frame count access
+    nonisolated var processedFrameCount: Int {
+        get async {
+            await counter.getCount()
+        }
+    }
+    
+    nonisolated func processFrame(_ sampleBuffer: CMSampleBuffer) async throws -> Data? {
+        await counter.increment()
+        return nil
+    }
+    
+    nonisolated func processFrame(_ pixelBuffer: CVPixelBuffer, timestamp: CMTime) async throws -> Data? {
+        await counter.increment()
+        return nil
     }
 }

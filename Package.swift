@@ -18,10 +18,9 @@ let package = Package(
             targets: ["CursorWindow"])
     ],
     dependencies: [
-        .package(url: "https://github.com/vapor/vapor", from: "4.76.0"),
-        .package(url: "https://github.com/vapor/leaf", from: "4.2.0"),
-        .package(url: "https://github.com/apple/swift-metrics.git", from: "2.0.0"),
-        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.3.0")
+        .package(url: "https://github.com/vapor/vapor", from: "4.0.0"),
+        .package(url: "https://github.com/vapor/leaf", from: "4.0.0"),
+        .package(url: "https://github.com/apple/swift-metrics.git", from: "2.0.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -32,16 +31,10 @@ let package = Package(
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "Leaf", package: "leaf"),
                 .product(name: "Metrics", package: "swift-metrics")
-            ],
-            swiftSettings: [
-                .unsafeFlags(["-cross-module-optimization"], .when(configuration: .release))
             ]),
         .executableTarget(
             name: "CursorWindow",
-            dependencies: ["CursorWindowCore"],
-            swiftSettings: [
-                .unsafeFlags(["-cross-module-optimization"], .when(configuration: .release))
-            ]),
+            dependencies: ["CursorWindowCore"]),
         .testTarget(
             name: "CursorWindowCoreTests",
             dependencies: [
